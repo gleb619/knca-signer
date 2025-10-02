@@ -1,0 +1,154 @@
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta content="text/html; charset=utf-8" http-equiv="content-type">
+    <meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport">
+
+    <!-- Primary Meta Tags -->
+    <title>knca-signer</title>
+    <meta content="An application for creating a test CA, signing XML using NCALayer and test user certificate, verifying xml signatures using Kalkan."
+          name="title">
+    <meta content="A comprehensive web application for testing digital signatures with NCALayer. Create test CAs, sign XML documents, and verify signatures using Kazakhstani digital certificates."
+          name="description">
+    <meta content="NCALayer, digital signature, XML signing, Kazakhstan, e-signature, PKI, certificate authority, Kalkan"
+          name="keywords">
+    <meta content="@gleb619" name="author">
+    <meta content="index, follow" name="robots">
+    <meta content="English, Kazakh, Russian" name="language">
+
+    <!-- Open Graph / Facebook -->
+    <meta content="website" property="og:type">
+    <meta content="https://github.com/gleb619/knca-signer" property="og:url">
+    <meta content="An application for creating a test CA, signing XML using NCALayer and test user certificate, verifying xml signatures using Kalkan."
+          property="og:title">
+    <meta content="Test digital signatures with NCALayer. Create CAs, sign XML, verify signatures using Kazakhstani certificates."
+          property="og:description">
+    <meta content="/src/assets/og-image.png" property="og:image">
+
+    <!-- Twitter -->
+    <meta content="summary_large_image" property="twitter:card">
+    <meta content="https://github.com/gleb619/knca-signer" property="twitter:url">
+    <meta content="An application for creating a test CA, signing XML using NCALayer and test user certificate, verifying xml signatures using Kalkan."
+          property="twitter:title">
+    <meta content="Test digital signatures with NCALayer. Create CAs, sign XML, verify signatures using Kazakhstani certificates."
+          property="twitter:description">
+    <meta content="/src/assets/twitter-image.png" property="twitter:image">
+
+    <!-- Favicon -->
+    <link href="/src/assets/favicon.ico" rel="icon" type="image/x-icon">
+    <link href="/src/assets/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180">
+    <link href="/src/assets/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png">
+    <link href="/src/assets/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png">
+    <link href="/src/assets/site.webmanifest" rel="manifest">
+
+    <!-- Canonical URL -->
+    <link href="https://pkigovkz.github.io/NCALayerJSExample/" rel="canonical">
+
+    <!-- Theme Color -->
+    <meta content="#2563eb" name="theme-color">
+    <meta content="#2563eb" name="msapplication-TileColor">
+
+    <!-- Preload critical resources -->
+    <!--<link rel="preload" href="/src/knca-signer.js" as="script">-->
+    <link href="//fonts.googleapis.com" rel="dns-prefetch">
+
+    <script src="/src/knca-signer.js" type="module"></script>
+</head>
+
+<body class="bg-nca" style="display: none" x-data="ncaApp">
+<div class="flex justify-end p-3">
+    <div class="relative inline-block w-10 mr-2 align-middle select-none">
+        <label
+                :class="isKK ? 'bg-blue-500' : 'bg-gray-300'"
+                class="toggle-label block overflow-hidden h-6 rounded-full cursor-pointer">
+            <input
+                    :class="isKK ? 'translate-x-full' : 'translate-x-0'"
+                    class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200"
+                    id="localeToggle"
+                    type="checkbox"
+                    x-model="isKK"
+                    x-on:change="changeLocale()"
+            >
+        </label>
+    </div>
+    &nbsp;
+    <label class="form-check-label" for="localeToggle" x-text="translate('toggleLabel')"></label>
+</div>
+
+<div class="flex justify-center items-center flex-col"
+     id="loading"
+     style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+    <br/>
+    <span class="text-white text-lg" x-text="translate('loading')"></span>
+</div>
+<!-- Tab Navigation -->
+<div class="container mx-auto pt-3">
+    <div class="flex justify-center gap-0">
+        <div :class="activeTab === 'certificate-authority' ? 'bg-white border-t-2 border-l-2 border-r-2 border-blue-500 text-blue-600 shadow-md' : 'text-gray-600 border-t-2 border-l-2 border-r-2 border-transparent hover:bg-blue-100 hover:text-gray-800'"
+             class="tab-modern py-3 px-6 font-medium rounded-t-lg shadow-sm transition-all duration-200 flex-shrink-0"
+             id="certificate-authority-tab"
+             role="tab"
+             type="button"
+             x-on:click="activeTab = 'certificate-authority'">
+            Certificate Authority
+        </div>
+        <button :class="activeTab === 'xml-signer' ? 'bg-white border-t-2 border-l-2 border-r-2 border-blue-500 text-blue-600 shadow-md' : 'text-gray-600 border-t-2 border-l-2 border-r-2 border-transparent hover:bg-blue-100 hover:text-gray-800'"
+                class="tab-modern py-3 px-6 font-medium rounded-t-lg shadow-sm transition-all duration-200 flex-shrink-0"
+                id="xml-signer-tab"
+                role="tab" type="button" x-on:click="activeTab = 'xml-signer'">
+            XML Signer
+        </button>
+        <button :class="activeTab === 'xml-verifier' ? 'bg-white border-t-2 border-l-2 border-r-2 border-blue-500 text-blue-600 shadow-md' : 'text-gray-600 border-t-2 border-l-2 border-r-2 border-transparent hover:bg-blue-100 hover:text-gray-800'"
+                class="tab-modern py-3 px-6 font-medium rounded-t-lg shadow-sm transition-all duration-200"
+                id="xml-verifier-tab"
+                role="tab" type="button" x-on:click="activeTab = 'xml-verifier'">
+            XML Verifier
+        </button>
+    </div>
+</div>
+
+<!-- Tab Content -->
+<div class="container mx-auto form-wrapper-nca py-5">
+    <!-- Certificate Authority Tab -->
+    <div hx-get="src/pages/certificator-tab.html"
+         hx-swap="outerHTML"
+         hx-target="this"
+         hx-trigger="load"
+         x-cloak x-show="activeTab === 'certificate-authority'">
+        <div class="text-center py-5">
+            <div class="animate-pulse">
+                <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
+                <div class="h-4 bg-gray-300 rounded w-1/2 mx-auto"></div>
+            </div>
+            <p class="text-gray-600 mt-4">Loading Certificate Authority Creator...</p>
+        </div>
+    </div>
+
+    <!-- XML Signer Tab -->
+    <div hx-get="src/pages/xml-signer-tab.html"
+         hx-swap="outerHTML"
+         hx-target="this"
+         hx-trigger="load"
+         x-cloak x-show="activeTab === 'xml-signer'">
+        <div class="text-center py-5">
+            <div class="animate-pulse">
+                <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
+                <div class="h-4 bg-gray-300 rounded w-1/2 mx-auto"></div>
+            </div>
+            <p class="text-gray-600 mt-4">Loading XML Signer...</p>
+        </div>
+    </div>
+
+    <!-- XML Verifier Tab -->
+    <div x-cloak x-show="activeTab === 'xml-verifier'" x-transition>
+        <div class="text-center py-5">
+            <h3>XML Verifier</h3>
+            <p class="text-gray-600">XML signature verification functionality will be implemented here.</p>
+        </div>
+    </div>
+</div>
+</body>
+
+</html>

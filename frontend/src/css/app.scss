@@ -1,0 +1,83 @@
+.bg-nca {
+    background: linear-gradient(-45deg, #FDE68A, #93C5FD);
+    padding: 12px;
+}
+
+.form-wrapper-nca {
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    padding: 32px 40px 36px 40px;
+}
+
+.sample-title {
+    display: block;
+    font-size: 28px;
+    font-weight: bold;
+    color: #374151;
+    line-height: 1.2;
+    text-align: center;
+    padding-bottom: 32px;
+}
+
+.wrap-input {
+    width: 100%;
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.radio-label {
+    padding-right: 40px;
+}
+
+.form-radio {
+    display: flex;
+}
+
+.form-radio .form-check {
+    margin-right: 32px;
+}
+
+.label-input {
+    font-size: 12px;
+    color: #6B7280;
+    line-height: 1.4;
+}
+
+.param-title {
+    font-weight: bold;
+    margin-bottom: 16px;
+}
+
+.param-title .description {
+    font-size: 12px;
+    color: #6B7280;
+    line-height: 1.4;
+}
+
+.sample-btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0 16px;
+    width: 100%;
+    height: 44px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    line-height: 1.2;
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+.tab-modern {
+    transition: all 0.2s ease;
+    cursor: pointer;
+    min-width: 180px;
+}
+
+.tab-modern:hover {
+    transform: translateY(-2px);
+}

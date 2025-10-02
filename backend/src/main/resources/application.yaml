@@ -1,0 +1,26 @@
+http:
+  port: 8080
+  host: "0.0.0.0"
+
+cors:
+  allowedOrigins: "*"
+  allowedMethods: [ "GET", "POST", "PUT", "DELETE" ]
+  allowedHeaders: [ "Content-Type", "Authorization" ]
+
+websocket:
+  path: "/ws"
+
+staticConfig:
+  webRoot: "static"
+
+logging:
+  level: "INFO"
+
+certificate:
+  certsPath: "certs/"
+  caCertPath: "certs/ca.crt"
+  keySize: 2048
+  signatureAlgorithm: "1.2.840.113549.1.1.11"
+  keystorePassword: "123456"
+  caValidityYears: 10
+  userValidityYears: 1

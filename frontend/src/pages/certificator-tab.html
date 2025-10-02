@@ -1,0 +1,259 @@
+<!-- Certificate Manager Tab -->
+<div class="max-w-7xl mx-auto" x-data="certificatorTab"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-end="opacity-100 transform translate-x-0"
+     x-transition:enter-start="opacity-0 transform translate-x-4"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-end="opacity-0 transform -translate-x-4"
+     x-transition:leave-start="opacity-100 transform translate-x-0">
+    <div class="flex flex-col gap-6" x-cloak x-show="activeTab === 'certificate-authority'">
+
+        <!-- Header with title and main generate CA button -->
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900">
+                    Certificate Authority Manager
+                </h2>
+                <p class="text-gray-600 mt-1">
+                    Generate and manage CA, User, and Legal certificates
+                </p>
+            </div>
+            <button :disabled="generatingCA"
+                    @click="generateCA"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="!generatingCA">
+                    <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round" stroke-linejoin="round"
+                          stroke-width="2"/>
+                </svg>
+                <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                     x-show="generatingCA">
+                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0-4H9m11 11v-5h-.581m0 0H15m5.356-4A8.001 8.001 0 0014.418 15"
+                          stroke-linecap="round" stroke-linejoin="round"
+                          stroke-width="2"/>
+                </svg>
+                <span x-text="generatingCA ? 'Generating CA...' : 'Generate CA'"></span>
+            </button>
+        </div>
+
+        <!-- Error/Success Messages -->
+        <div :class="errorMessage ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'"
+             class="rounded-lg p-4"
+             x-show="errorMessage || successMessage"
+             x-transition>
+            <div class="flex items-center justify-between">
+                <span x-text="errorMessage || successMessage"></span>
+                <button @click="clearMessages" class="text-current hover:opacity-75">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- CA Certificates List -->
+        <div class="space-y-4">
+            <template :key="caId" x-for="(ca, caId) in certificates.ca">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <!-- CA Header -->
+                    <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                        <path clip-rule="evenodd"
+                                              d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                                              fill-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900" x-text="'CA: ' + ca.alias"></h3>
+                                    <p class="text-sm text-gray-600" x-text="ca.subject"></p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <!-- Generate User Button -->
+                                <button :disabled="generatingUser"
+                                        @click="generateUser(caId)"
+                                        class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                        title="Generate User Certificate">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                         x-show="!generatingUser">
+                                        <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round"
+                                              stroke-linejoin="round"
+                                              stroke-width="2"/>
+                                    </svg>
+                                    <span x-text="generatingUser ? '...' : 'User'"></span>
+                                </button>
+                                <!-- Generate Legal Button -->
+                                <button :disabled="generatingLegal"
+                                        @click="generateLegal(caId)"
+                                        class="px-3 py-1 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                        title="Generate Legal Certificate">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                         x-show="!generatingLegal">
+                                        <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round"
+                                              stroke-linejoin="round"
+                                              stroke-width="2"/>
+                                    </svg>
+                                    <span x-text="generatingLegal ? '...' : 'Legal'"></span>
+                                </button>
+                                <!-- Expand/Collapse Button -->
+                                <button @click="toggleCAExpansion(caId)"
+                                        class="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 flex items-center gap-1">
+                                    <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor"
+                                         viewBox="0 0 24 24" x-show="!expandedCAs[caId]">
+                                        <path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"
+                                              stroke-width="2"/>
+                                    </svg>
+                                    <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor"
+                                         viewBox="0 0 24 24" x-show="expandedCAs[caId]">
+                                        <path d="M5 15l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"
+                                              stroke-width="2"/>
+                                    </svg>
+                                    <span x-text="expandedCAs[caId] ? 'Collapse' : 'Expand'"></span>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- CA Certificate Details -->
+                        <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <span class="text-gray-500">Valid From:</span>
+                                <span class="ml-2 text-gray-900" x-text="formatDate(ca.notBefore)"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Valid Until:</span>
+                                <span class="ml-2 text-gray-900" x-text="formatDate(ca.notAfter)"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Alias:</span>
+                                <button @click="copyToClipboard(ca.alias)"
+                                        class="ml-2 text-blue-600 hover:text-blue-800 underline" title="Click to copy"
+                                        x-text="ca.alias"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Expandable Content -->
+                    <div class="border-t border-gray-200"
+                         x-show="expandedCAs[caId]"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-end="opacity-100 max-h-screen"
+                         x-transition:enter-start="opacity-0 max-h-0"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-end="opacity-0 max-h-0"
+                         x-transition:leave-start="opacity-100 max-h-screen">
+
+                        <!-- User Certificates -->
+                        <div class="p-4 bg-green-50 border-b border-green-200">
+                            <h4 class="text-sm font-semibold text-green-800 mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path clip-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                                          fill-rule="evenodd"/>
+                                </svg>
+                                User Certificates (<span x-text="getUsersForCA(caId).length"></span>)
+                            </h4>
+                            <div class="text-green-600 text-sm italic" x-show="getUsersForCA(caId).length === 0">
+                                No user certificates for this CA
+                            </div>
+                            <div class="space-y-2" x-show="getUsersForCA(caId).length > 0">
+                                <div :key="cert.alias" class="bg-white rounded p-3 border border-green-300"
+                                     x-for="cert in getUsersForCA(caId)">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="font-medium text-green-800" x-text="cert.alias"></span>
+                                        <button @click="copyToClipboard(cert.alias)"
+                                                class="text-green-600 hover:text-green-800"
+                                                title="Copy alias">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                                      stroke-linecap="round" stroke-linejoin="round"
+                                                      stroke-width="2"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 text-xs text-green-700">
+                                        <div><span class="font-medium">Email:</span> <span
+                                                x-text="cert.email || 'N/A'"></span></div>
+                                        <div><span class="font-medium">IIN:</span>
+                                            <button @click="copyToClipboard(cert.iin)" class="hover:underline"
+                                                    x-text="cert.iin"></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Legal Certificates -->
+                        <div class="p-4 bg-orange-50">
+                            <h4 class="text-sm font-semibold text-orange-800 mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path clip-rule="evenodd"
+                                          d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2H8a2 2 0 01-2-2v-2z"
+                                          fill-rule="evenodd"/>
+                                </svg>
+                                Legal Certificates (<span x-text="getLegalsForCA(caId).length"></span>)
+                            </h4>
+                            <div class="text-orange-600 text-sm italic" x-show="getLegalsForCA(caId).length === 0">
+                                No legal certificates for this CA
+                            </div>
+                            <div class="space-y-2" x-show="getLegalsForCA(caId).length > 0">
+                                <div :key="cert.alias" class="bg-white rounded p-3 border border-orange-300"
+                                     x-for="cert in getLegalsForCA(caId)">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="font-medium text-orange-800" x-text="cert.alias"></span>
+                                        <button @click="copyToClipboard(cert.alias)"
+                                                class="text-orange-600 hover:text-orange-800"
+                                                title="Copy alias">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                                      stroke-linecap="round" stroke-linejoin="round"
+                                                      stroke-width="2"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 text-xs text-orange-700">
+                                        <div><span class="font-medium">Email:</span> <span
+                                                x-text="cert.email || 'N/A'"></span></div>
+                                        <div><span class="font-medium">BIN:</span>
+                                            <button @click="copyToClipboard(cert.bin)" class="hover:underline"
+                                                    x-text="cert.bin || 'N/A'"></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Empty state when no CAs -->
+            <div class="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200"
+                 x-show="Object.keys(certificates.ca).length === 0">
+                <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4"
+                          stroke-linecap="round" stroke-linejoin="round"
+                          stroke-width="2"/>
+                </svg>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">No Certificate Authorities</h3>
+                <p class="text-gray-600 mb-6">
+                    Generate your first Certificate Authority to get started with certificate management.
+                </p>
+                <button :disabled="generatingCA"
+                        @click="generateCA"
+                        class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="!generatingCA">
+                        <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round" stroke-linejoin="round"
+                              stroke-width="2"/>
+                    </svg>
+                    <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                         x-show="generatingCA">
+                        <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0-4H9m11 11v-5h-.581m0 0H15m5.356-4A8.001 8.001 0 0014.418 15"
+                              stroke-linecap="round" stroke-linejoin="round"
+                              stroke-width="2"/>
+                    </svg>
+                    <span x-text="generatingCA ? 'Generating CA...' : 'Generate First CA'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,174 @@
+package knca.signer;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.DatabindCodec;
+import io.vertx.ext.web.Router;
+import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.junit5.VertxExtension;
+import io.vertx.junit5.VertxTestContext;
+import knca.signer.service.CertificateService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Integration tests for CertificateHandler HTTP endpoints
+ */
+@ExtendWith(VertxExtension.class)
+public class CertificateHandlerIT {
+
+    private CertificateService certificateService;
+    private CertificateHandler certificateHandler;
+    private int serverPort;
+
+    private Path tempDir;
+
+    @BeforeEach
+    void setUp(Vertx vertx, VertxTestContext testContext) throws Exception {
+        // Create a temporary directory for certificate storage
+        tempDir = Files.createTempDirectory("knca-signer-test-");
+
+        // Create config for CertificateService
+        java.security.Provider realProvider = knca.signer.security.KalkanRegistry.loadRealKalkanProvider();
+        knca.signer.config.ApplicationConfig.CertificateConfig config = new knca.signer.config.ApplicationConfig.CertificateConfig(
+                "certs/",
+                "certs/ca.crt",
+                2048,
+                "1.2.840.113549.1.1.11",
+                "123456",
+                10,
+                1
+        );
+
+        // Create real CertificateService - no mocking
+        certificateService = new CertificateService(realProvider, config).init();
+        System.out.println("Using real CertificateService for integration tests");
+
+        DatabindCodec.mapper()
+                .registerModule(new JavaTimeModule())
+                .setSerializationInclusion(JsonInclude.Include.NON_NULL)
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+
+        certificateHandler = new CertificateHandler(certificateService);
+
+        // Set up routes
+        Router router = Router.router(vertx);
+        router.route().handler(BodyHandler.create());
+
+        // Certificate operations - split endpoints
+        router.get("/certificates/ca").handler(certificateHandler.handleGetCACertificate());
+        router.get("/certificates/user").handler(certificateHandler.handleGetUserCertificate());
+        router.get("/certificates/legal").handler(certificateHandler.handleGetLegalCertificate());
+        router.post("/certificates/generate/ca").handler(certificateHandler.handleGenerateCACertificate());
+        router.post("/certificates/generate/user").handler(certificateHandler.handleGenerateUserCertificate());
+        router.post("/certificates/generate/legal").handler(certificateHandler.handleGenerateLegalCertificate());
+
+        // Start server on a random available port
+        vertx.createHttpServer()
+                .requestHandler(router)
+                .listen(0) // Use 0 to get a random available port
+                .onComplete(testContext.succeeding(server -> {
+                    serverPort = server.actualPort();
+                    System.out.println("Integration test server started on port: " + serverPort);
+                    testContext.completeNow();
+                }));
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        // Clean up temporary directory
+        if (tempDir != null && Files.exists(tempDir)) {
+            // Delete all files in the temp directory
+            Files.walk(tempDir)
+                    .filter(Files::isRegularFile)
+                    .forEach(file -> {
+                        try {
+                            Files.delete(file);
+                        } catch (Exception e) {
+                            System.err.println("Failed to delete temp file: " + file + " - " + e.getMessage());
+                        }
+                    });
+            // Delete the directory itself
+            try {
+                Files.delete(tempDir);
+            } catch (Exception e) {
+                System.err.println("Failed to delete temp directory: " + tempDir + " - " + e.getMessage());
+            }
+        }
+    }
+
+    @Test
+    void testGenerateUserCertificate(Vertx vertx, VertxTestContext testContext) throws Exception {
+        HttpClient client = vertx.createHttpClient();
+
+        client.request(HttpMethod.POST, serverPort, "localhost", "/certificates/generate/user")
+                .compose(HttpClientRequest::send)
+                .onComplete(testContext.succeeding(response -> {
+                    testContext.verify(() -> {
+                        assertEquals(200, response.statusCode());
+                    });
+
+                    response.body().onComplete(testContext.succeeding(buffer -> {
+                        testContext.verify(() -> {
+                            JsonObject json = new JsonObject(buffer.toString());
+                            assertEquals("user", json.getString("type"));
+                            String alias = json.getString("alias");
+                            assertNotNull(alias);
+                            assertTrue(alias.startsWith("user-"));
+                            assertNotNull(json.getString("email"));
+                            assertNotNull(json.getString("iin"));
+                            assertNotNull(json.getString("subject"));
+                            assertTrue(json.getBoolean("generated"));
+                            assertEquals("default", json.getString("caId"));
+                        });
+                        testContext.completeNow();
+                    }));
+                }));
+    }
+
+    @Test
+    void testGenerateLegalEntityCertificate(Vertx vertx, VertxTestContext testContext) throws Exception {
+        HttpClient client = vertx.createHttpClient();
+
+        client.request(HttpMethod.POST, serverPort, "localhost", "/certificates/generate/legal")
+                .compose(HttpClientRequest::send)
+                .onComplete(testContext.succeeding(response -> {
+                    testContext.verify(() -> {
+                        assertEquals(200, response.statusCode());
+                    });
+
+                    response.body().onComplete(testContext.succeeding(buffer -> {
+                        testContext.verify(() -> {
+                            JsonObject json = new JsonObject(buffer.toString());
+                            assertEquals("legal", json.getString("type"));
+                            String alias = json.getString("alias");
+                            assertNotNull(alias);
+                            assertTrue(alias.startsWith("legal-"));
+                            assertNotNull(json.getString("email"));
+                            assertNotNull(json.getString("iin"));
+                            assertNotNull(json.getString("bin"));
+                            assertNotNull(json.getString("subject"));
+                            assertTrue(json.getBoolean("generated"));
+                            assertEquals("default", json.getString("caId"));
+                        });
+                        testContext.completeNow();
+                    }));
+                }));
+    }
+}

@@ -1,0 +1,25 @@
+.classpath
+.project
+.settings
+target
+.DS_Store
+/lib/kalkancrypt-0.7.5.jar
+/lib/kalkancrypt_xmldsig-0.4.jar
+/lib/knca_provider_util-0.8.6.jar
+/.history/
+
+# Bazel runtime files
+bazel-*
+.bazelrc
+user.bazelrc
+.ijwb/
+/.idea/
+*.iml
+*.ipr
+*.iws
+/.gradle/*
+/build/*
+/src/main/resources/static/assets/*
+/src/main/resources/static/index.html
+/src/main/resources/static/src/*
+/certs/*

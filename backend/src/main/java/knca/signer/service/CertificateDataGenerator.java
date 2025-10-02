@@ -1,0 +1,155 @@
+package knca.signer.service;
+
+import java.util.Random;
+
+/**
+ * Utility class for generating fake Kazakh certificate data.
+ */
+public class CertificateDataGenerator {
+    // OIDs for Kazakh extensions
+    public static final String IIN_OID = "1.2.398.3.3.4.1.1";
+    public static final String BIN_OID = "1.2.398.3.3.4.1.2";
+    private static final Random random = new Random();
+    // Kazakh names data
+    private static final String[] KAZAKH_SURNAMES = {
+            "ҚҰНАНБАЙ", "БӨКЕЙХАН", "БАЙТҰРСЫН", "ДУЛАТ", "ШОҚАЙ", "ӘЛІХАН", "АХМЕТ", "МҰСТАФА", "МІРЖАҚЫП", "НҰРМҰХАМЕД",
+            "ТӨЛЕУ", "СЕЙІТҚҰЛ", "ЖАНБОЛАТ", "ҚАЙРАТ", "ЕРЖАН", "СЕРІК", "ҚАЛДЫБАЙ", "БЕКЖАН", "НҰРБОЛ", "АЙДОС"
+    };
+    private static final String[] KAZAKH_GIVEN_NAMES = {
+            "АБАЙ", "ӘЛИХАН", "АХМЕТ", "МІРЖАҚЫП", "МҰСТАФА", "НҰРМҰХАМЕД", "БАЙТҰРСЫН", "ДУЛАТ", "ШОҚАЙ", "ҚҰНАНБАЙ",
+            "ЕРЖАН", "АЙДОС", "БЕКЖАН", "ҚАЙРАТ", "ТӨЛЕУ", "СЕРІК", "ЖАНБОЛАТ", "АРМАН", "ДӘУРЕН", "САҒАТ"
+    };
+    private static final String[] KAZAKH_PATRONYMICS = {
+            "ҚҰНАНБАЙҰЛЫ", "НҰРМҰХАМЕДҰЛЫ", "БАЙТҰРСЫНҰЛЫ", "ДУЛАТҰЛЫ", "ШОҚАЙҰЛЫ", "ӘЛИХАНҰЛЫ", "АХМЕТҰЛЫ", "МҰСТАФАҰЛЫ", "МІРЖАҚЫПҰЛЫ", "АБАЙҰЛЫ",
+            "ЕРЖАНҰЛЫ", "АЙДОСҰЛЫ", "БЕКЖАНҰЛЫ", "ҚАЙРАТҰЛЫ", "ТӨЛЕУҰЛЫ", "СЕРІКҰЛЫ", "ЖАНБОЛАТҰЛЫ", "АРМАНҰЛЫ", "ДӘУРЕНҰЛЫ", "САҒАТҰЛЫ"
+    };
+    private static final String[] KAZAKH_COMPANIES = {
+            "АЛАША ГРУПП", "ҚАЗАҚСТАН ЖОЛ СЕРВИСІ", "ҚАЗНҰНАЙ ЭНЕРДЖИ", "КАЗАЭЙР ЛОУКОСТЕР ЛАЙНЗ", "ҚАРЖЫ БАНК ҚАЗАҚСТАН",
+            "ОРДАСТРОЙ", "ҚАЗТЕХНОЛОГИЯ", "ASTANA TRADE", "ТАЛГАР БАНКІ", "QAZNETRANS LOGISTICS"
+    };
+    private static final String[] COMPANY_ROLES = {
+            "CHIEF_EXECUTIVE_OFFICER", "CHIEF_FINANCIAL_OFFICER", "CHIEF_TECHNOLOGY_OFFICER", "CHIEF_OPERATING_OFFICER",
+            "MANAGING_DIRECTOR", "DEPUTY_DIRECTOR", "HEAD_OF_DEPARTMENT", "PROJECT_MANAGER", "TEAM_LEAD", "SOFTWARE_ENGINEER",
+            "BUSINESS_ANALYST", "QUALITY_ASSURANCE_ENGINEER", "HR_MANAGER", "RECRUITER", "MARKETING_SPECIALIST",
+            "SALES_MANAGER", "CUSTOMER_SUPPORT_SPECIALIST", "ACCOUNTANT", "LEGAL_ADVISOR", "INTERN"
+    };
+    private static final String[] BUSINESS_CATEGORY = {
+            "KS00001", "KS00002", "KS00003", "KS00004", "KS00005",
+            "KS01001", "KS01002", "KS01003", "KS01004", "KS01005",
+            "KS02001", "KS02002", "KS02003", "KS02004", "KS02005",
+            "KS03001", "KS03002", "KS03003", "KS03004", "KS03005"
+    };
+    private static final String[] EMAIL_DOMAINS = {
+            "gmail.com", "mail.kz", "yandex.kz", "outlook.com"
+    };
+
+    /**
+     * Generate a random 12-digit IIN (Individual Identification Number).
+     */
+    public static String generateIIN() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 12; i++) {
+            sb.append(random.nextInt(10));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Generate a random 12-digit BIN (Business Identification Number).
+     * Same format as IIN.
+     */
+    public static String generateBIN() {
+        return generateIIN();
+    }
+
+    /**
+     * Generate a random alphanumeric string of specified length.
+     */
+    public static String generateRandomAlphanumeric(int length) {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Generate a random email address.
+     */
+    public static String generateEmail() {
+        String local = "user" + generateRandomAlphanumeric(8);
+        String domain = EMAIL_DOMAINS[random.nextInt(EMAIL_DOMAINS.length)];
+        return "%s@%s".formatted(local, domain);
+    }
+
+    /**
+     * Generate subject DN for an individual certificate.
+     */
+    public static String generateIndividualSubjectDN() {
+        String surname = KAZAKH_SURNAMES[random.nextInt(KAZAKH_SURNAMES.length)];
+        String givenName = KAZAKH_GIVEN_NAMES[random.nextInt(KAZAKH_GIVEN_NAMES.length)];
+        String patronymic = KAZAKH_PATRONYMICS[random.nextInt(KAZAKH_PATRONYMICS.length)];
+        String fullName = givenName + " " + surname;
+        String iin = generateIIN();
+        String email = generateEmail();
+        return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, G=%s, emailAddress=%s".formatted(fullName, surname, iin, patronymic, email);
+    }
+
+    /**
+     * Generate subject DN for a legal entity certificate.
+     */
+    public static String generateLegalEntitySubjectDN() {
+        String surname = KAZAKH_SURNAMES[random.nextInt(KAZAKH_SURNAMES.length)];
+        String givenName = KAZAKH_GIVEN_NAMES[random.nextInt(KAZAKH_GIVEN_NAMES.length)];
+        String patronymic = KAZAKH_PATRONYMICS[random.nextInt(KAZAKH_PATRONYMICS.length)];
+        String fullName = givenName + " " + surname;
+        String company = KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)];
+        String bin = generateBIN();
+        String iin = generateIIN();
+        String email = generateEmail();
+        String businessCategory = BUSINESS_CATEGORY[random.nextInt(KAZAKH_COMPANIES.length)];
+        String dc = COMPANY_ROLES[random.nextInt(KAZAKH_COMPANIES.length)];
+        return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, O=%s, OU=BIN%s, BusinessCategory=%s, G=%s, DC=%s, emailAddress=%s".formatted(
+                fullName, surname, iin, company, bin, businessCategory, patronymic, dc, email);
+    }
+
+    /**
+     * Extract email from subject DN.
+     */
+    public static String extractEmail(String dn) {
+        String[] parts = dn.split(", ");
+        for (String part : parts) {
+            if (part.startsWith("emailAddress=")) {
+                return part.substring("emailAddress=".length());
+            }
+        }
+        return "user@example.com";
+    }
+
+    /**
+     * Extract IIN from subject DN.
+     */
+    public static String extractIIN(String dn) {
+        String[] parts = dn.split(", ");
+        for (String part : parts) {
+            if (part.startsWith("SN=IIN")) {
+                return part.substring("SN=IIN".length());
+            }
+        }
+        return "123456789012";
+    }
+
+    /**
+     * Extract BIN from subject DN.
+     */
+    public static String extractBIN(String dn) {
+        String[] parts = dn.split(", ");
+        for (String part : parts) {
+            if (part.startsWith("OU=BIN")) {
+                return part.substring("OU=BIN".length());
+            }
+        }
+        return null;
+    }
+}
