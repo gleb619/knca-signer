@@ -30,15 +30,19 @@ public class CertificateService {
 
     public CertificateService init() {
         try {
-            // Generate default CA in memory
-            CertificateResult ca = generateCACertificate();
-            caCertificates.put(DEFAULT_CA_ALIAS, ca);
+            // Only generate default certificates if no certificates exist
+            //TODO: load certificates from folder in `config`
+            if (caCertificates.isEmpty() && userCertificates.isEmpty() && legalCertificates.isEmpty()) {
+                // Generate default CA in memory
+                CertificateResult ca = generateCACertificate();
+                caCertificates.put(DEFAULT_CA_ALIAS, ca);
 
-            // Generate user certificate
-            generateUserCertificate(DEFAULT_CA_ALIAS);
+                // Generate user certificate
+                generateUserCertificate(DEFAULT_CA_ALIAS);
 
-            // Generate legal certificate
-            generateLegalEntityCertificate(DEFAULT_CA_ALIAS);
+                // Generate legal certificate
+                generateLegalEntityCertificate(DEFAULT_CA_ALIAS);
+            }
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize CertificateService", e);
         }

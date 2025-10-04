@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import ncaApp from '../scripts/app.js';
+import ncaApp from '../src/scripts/app.js';
 
 test('ncaApp initializes with default values', () => {
   const instance = ncaApp();

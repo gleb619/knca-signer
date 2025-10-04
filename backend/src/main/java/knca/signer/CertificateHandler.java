@@ -30,22 +30,15 @@ public class CertificateHandler {
     }
 
     /**
-     * Handles requests to retrieve user certificate information.
+     * Handles requests to retrieve user certificate information for a specific CA.
      *
-     * @return Handler for getting user certificates
+     * @return Handler for getting user certificates for a CA
      */
     public Handler<RoutingContext> handleGetUserCertificate() {
-        return ctx -> handleGetCertificates(ctx, "user", certificateService.getUserCertificates(), this::buildEntityCertJson);
+        return ctx -> handleGetCertificatesForCA(ctx, "user", certificateService.getUserCertificates(), this::buildEntityCertJson);
     }
 
-    /**
-     * Handles requests to retrieve legal entity certificate information.
-     *
-     * @return Handler for getting legal certificates
-     */
-    public Handler<RoutingContext> handleGetLegalCertificate() {
-        return ctx -> handleGetCertificates(ctx, "legal", certificateService.getLegalCertificates(), this::buildEntityCertJson);
-    }
+
 
     /**
      * Handles requests to generate CA certificate.
@@ -80,6 +73,15 @@ public class CertificateHandler {
         return ctx -> handleGenerateEntityCert(ctx, "legal", "Legal", certificateService::generateLegalEntityCertificate);
     }
 
+    /**
+     * Handles requests to retrieve legal entity certificate information for a specific CA.
+     *
+     * @return Handler for getting legal certificates for a CA
+     */
+    public Handler<RoutingContext> handleGetLegalCertificate() {
+        return ctx -> handleGetCertificatesForCA(ctx, "legal", certificateService.getLegalCertificates(), this::buildEntityCertJson);
+    }
+
     /* ============= */
 
     private <T> void handleGetCertificates(RoutingContext ctx, String type, Map<String, T> certs, CertJsonBuilder<T> builder) {
@@ -87,6 +89,26 @@ public class CertificateHandler {
             log.info("Retrieving {} certificates", type);
             var result = new JsonObject();
             certs.forEach((alias, data) -> result.put(alias, builder.build(alias, data)));
+            sendJsonResponse(ctx, result);
+        } catch (Exception e) {
+            handleError(ctx, "retrieving " + type + " certificates", e);
+        }
+    }
+
+    private <T> void handleGetCertificatesForCA(RoutingContext ctx, String type, Map<String, T> certs, CertJsonBuilder<T> builder) {
+        try {
+            var caId = extractCaIdFromQuery(ctx);
+            log.info("Retrieving {} certificates for CA: {}", type, caId);
+            var result = new JsonObject();
+            certs.entrySet().stream()
+                    .filter(entry -> {
+                        if (type.equals("user") || type.equals("legal")) {
+                            var data = (CertificateService.CertificateData) entry.getValue();
+                            return caId.equals(data.getCaId());
+                        }
+                        return true; // For CA certificates, return all
+                    })
+                    .forEach(entry -> result.put(entry.getKey(), builder.build(entry.getKey(), entry.getValue())));
             sendJsonResponse(ctx, result);
         } catch (Exception e) {
             handleError(ctx, "retrieving " + type + " certificates", e);
@@ -133,6 +155,10 @@ public class CertificateHandler {
     private String extractCaId(RoutingContext ctx) {
         var body = ctx.getBodyAsJson();
         return body != null && body.containsKey("caId") ? body.getString("caId", "default") : "default";
+    }
+
+    private String extractCaIdFromQuery(RoutingContext ctx) {
+        return ctx.queryParam("caId").stream().findFirst().orElse("default");
     }
 
     private void sendJsonResponse(RoutingContext ctx, JsonObject json) {

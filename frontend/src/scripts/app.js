@@ -29,4 +29,9 @@ export default () => ({
         return window.knca.translator.t(key);
     },
 
+    clearMessages() {
+        this.errorMessage = '';
+        this.successMessage = '';
+    },
+
 });

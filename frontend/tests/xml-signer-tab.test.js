@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import xmlSignerTab from '../scripts/xml-signer-tab.js';
+import xmlSignerTab from '../src/scripts/xml-signer-tab.js';
 
 test('xmlSignerTab initializes with default values', () => {
   const instance = xmlSignerTab();

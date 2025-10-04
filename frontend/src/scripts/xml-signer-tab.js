@@ -39,11 +39,15 @@ export default () => ({
     maxLogs: 100,
     signingResolve: null,
 
-    init() {
-        this.connect();
+    initXmlSigner() {
+        this.connect(false).then((webSocket) => {
+            console.info("Connected to websocket");
+        }).catch((err) => {
+            console.error('Can\'t connect to websocket', err);
+        });
     },
 
-    connect() {
+    connect(shouldOpenDialog = true) {
         if (this.webSocket && this.webSocket.readyState < 2) {
             console.log(`reusing the socket connection [state = ${this.webSocket.readyState}]: ${this.webSocket.url}`);
             return Promise.resolve(this.webSocket);
@@ -85,7 +89,9 @@ export default () => ({
                 this.stopHeartbeat();
                 if (!event.wasClean && event.code !== 1000) {
                     this.errorMessage = 'Connection lost unexpectedly. Please try again.';
-                    this.openDialog();
+                    if(shouldOpenDialog) {
+                        this.openDialog();
+                    }
                 }
             };
 

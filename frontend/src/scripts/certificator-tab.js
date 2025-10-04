@@ -18,21 +18,37 @@ export default () => ({
 
     async loadCertificates() {
         try {
-            // Load all certificate types
-            const [caResponse, userResponse, legalResponse] = await Promise.all([
-                fetch('/api/certificates/ca'),
-                fetch('/api/certificates/user'),
-                fetch('/api/certificates/legal')
-            ]);
-
+            // First, load CA certificates
+            const caResponse = await fetch('/api/certificates/ca');
             this.certificates.ca = await caResponse.json();
-            this.certificates.user = await userResponse.json();
-            this.certificates.legal = await legalResponse.json();
 
             // Initialize expanded state for all CAs
             Object.keys(this.certificates.ca).forEach(caId => {
                 this.expandedCAs[caId] = false;
             });
+
+            // Load user and legal certificates for each CA
+            const certificatePromises = [];
+            Object.keys(this.certificates.ca).forEach(caId => {
+                certificatePromises.push(fetch(`/api/certificates/user?caId=${caId}`));
+                certificatePromises.push(fetch(`/api/certificates/legal?caId=${caId}`));
+            });
+
+            const responses = await Promise.all(certificatePromises);
+
+            // Process responses in pairs (user, legal for each CA)
+            let responseIndex = 0;
+            for (const caId of Object.keys(this.certificates.ca)) {
+                const userResponse = responses[responseIndex++];
+                const legalResponse = responses[responseIndex++];
+
+                const userCerts = await userResponse.json();
+                const legalCerts = await legalResponse.json();
+
+                // Merge with existing certificates
+                Object.assign(this.certificates.user, userCerts);
+                Object.assign(this.certificates.legal, legalCerts);
+            }
 
         } catch (error) {
             console.error('Failed to load certificates:', error);
@@ -183,8 +199,4 @@ export default () => ({
         document.body.removeChild(textArea);
     },
 
-    clearMessages() {
-        this.errorMessage = '';
-        this.successMessage = '';
-    }
 });
