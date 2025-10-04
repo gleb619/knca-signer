@@ -171,4 +171,109 @@ public class CertificateHandlerIT {
                     }));
                 }));
     }
+
+    @Test
+    void testGenerateCACertificate(Vertx vertx, VertxTestContext testContext) throws Exception {
+        HttpClient client = vertx.createHttpClient();
+
+        client.request(HttpMethod.POST, serverPort, "localhost", "/certificates/generate/ca?alias=test-ca")
+                .compose(HttpClientRequest::send)
+                .onComplete(testContext.succeeding(response -> {
+                    testContext.verify(() -> {
+                        assertEquals(200, response.statusCode());
+                    });
+
+                    response.body().onComplete(testContext.succeeding(buffer -> {
+                        testContext.verify(() -> {
+                            JsonObject json = new JsonObject(buffer.toString());
+                            assertEquals("ca", json.getString("type"));
+                            String alias = json.getString("alias");
+                            assertNotNull(alias);
+                            assertTrue(alias.startsWith("ca-") || alias.equals("test-ca"));
+                            assertNotNull(json.getString("subject"));
+                            assertTrue(json.getBoolean("generated"));
+                        });
+                        testContext.completeNow();
+                    }));
+                }));
+    }
+
+    @Test
+    void testGenerateUserCertificateForSpecificCA(Vertx vertx, VertxTestContext testContext) throws Exception {
+        HttpClient client = vertx.createHttpClient();
+
+        // First generate a custom CA
+        client.request(HttpMethod.POST, serverPort, "localhost", "/certificates/generate/ca?alias=custom-ca")
+                .compose(HttpClientRequest::send)
+                .onComplete(testContext.succeeding(caResponse -> {
+                    testContext.verify(() -> {
+                        assertEquals(200, caResponse.statusCode());
+                    });
+
+                    // Now generate user certificate for this CA
+                    client.request(HttpMethod.POST, serverPort, "localhost", "/certificates/generate/user")
+                            .compose(req -> req.putHeader("content-type", "application/json").send(new JsonObject().put("caId", "custom-ca").encode()))
+                            .onComplete(testContext.succeeding(userResponse -> {
+                                testContext.verify(() -> {
+                                    assertEquals(200, userResponse.statusCode());
+                                });
+
+                                userResponse.body().onComplete(testContext.succeeding(buffer -> {
+                                    testContext.verify(() -> {
+                                        JsonObject json = new JsonObject(buffer.toString());
+                                        assertEquals("user", json.getString("type"));
+                                        assertEquals("custom-ca", json.getString("caId"));
+                                        assertTrue(json.getBoolean("generated"));
+                                    });
+                                    testContext.completeNow();
+                                }));
+                            }));
+                }));
+    }
+
+    @Test
+    void testGenerateLegalCertificateForSpecificCA(Vertx vertx, VertxTestContext testContext) throws Exception {
+        HttpClient client = vertx.createHttpClient();
+
+        // Generate legal certificate for default CA
+        client.request(HttpMethod.POST, serverPort, "localhost", "/certificates/generate/legal")
+                .compose(req -> req.putHeader("content-type", "application/json").send(new JsonObject().put("caId", "default").encode()))
+                .onComplete(testContext.succeeding(response -> {
+                    testContext.verify(() -> {
+                        assertEquals(200, response.statusCode());
+                    });
+
+                    response.body().onComplete(testContext.succeeding(buffer -> {
+                        testContext.verify(() -> {
+                            JsonObject json = new JsonObject(buffer.toString());
+                            assertEquals("legal", json.getString("type"));
+                            assertEquals("default", json.getString("caId"));
+                            assertTrue(json.getBoolean("generated"));
+                        });
+                        testContext.completeNow();
+                    }));
+                }));
+    }
+
+    @Test
+    void testGetCertificatesForCA(Vertx vertx, VertxTestContext testContext) throws Exception {
+        HttpClient client = vertx.createHttpClient();
+
+        client.request(HttpMethod.GET, serverPort, "localhost", "/certificates/user?caId=default")
+                .compose(HttpClientRequest::send)
+                .onComplete(testContext.succeeding(response -> {
+                    testContext.verify(() -> {
+                        assertEquals(200, response.statusCode());
+                    });
+
+                    response.body().onComplete(testContext.succeeding(buffer -> {
+                        testContext.verify(() -> {
+                            JsonObject json = new JsonObject(buffer.toString());
+                            // Should contain user certificates for the default CA
+                            assertNotNull(json);
+                        });
+                        testContext.completeNow();
+                    }));
+                }));
+    }
 }

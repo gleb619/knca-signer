@@ -20,6 +20,7 @@ test('initializes with empty certificates', () => {
     expect(component.certificates.user).toEqual({});
     expect(component.certificates.legal).toEqual({});
     expect(component.expandedCAs).toEqual({});
+    expect(component.newCAAlias).toBe('');
 });
 
 test('loads certificates from API', async () => {

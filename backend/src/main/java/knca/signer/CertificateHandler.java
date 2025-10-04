@@ -48,11 +48,12 @@ public class CertificateHandler {
     public Handler<RoutingContext> handleGenerateCACertificate() {
         return ctx -> {
             try {
-                log.info("Generating new CA certificate");
-                var alias = certificateService.generateCACertificate(null).getKey();
-                var certData = certificateService.getCACertificates().get(alias);
-                var response = buildCACertJson(alias, certData).put("type", "ca").put("generated", true);
-                log.info("CA certificate generated successfully with alias: {}", alias);
+                var alias = ctx.queryParam("alias").stream().findFirst().orElse(null);
+                log.info("Generating new CA certificate with alias: {}", alias);
+                var entry = certificateService.generateCACertificate(alias);
+                var certData = certificateService.getCACertificates().get(entry.getKey());
+                var response = buildCACertJson(entry.getKey(), certData).put("type", "ca").put("generated", true);
+                log.info("CA certificate generated successfully with alias: {}", entry.getKey());
                 sendJsonResponse(ctx, response);
             } catch (Exception e) {
                 handleError(ctx, "generating CA certificate", e);

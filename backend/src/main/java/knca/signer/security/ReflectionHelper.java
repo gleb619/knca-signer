@@ -106,7 +106,7 @@ public class ReflectionHelper {
             for (int i = 0; i < fArgs.length; i++) unwrapped[i + 1] = unwrapValue(fArgs[i]);
             return handle.invokeWithArguments(unwrapped);
         } catch (Throwable e) {
-            log.error("ERROR: Failed to invoke {} on {} due to: {}", methodName, instance.getClass().getName(), e.getMessage());
+            log.error("ERROR: Failed to invoke `{}` on `{}` due to: `{}`", methodName, instance.getClass().getName(), e.getMessage());
             throw new KalkanException("Failed to invoke %s on %s".formatted(methodName, instance.getClass().getName()), e);
         }
     }

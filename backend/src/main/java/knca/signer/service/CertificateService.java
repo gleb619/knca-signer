@@ -8,12 +8,20 @@ import knca.signer.security.KalkanProxy.ProxyResult;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.*;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.*;
+import java.util.stream.Stream;
 
+@Slf4j
 @RequiredArgsConstructor
 public class CertificateService {
 
@@ -30,19 +38,15 @@ public class CertificateService {
 
     public CertificateService init() {
         try {
-            // Only generate default certificates if no certificates exist
-            //TODO: load certificates from folder in `config`
-            if (caCertificates.isEmpty() && userCertificates.isEmpty() && legalCertificates.isEmpty()) {
-                // Generate default CA in memory
-                CertificateResult ca = generateCACertificate();
-                caCertificates.put(DEFAULT_CA_ALIAS, ca);
+            // Load or generate CA certificates
+            loadOrGenerateCACertificates();
 
-                // Generate user certificate
-                generateUserCertificate(DEFAULT_CA_ALIAS);
+            // Load or generate user certificates for each CA
+            loadOrGenerateUserCertificates();
 
-                // Generate legal certificate
-                generateLegalEntityCertificate(DEFAULT_CA_ALIAS);
-            }
+            // Load or generate legal certificates for each CA
+            loadOrGenerateLegalCertificates();
+
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize CertificateService", e);
         }
@@ -304,6 +308,239 @@ public class CertificateService {
 
         ProxyResult certResult = KalkanAdapter.generateCertificate(certGen, tbsResult, signature);
         return certResult.genericValue();
+    }
+
+    private void loadOrGenerateCACertificates() throws Exception {
+        Map<String, CertificateResult> loadedCAs = loadCACertificates();
+        if (loadedCAs.isEmpty()) {
+            // Generate default CA if no CAs are found
+            CertificateResult ca = generateCACertificate();
+            caCertificates.put(DEFAULT_CA_ALIAS, ca);
+        } else {
+            // Add loaded CAs
+            caCertificates.putAll(loadedCAs);
+            // Ensure there's always a default CA
+            if (!caCertificates.containsKey(DEFAULT_CA_ALIAS)) {
+                CertificateResult ca = generateCACertificate();
+                caCertificates.put(DEFAULT_CA_ALIAS, ca);
+            }
+        }
+    }
+
+    private void loadOrGenerateUserCertificates() throws Exception {
+        // For each CA, try to load or generate user certificates
+        for (String caAlias : caCertificates.keySet()) {
+            Map<String, CertificateData> loadedUsers = loadUserCertificates(caAlias);
+            if (loadedUsers.isEmpty()) {
+                generateUserCertificate(caAlias);
+            } else {
+                userCertificates.putAll(loadedUsers);
+            }
+        }
+    }
+
+    private void loadOrGenerateLegalCertificates() throws Exception {
+        // For each CA, try to load or generate legal certificates
+        for (String caAlias : caCertificates.keySet()) {
+            Map<String, CertificateData> loadedLegal = loadLegalCertificates(caAlias);
+            if (loadedLegal.isEmpty()) {
+                generateLegalEntityCertificate(caAlias);
+            } else {
+                legalCertificates.putAll(loadedLegal);
+            }
+        }
+    }
+
+    private Map<String, CertificateResult> loadCACertificates() throws Exception {
+        Map<String, CertificateResult> loadedCAs = new HashMap<>();
+        Path certsDir = Paths.get(config.getCertsPath());
+
+        if (!Files.exists(certsDir)) {
+            return loadedCAs;
+        }
+
+        // Load all ca*.crt files as separate CAs
+        try (Stream<Path> paths = Files.walk(certsDir, 1)) {
+            paths.filter(path -> {
+                String filename = path.getFileName().toString();
+                return filename.startsWith("ca") && filename.endsWith(".crt") && Files.isRegularFile(path);
+            }).forEach(caCertPath -> {
+                try {
+                    String filename = caCertPath.getFileName().toString();
+                    String alias = filename.substring(0, filename.lastIndexOf('.')); // e.g., "ca2" from "ca2.crt"
+
+                    // Try to load corresponding private key
+                    Path caKeyPath = Paths.get(config.getCertsPath(), alias + ".pem");
+                    CertificateResult result = loadCACertificateFromFiles(caCertPath, caKeyPath);
+                    if (result != null) {
+                        loadedCAs.put(alias, result);
+                    }
+                } catch (Exception e) {
+                    log.error("CERT_ERROR: ", e);
+                }
+            });
+        }
+
+        return loadedCAs;
+    }
+
+    private CertificateResult loadCACertificateFromFiles(Path caCertPath, Path caKeyPath) throws Exception {
+        if (!Files.exists(caCertPath)) {
+            return null;
+        }
+
+        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+        X509Certificate caCert;
+        try (var is = Files.newInputStream(caCertPath)) {
+            caCert = (X509Certificate) certFactory.generateCertificate(is);
+        }
+
+        // Try to load CA private key
+        PrivateKey caPrivateKey = null;
+        if (Files.exists(caKeyPath)) {
+            String keyText = Files.readString(caKeyPath);
+            // Remove PEM headers and decode
+            keyText = keyText.replaceAll("-----[A-Z ]*-----", "").replaceAll("\\s", "");
+            byte[] keyBytes = Base64.getDecoder().decode(keyText);
+
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+            //TODO: we ge got error: `no such algorithm: 1.2.840.113549.1.1.11 for provider KALKAN`, we need to trace which algorithms supported by kalkan lib
+            KeyFactory keyFactory = KeyFactory.getInstance(config.getSignatureAlgorithm(), provider.getName());
+            caPrivateKey = keyFactory.generatePrivate(keySpec);
+        }
+
+        if (caPrivateKey == null) {
+            // Generate a new key pair if private key is missing
+            KeyPair keyPair = generateKeyPair();
+            return new CertificateResult(keyPair, caCert);
+        } else {
+            // Create CertificateResult with loaded key
+            KeyPair keyPair = new KeyPair(caCert.getPublicKey(), caPrivateKey);
+            return new CertificateResult(keyPair, caCert);
+        }
+    }
+
+    private Map<String, CertificateData> loadUserCertificates(String caAlias) {
+        Map<String, CertificateData> loadedCerts = new HashMap<>();
+        try {
+            // Try to load from ca-specific keystore first, then fallback to generic user.p12
+            Path p12Path = getCertificateFilePath(caAlias, "user");
+
+            if (!Files.exists(p12Path)) {
+                // Fallback to generic user.p12 for default CA only
+                if (DEFAULT_CA_ALIAS.equals(caAlias)) {
+                    p12Path = Paths.get(config.getCertsPath(), "user.p12");
+                }
+                if (!Files.exists(p12Path)) {
+                    return loadedCerts;
+                }
+            }
+
+            // Load from PKCS12 keystore
+            X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
+                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
+            PrivateKey privateKey = KeyStoreManager.loadPrivateKeyFromPKCS12(
+                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
+
+            // Extract metadata from certificate
+            CertificateMetadata metadata = extractCertificateMetadata(cert);
+            CertificateData data = new CertificateData(
+                    metadata.email, metadata.iin, metadata.bin, caAlias, cert);
+
+            String alias = "user-" + UUID.randomUUID().toString().substring(0, 8);
+            userKeys.put(alias, new KeyPair(cert.getPublicKey(), privateKey));
+            loadedCerts.put(alias, data);
+
+        } catch (Exception e) {
+            log.error("CERT_ERROR: ", e);
+        }
+        return loadedCerts;
+    }
+
+    private Map<String, CertificateData> loadLegalCertificates(String caAlias) {
+        Map<String, CertificateData> loadedCerts = new HashMap<>();
+        try {
+            // Try to load from ca-specific keystore first, then fallback to generic legal.p12
+            Path p12Path = getCertificateFilePath(caAlias, "legal");
+
+            if (!Files.exists(p12Path)) {
+                // Fallback to generic legal.p12 for default CA only
+                if (DEFAULT_CA_ALIAS.equals(caAlias)) {
+                    p12Path = Paths.get(config.getCertsPath(), "legal.p12");
+                }
+                if (!Files.exists(p12Path)) {
+                    return loadedCerts;
+                }
+            }
+
+            // Load from PKCS12 keystore
+            X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
+                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
+            PrivateKey privateKey = KeyStoreManager.loadPrivateKeyFromPKCS12(
+                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
+
+            // Extract metadata from certificate
+            CertificateMetadata metadata = extractCertificateMetadata(cert);
+            CertificateData data = new CertificateData(
+                    metadata.email, metadata.iin, metadata.bin, caAlias, cert);
+
+            String alias = "legal-" + UUID.randomUUID().toString().substring(0, 8);
+            legalKeys.put(alias, new KeyPair(cert.getPublicKey(), privateKey));
+            loadedCerts.put(alias, data);
+
+        } catch (Exception e) {
+            log.error("CERT_ERROR: ", e);
+        }
+        return loadedCerts;
+    }
+
+    private Path getCertificateFilePath(String caAlias, String certType) {
+        // For default CA, use generic naming (user.p12, legal.p12)
+        if (DEFAULT_CA_ALIAS.equals(caAlias)) {
+            return Paths.get(config.getCertsPath(), certType + ".p12");
+        }
+        // For other CAs, use ca-specific naming (e.g., user-ca2.p12, legal-ca2.p12)
+        return Paths.get(config.getCertsPath(), certType + "-" + caAlias + ".p12");
+    }
+
+    private CertificateMetadata extractCertificateMetadata(X509Certificate cert) {
+        String email = "user@example.com";
+        String iin = "123456789012";
+        String bin = null;
+
+        try {
+            // Use KalkanAdapter methods to properly extract metadata via reflection
+            email = KalkanAdapter.extractEmailFromCertificate(cert);
+            iin = KalkanAdapter.extractIINFromCertificate(cert);
+            bin = KalkanAdapter.extractBINFromCertificate(cert);
+
+        } catch (Exception e) {
+            // Fall back to JRE methods if Kalkan methods fail during development
+            try {
+                // Use standard X509Certificate methods as fallback
+                Collection<?> sans = cert.getSubjectAlternativeNames();
+                if (sans != null) {
+                    for (Object san : sans) {
+                        List<?> sanList = (List<?>) san;
+                        if (sanList.size() >= 2 && sanList.get(0).equals(1)) { // RFC822Name
+                            email = (String) sanList.get(1);
+                        }
+                    }
+                }
+            } catch (Exception jreException) {
+                // Keep default values if both methods fail
+            }
+        }
+
+        return new CertificateMetadata(email, iin, bin);
+    }
+
+    @Data
+    @RequiredArgsConstructor
+    private static class CertificateMetadata {
+        private final String email;
+        private final String iin;
+        private final String bin;
     }
 
     @Data

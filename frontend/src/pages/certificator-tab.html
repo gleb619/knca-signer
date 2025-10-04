@@ -8,31 +8,43 @@
      x-transition:leave-start="opacity-100 transform translate-x-0">
     <div class="flex flex-col gap-6 mb-5" x-cloak x-show="activeTab === 'certificate-authority'">
 
-        <!-- Header with title and main generate CA button -->
-        <div class="flex items-center justify-between">
-            <div>
-                <h2 class="text-2xl font-bold text-gray-900">
-                    Certificate Authority Manager
-                </h2>
-                <p class="text-gray-600 mt-1">
-                    Generate and manage CA, User, and Legal certificates
-                </p>
+        <!-- Header with title and CA generation form -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">
+                Certificate Authority Manager
+            </h2>
+            <p class="text-gray-600 mb-6">
+                Generate and manage CA, User, and Legal certificates
+            </p>
+
+            <!-- CA Generation Form -->
+            <div class="flex items-end gap-4">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-2" for="caAlias">
+                        CA Alias (optional - leave empty for auto-generated)
+                    </label>
+                    <input class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           id="caAlias"
+                           placeholder="e.g., corporate-ca, department-ca"
+                           type="text"
+                           x-model="newCAAlias">
+                </div>
+                <button :disabled="generatingCA"
+                        @click="generateCA"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="!generatingCA">
+                        <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round" stroke-linejoin="round"
+                              stroke-width="2"/>
+                    </svg>
+                    <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                         x-show="generatingCA">
+                        <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0-4H9m11 11v-5h-.581m0 0H15m5.356-4A8.001 8.001 0 0014.418 15"
+                              stroke-linecap="round" stroke-linejoin="round"
+                              stroke-width="2"/>
+                    </svg>
+                    <span x-text="generatingCA ? 'Generating CA...' : 'Generate CA'"></span>
+                </button>
             </div>
-            <button :disabled="generatingCA"
-                    @click="generateCA"
-                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="!generatingCA">
-                    <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round" stroke-linejoin="round"
-                          stroke-width="2"/>
-                </svg>
-                <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                     x-show="generatingCA">
-                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0-4H9m11 11v-5h-.581m0 0H15m5.356-4A8.001 8.001 0 0014.418 15"
-                          stroke-linecap="round" stroke-linejoin="round"
-                          stroke-width="2"/>
-                </svg>
-                <span x-text="generatingCA ? 'Generating CA...' : 'Generate CA'"></span>
-            </button>
         </div>
 
         <!-- CA Certificates List -->

@@ -12,6 +12,9 @@ export default () => ({
     generatingUser: false,
     generatingLegal: false,
 
+    // Form data
+    newCAAlias: '',
+
     async init() {
         await this.loadCertificates();
     },
@@ -62,7 +65,12 @@ export default () => ({
         this.successMessage = '';
 
         try {
-            const response = await fetch('/api/certificates/generate/ca', {
+            // Build URL with optional alias parameter
+            const url = this.newCAAlias.trim()
+                ? `/api/certificates/generate/ca?alias=${encodeURIComponent(this.newCAAlias.trim())}`
+                : '/api/certificates/generate/ca';
+
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -80,6 +88,9 @@ export default () => ({
             this.expandedCAs[result.alias] = true;
 
             this.successMessage = `CA certificate generated successfully: ${result.alias}`;
+
+            // Clear the input field
+            this.newCAAlias = '';
 
         } catch (error) {
             console.error('Failed to generate CA:', error);
