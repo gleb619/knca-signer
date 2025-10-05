@@ -15,7 +15,6 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
-import knca.signer.service.CertificateReader;
 import knca.signer.service.CertificateService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,8 +67,7 @@ public class CertificateHandlerIT {
                 .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-        var certificateReader = new CertificateReader(config);
-        certificateHandler = new CertificateHandler(certificateService, certificateReader);
+        certificateHandler = new CertificateHandler(certificateService);
 
         // Set up routes
         Router router = Router.router(vertx);
@@ -278,6 +276,43 @@ public class CertificateHandlerIT {
                             assertNotNull(json);
                             assertTrue(json.containsKey("certificates"));
                             assertInstanceOf(JsonArray.class, json.getJsonArray("certificates"));
+                        });
+                        testContext.completeNow();
+                    }));
+                }));
+    }
+
+    @Test
+    void testGetFilesystemCertificates(Vertx vertx, VertxTestContext testContext) throws Exception {
+        HttpClient client = vertx.createHttpClient();
+
+        client.request(HttpMethod.GET, serverPort, "localhost", "/certificates/filesystem")
+                .compose(HttpClientRequest::send)
+                .onComplete(testContext.succeeding(response -> {
+                    testContext.verify(() -> {
+                        assertEquals(200, response.statusCode());
+                    });
+
+                    response.body().onComplete(testContext.succeeding(buffer -> {
+                        testContext.verify(() -> {
+                            JsonObject json = new JsonObject(buffer.toString());
+                            // Should contain certificates array from filesystem
+                            assertNotNull(json);
+                            assertTrue(json.containsKey("certificates"));
+                            JsonArray certificates = json.getJsonArray("certificates");
+                            assertNotNull(certificates);
+                            assertInstanceOf(JsonArray.class, certificates);
+
+                            // Verify at least one certificate exists (generated during service initialization)
+                            assertTrue(certificates.size() >= 1, "Should have at least one certificate");
+
+                            // Check first certificate structure
+                            JsonObject firstCert = certificates.getJsonObject(0);
+                            assertNotNull(firstCert.getString("type"));
+                            assertNotNull(firstCert.getString("filename"));
+                            assertNotNull(firstCert.getString("serialNumber"));
+                            assertNotNull(firstCert.getString("issuer"));
+                            assertNotNull(firstCert.getString("subject"));
                         });
                         testContext.completeNow();
                     }));

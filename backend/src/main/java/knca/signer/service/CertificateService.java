@@ -7,6 +7,7 @@ import knca.signer.kalkan.KalkanProxy;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
@@ -18,6 +19,8 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -29,11 +32,7 @@ public class CertificateService {
     private final java.security.Provider provider;
     private final ApplicationConfig.CertificateConfig config;
 
-    private final Map<String, CertificateResult> caCertificates = new HashMap<>();
-    private final Map<String, KeyPair> userKeys = new HashMap<>();
-    private final Map<String, CertificateData> userCertificates = new HashMap<>();
-    private final Map<String, KeyPair> legalKeys = new HashMap<>();
-    private final Map<String, CertificateData> legalCertificates = new HashMap<>();
+    private final CertificateStorage certificateStorage = new CertificateStorage();
 
     public CertificateService init() {
         try {
@@ -45,6 +44,9 @@ public class CertificateService {
 
             // Load or generate legal certificates for each CA
             loadOrGenerateLegalCertificates();
+
+            // Load filesystem certificates for fast retrieval
+            loadFilesystemCertificates();
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize CertificateService", e);
@@ -74,33 +76,33 @@ public class CertificateService {
     public Map<String, CertificateData> getCertificates() {
         Map<String, CertificateData> certs = new HashMap<>();
         // Add all CA certificates
-        caCertificates.forEach((alias, result) ->
+        certificateStorage.getCaCertificates().forEach((alias, result) ->
                 certs.put("ca-" + alias, new CertificateData(null, null, null, alias, result.getCertificate())));
         // Add all user certificates
-        userCertificates.forEach((alias, data) -> certs.put("user-" + alias, data));
+        certificateStorage.getUserCertificates().forEach((alias, data) -> certs.put("user-" + alias, data));
         // Add all legal certificates
-        legalCertificates.forEach((alias, data) -> certs.put("legal-" + alias, data));
+        certificateStorage.getLegalCertificates().forEach((alias, data) -> certs.put("legal-" + alias, data));
         return certs;
     }
 
     public Map<String, CertificateData> getCACertificates() {
         Map<String, CertificateData> cas = new HashMap<>();
-        caCertificates.forEach((alias, result) ->
+        certificateStorage.getCaCertificates().forEach((alias, result) ->
                 cas.put(alias, new CertificateData(null, null, null, alias, result.getCertificate())));
         return cas;
     }
 
     public Map<String, CertificateData> getUserCertificates() {
-        return new HashMap<>(userCertificates);
+        return new HashMap<>(certificateStorage.getUserCertificates());
     }
 
     public Map<String, CertificateData> getLegalCertificates() {
-        return new HashMap<>(legalCertificates);
+        return new HashMap<>(certificateStorage.getLegalCertificates());
     }
 
     @SneakyThrows
     public Map.Entry<String, CertificateData> generateUserCertificate(String caId) {
-        CertificateResult caResult = caCertificates.get(caId);
+        CertificateResult caResult = certificateStorage.getCaCertificates().get(caId);
         if (caResult == null) {
             throw new IllegalArgumentException("Unknown CA: " + caId);
         }
@@ -115,14 +117,14 @@ public class CertificateService {
         X509Certificate userCert = generateUserCert(keyPair.getPublic(), caResult.getKeyPair().getPrivate(),
                 caResult.getCertificate(), userSubjectDN, email, iin, bin);
         CertificateData data = new CertificateData(email, iin, bin, caId, userCert);
-        userKeys.put(alias, keyPair);
-        userCertificates.put(alias, data);
+        certificateStorage.getUserKeys().put(alias, keyPair);
+        certificateStorage.getUserCertificates().put(alias, data);
         return Map.entry(alias, data);
     }
 
     @SneakyThrows
     public Map.Entry<String, CertificateData> generateLegalEntityCertificate(String caId) {
-        CertificateResult caResult = caCertificates.get(caId);
+        CertificateResult caResult = certificateStorage.getCaCertificates().get(caId);
         if (caResult == null) {
             throw new IllegalArgumentException("Unknown CA: " + caId);
         }
@@ -137,8 +139,8 @@ public class CertificateService {
         X509Certificate legalCert = generateUserCert(keyPair.getPublic(), caResult.getKeyPair().getPrivate(),
                 caResult.getCertificate(), legalEntitySubjectDN, email, iin, bin);
         CertificateData data = new CertificateData(email, iin, bin, caId, legalCert);
-        legalKeys.put(alias, keyPair);
-        legalCertificates.put(alias, data);
+        certificateStorage.getLegalKeys().put(alias, keyPair);
+        certificateStorage.getLegalCertificates().put(alias, data);
         return Map.entry(alias, data);
     }
 
@@ -146,54 +148,54 @@ public class CertificateService {
         if (alias == null || alias.trim().isEmpty()) {
             alias = "ca-" + UUID.randomUUID().toString().substring(0, 8);
         }
-        if (caCertificates.containsKey(alias)) {
+        if (certificateStorage.getCaCertificates().containsKey(alias)) {
             throw new IllegalArgumentException("CA alias already exists: " + alias);
         }
         CertificateResult result = generateCACertificate();
-        caCertificates.put(alias, result);
+        certificateStorage.getCaCertificates().put(alias, result);
         return Map.entry(alias, result);
     }
 
     public boolean validateXmlSignature(String xml) throws Exception {
         // Use first available CA for validation (default is "default")
-        CertificateResult defaultCa = caCertificates.values().iterator().next();
+        CertificateResult defaultCa = certificateStorage.getCaCertificates().values().iterator().next();
         XmlValidator validator = new XmlValidator(provider, defaultCa.getCertificate());
         return validator.validateXmlSignature(xml);
     }
 
     private X509Certificate getCertificate(String alias) {
-        if (userCertificates.containsKey(alias)) {
-            return userCertificates.get(alias).getCertificate();
+        if (certificateStorage.getUserCertificates().containsKey(alias)) {
+            return certificateStorage.getUserCertificates().get(alias).getCertificate();
         }
-        if (legalCertificates.containsKey(alias)) {
-            return legalCertificates.get(alias).getCertificate();
+        if (certificateStorage.getLegalCertificates().containsKey(alias)) {
+            return certificateStorage.getLegalCertificates().get(alias).getCertificate();
         }
-        if (caCertificates.containsKey(alias)) {
-            return caCertificates.get(alias).getCertificate();
+        if (certificateStorage.getCaCertificates().containsKey(alias)) {
+            return certificateStorage.getCaCertificates().get(alias).getCertificate();
         }
         // For backward compatibility
-        if ("user".equals(alias) && !userCertificates.isEmpty()) {
-            return userCertificates.values().iterator().next().getCertificate();
+        if ("user".equals(alias) && !certificateStorage.getUserCertificates().isEmpty()) {
+            return certificateStorage.getUserCertificates().values().iterator().next().getCertificate();
         }
-        if ("legal".equals(alias) && !legalCertificates.isEmpty()) {
-            return legalCertificates.values().iterator().next().getCertificate();
+        if ("legal".equals(alias) && !certificateStorage.getLegalCertificates().isEmpty()) {
+            return certificateStorage.getLegalCertificates().values().iterator().next().getCertificate();
         }
         throw new IllegalArgumentException("Unknown certificate alias: " + alias);
     }
 
     private PrivateKey getPrivateKey(String alias) {
-        if (userKeys.containsKey(alias)) {
-            return userKeys.get(alias).getPrivate();
+        if (certificateStorage.getUserKeys().containsKey(alias)) {
+            return certificateStorage.getUserKeys().get(alias).getPrivate();
         }
-        if (legalKeys.containsKey(alias)) {
-            return legalKeys.get(alias).getPrivate();
+        if (certificateStorage.getLegalKeys().containsKey(alias)) {
+            return certificateStorage.getLegalKeys().get(alias).getPrivate();
         }
         // For backward compatibility
-        if ("user".equals(alias) && !userKeys.isEmpty()) {
-            return userKeys.values().iterator().next().getPrivate();
+        if ("user".equals(alias) && !certificateStorage.getUserKeys().isEmpty()) {
+            return certificateStorage.getUserKeys().values().iterator().next().getPrivate();
         }
-        if ("legal".equals(alias) && !legalKeys.isEmpty()) {
-            return legalKeys.values().iterator().next().getPrivate();
+        if ("legal".equals(alias) && !certificateStorage.getLegalKeys().isEmpty()) {
+            return certificateStorage.getLegalKeys().values().iterator().next().getPrivate();
         }
         throw new IllegalArgumentException("Unknown certificate alias: " + alias);
     }
@@ -314,38 +316,38 @@ public class CertificateService {
         if (loadedCAs.isEmpty()) {
             // Generate default CA if no CAs are found
             CertificateResult ca = generateCACertificate();
-            caCertificates.put(DEFAULT_CA_ALIAS, ca);
+            certificateStorage.getCaCertificates().put(DEFAULT_CA_ALIAS, ca);
         } else {
             // Add loaded CAs
-            caCertificates.putAll(loadedCAs);
+            certificateStorage.getCaCertificates().putAll(loadedCAs);
             // Ensure there's always a default CA
-            if (!caCertificates.containsKey(DEFAULT_CA_ALIAS)) {
+            if (!certificateStorage.getCaCertificates().containsKey(DEFAULT_CA_ALIAS)) {
                 CertificateResult ca = generateCACertificate();
-                caCertificates.put(DEFAULT_CA_ALIAS, ca);
+                certificateStorage.getCaCertificates().put(DEFAULT_CA_ALIAS, ca);
             }
         }
     }
 
     private void loadOrGenerateUserCertificates() throws Exception {
         // For each CA, try to load or generate user certificates
-        for (String caAlias : caCertificates.keySet()) {
+        for (String caAlias : certificateStorage.getCaCertificates().keySet()) {
             Map<String, CertificateData> loadedUsers = loadUserCertificates(caAlias);
             if (loadedUsers.isEmpty()) {
                 generateUserCertificate(caAlias);
             } else {
-                userCertificates.putAll(loadedUsers);
+                certificateStorage.getUserCertificates().putAll(loadedUsers);
             }
         }
     }
 
     private void loadOrGenerateLegalCertificates() throws Exception {
         // For each CA, try to load or generate legal certificates
-        for (String caAlias : caCertificates.keySet()) {
+        for (String caAlias : certificateStorage.getCaCertificates().keySet()) {
             Map<String, CertificateData> loadedLegal = loadLegalCertificates(caAlias);
             if (loadedLegal.isEmpty()) {
                 generateLegalEntityCertificate(caAlias);
             } else {
-                legalCertificates.putAll(loadedLegal);
+                certificateStorage.getLegalCertificates().putAll(loadedLegal);
             }
         }
     }
@@ -447,7 +449,7 @@ public class CertificateService {
                     metadata.email, metadata.iin, metadata.bin, caAlias, cert);
 
             String alias = "user-" + UUID.randomUUID().toString().substring(0, 8);
-            userKeys.put(alias, new KeyPair(cert.getPublicKey(), privateKey));
+            certificateStorage.getUserKeys().put(alias, new KeyPair(cert.getPublicKey(), privateKey));
             loadedCerts.put(alias, data);
 
         } catch (Exception e) {
@@ -484,7 +486,7 @@ public class CertificateService {
                     metadata.email, metadata.iin, metadata.bin, caAlias, cert);
 
             String alias = "legal-" + UUID.randomUUID().toString().substring(0, 8);
-            legalKeys.put(alias, new KeyPair(cert.getPublicKey(), privateKey));
+            certificateStorage.getLegalKeys().put(alias, new KeyPair(cert.getPublicKey(), privateKey));
             loadedCerts.put(alias, data);
 
         } catch (Exception e) {
@@ -510,6 +512,17 @@ public class CertificateService {
         String bin = reader.extractBIN(cert);
 
         return new CertificateMetadata(email, iin, bin);
+    }
+
+    private void loadFilesystemCertificates() throws Exception {
+        CertificateReader reader = new CertificateReader(config);
+        List<CertificateReader.CertificateInfo> certificates = reader.readAllCertificates();
+        certificateStorage.getFilesystemCertificates().addAll(certificates);
+        log.info("Loaded {} certificates from filesystem", certificates.size());
+    }
+
+    public List<CertificateReader.CertificateInfo> getFilesystemCertificates() {
+        return new ArrayList<>(certificateStorage.getFilesystemCertificates());
     }
 
     @Data
@@ -538,6 +551,18 @@ public class CertificateService {
         private final String bin;
         private final String caId;
         private final X509Certificate certificate;
+
+    }
+
+    @Value
+    public static class CertificateStorage {
+
+        Map<String, CertificateResult> caCertificates = new ConcurrentHashMap<>();
+        Map<String, KeyPair> userKeys = new ConcurrentHashMap<>();
+        Map<String, CertificateData> userCertificates = new ConcurrentHashMap<>();
+        Map<String, KeyPair> legalKeys = new ConcurrentHashMap<>();
+        Map<String, CertificateData> legalCertificates = new ConcurrentHashMap<>();
+        Queue<CertificateReader.CertificateInfo> filesystemCertificates = new ConcurrentLinkedQueue<>();
 
     }
 

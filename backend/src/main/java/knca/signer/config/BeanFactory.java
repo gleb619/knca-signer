@@ -10,7 +10,6 @@ import knca.signer.CertificateHandler;
 import knca.signer.SigningHandler;
 import knca.signer.WebSocketHandler;
 import knca.signer.kalkan.KalkanRegistry;
-import knca.signer.service.CertificateReader;
 import knca.signer.service.CertificateService;
 import lombok.RequiredArgsConstructor;
 
@@ -63,7 +62,7 @@ public class BeanFactory {
 
     public CertificateHandler getCertificateHandler() {
         if (certificateHandler == null) {
-            certificateHandler = new CertificateHandler(getCertificateService(), new CertificateReader(config.getCertificate()));
+            certificateHandler = new CertificateHandler(getCertificateService());
         }
         return certificateHandler;
     }
