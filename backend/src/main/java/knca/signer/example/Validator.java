@@ -2,7 +2,7 @@ package knca.signer.example;
 
 import knca.signer.config.ApplicationConfig;
 import knca.signer.service.CertificateValidator;
-import knca.signer.service.XmlValidator;
+import knca.signer.service.CertificateValidator.XmlValidator;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.cert.X509Certificate;
@@ -42,7 +42,7 @@ public class Validator {
             X509Certificate caCertificate = CertificateValidator.loadCACertificate(config.getCaCertPath());
 
             // Create and run XML validator
-            XmlValidator xmlValidator = new XmlValidator((java.security.Provider) provider, caCertificate);
+            XmlValidator xmlValidator = new XmlValidator(caCertificate);
             boolean valid = xmlValidator.validateXmlSignature(xmlContent);
 
             log.info("Validation result: " + valid);

@@ -4,9 +4,11 @@ import io.vertx.core.Handler;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import knca.signer.service.CertificateService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@RequiredArgsConstructor
 public class SigningHandler {
 
     private static final String CONTENT_TYPE = "application/json";
@@ -14,14 +16,6 @@ public class SigningHandler {
 
     private final CertificateService certificateService;
 
-    /**
-     * Constructs a new SigningHandler with the given CertificateService.
-     *
-     * @param certificateService the certificate service used for signing operations
-     */
-    public SigningHandler(CertificateService certificateService) {
-        this.certificateService = certificateService;
-    }
 
     /**
      * Handles data signing requests.

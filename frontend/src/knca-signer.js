@@ -19,11 +19,13 @@ window.knca.translator.addResource("ru", ru);
 import ncaApp from './scripts/app.js';
 import xmlSignerTab from './scripts/xml-signer-tab.js';
 import certificatorTab from './scripts/certificator-tab.js';
+import xmlVerifierTab from './scripts/xml-verifier-tab.js';
 
 // Register Alpine components immediately
 Alpine.data('ncaApp', ncaApp);
 Alpine.data('xmlSignerTab', xmlSignerTab);
 Alpine.data('certificatorTab', certificatorTab);
+Alpine.data('xmlVerifierTab', xmlVerifierTab);
 
 // Configure HTMX for Alpine.js integration
 document.addEventListener('DOMContentLoaded', () => {

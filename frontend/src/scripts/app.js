@@ -2,8 +2,8 @@ export default () => ({
     isKK: true,
 
     // Tab management
-    activeTab: 'certificate-authority', // xml-signer | certificate-authority
-    isSigning: false,
+    activeTab: 'xml-verifier', // xml-signer | certificate-authority | xml-verifier
+
     errorMessage: '',
     successMessage: '',
 

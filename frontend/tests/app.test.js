@@ -5,7 +5,7 @@ test('ncaApp initializes with default values', () => {
   const instance = ncaApp();
 
   expect(instance.isKK).toBe(true);
-  expect(instance.activeTab).toBe('xml-signer');
+  expect(instance.activeTab).toBe('xml-verifier');
 });
 
 test('switchTab changes activeTab', () => {

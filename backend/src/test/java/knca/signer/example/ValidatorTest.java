@@ -5,7 +5,7 @@ import knca.signer.kalkan.KalkanProxy;
 import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateValidator;
-import knca.signer.service.XmlValidator;
+import knca.signer.service.CertificateValidator.XmlValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -105,7 +105,7 @@ public class ValidatorTest {
             CertificateGenerator.CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
-            XmlValidator xmlValidator = new XmlValidator(realProvider, caCert);
+            XmlValidator xmlValidator = new XmlValidator(caCert);
             assertNotNull(xmlValidator, "XmlValidator should be created");
         } catch (Exception e) {
             fail("XmlValidator creation should succeed: " + e.getMessage());
@@ -160,7 +160,7 @@ public class ValidatorTest {
             CertificateGenerator.CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
-            XmlValidator xmlValidator = new XmlValidator(realProvider, caCert);
+            XmlValidator xmlValidator = new XmlValidator(caCert);
 
             // Test with invalid XML (no signature)
             String invalidXml = "<root><test>Invalid XML</test></root>";

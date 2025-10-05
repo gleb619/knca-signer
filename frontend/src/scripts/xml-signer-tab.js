@@ -4,6 +4,7 @@ export default () => ({
 
     // Form data properties for two-way binding
     allowedStorages: ["JKS", "PKCS12"],
+    isSigning: false,
     webSocket: null,
     response: null,
     callback: null,
@@ -370,7 +371,4 @@ export default () => ({
         // Other messages (initial response, pong) are just logged
     },
 
-    translate(key) {
-        return window.knca.translator.t(key);
-    }
 });

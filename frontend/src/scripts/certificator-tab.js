@@ -8,6 +8,10 @@ export default () => ({
     generatingUser: false,
     generatingLegal: false,
 
+    // Messages
+    errorMessage: '',
+    successMessage: '',
+
     // Form data
     newCAAlias: '',
 

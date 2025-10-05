@@ -142,10 +142,17 @@
     </div>
 
     <!-- XML Verifier Tab -->
-    <div x-cloak x-show="activeTab === 'xml-verifier'" x-transition>
+    <div hx-get="src/pages/xml-verifier-tab.html"
+         hx-swap="outerHTML"
+         hx-target="this"
+         hx-trigger="load"
+         x-cloak x-show="activeTab === 'xml-verifier'">
         <div class="text-center py-5">
-            <h3>XML Verifier</h3>
-            <p class="text-gray-600">XML signature verification functionality will be implemented here.</p>
+            <div class="animate-pulse">
+                <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
+                <div class="h-4 bg-gray-300 rounded w-1/2 mx-auto"></div>
+            </div>
+            <p class="text-gray-600 mt-4">Loading XML Verifier...</p>
         </div>
     </div>
 

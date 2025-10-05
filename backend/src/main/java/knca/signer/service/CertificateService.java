@@ -4,6 +4,7 @@ import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanAdapter;
 import knca.signer.kalkan.KalkanConstants;
 import knca.signer.kalkan.KalkanProxy;
+import knca.signer.service.CertificateValidator.XmlValidator;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -159,7 +160,7 @@ public class CertificateService {
     public boolean validateXmlSignature(String xml) throws Exception {
         // Use first available CA for validation (default is "default")
         CertificateResult defaultCa = certificateStorage.getCaCertificates().values().iterator().next();
-        XmlValidator validator = new XmlValidator(provider, defaultCa.getCertificate());
+        XmlValidator validator = new XmlValidator(defaultCa.getCertificate());
         return validator.validateXmlSignature(xml);
     }
 

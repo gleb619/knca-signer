@@ -42,5 +42,7 @@
   "dataToSign": "Введите данные, которые вы хотите подписать",
   "advancedOptions": "Расширенные параметры конфигурации подписи",
   "signatureOutput": "Вывод подписи",
-  "resetForm": "Сбросить форму"
+  "resetForm": "Сбросить форму",
+  "serverSignMethod": "Подписать на сервере",
+  "serverVerifyMethod": "Проверка подписи"
 }
