@@ -326,7 +326,7 @@ export default () => ({
         const logEntry = {
             timestamp,
             direction, // 'sent' or 'received'
-            message: typeof message === 'string' ? message : JSON.stringify(message, null, 2)
+            message: typeof message === 'string' ? JSON.stringify(JSON.parse(message), null, 2) : JSON.stringify(message, null, 2)
         };
         this.logs.unshift(logEntry); // Add to beginning for latest first
         if (this.logs.length > this.maxLogs) {

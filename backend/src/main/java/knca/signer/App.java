@@ -150,6 +150,7 @@ public class App extends AbstractVerticle {
         router.get("/api/certificates/ca").handler(ch.handleGetCACertificate());
         router.get("/api/certificates/user").handler(ch.handleGetUserCertificate());
         router.get("/api/certificates/legal").handler(ch.handleGetLegalCertificate());
+        router.get("/api/certificates/filesystem").handler(ch.handleGetFilesystemCertificates());
         router.post("/api/certificates/generate/ca").handler(BodyHandler.create()).handler(ch.handleGenerateCACertificate());
         router.post("/api/certificates/generate/user").handler(BodyHandler.create()).handler(ch.handleGenerateUserCertificate());
         router.post("/api/certificates/generate/legal").handler(BodyHandler.create()).handler(ch.handleGenerateLegalCertificate());

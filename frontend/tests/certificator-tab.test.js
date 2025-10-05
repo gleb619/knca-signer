@@ -16,88 +16,49 @@ const createFetchMock = (responses) => {
 
 test('initializes with empty certificates', () => {
     const component = certificatorTab();
-    expect(component.certificates.ca).toEqual({});
-    expect(component.certificates.user).toEqual({});
-    expect(component.certificates.legal).toEqual({});
-    expect(component.expandedCAs).toEqual({});
+    expect(component.certificates).toEqual([]);
     expect(component.newCAAlias).toBe('');
+    expect(component.activeSubTab).toBe('create');
+    expect(component.errorMessage).toBe('');
+    expect(component.successMessage).toBe('');
 });
 
 test('loads certificates from API', async () => {
-    const caResponse = {
-        "ca-123": { alias: "ca-123", subject: "CN=Test CA" }
+    const caData = {
+        certificates: [{ alias: "ca-123", subject: "CN=Test CA" }]
     };
-    const userResponse = {
-        "user-456": { alias: "user-456", caId: "ca-123", email: "user@test.com", iin: "123456789012" }
+    const userData = {
+        certificates: [{ alias: "user-456", caId: "ca-123", email: "user@test.com", iin: "123456789012" }]
     };
-    const legalResponse = {
-        "legal-789": { alias: "legal-789", caId: "ca-123", email: "legal@test.com", bin: "123456789012" }
+    const legalData = {
+        certificates: [{ alias: "legal-789", caId: "ca-123", email: "legal@test.com", bin: "123456789012" }]
     };
 
     // Mock responses: 1 CA fetch + 1 user fetch + 1 legal fetch for the one CA
     global.fetch = createFetchMock([
-        { json: () => Promise.resolve(caResponse) }, // CA fetch
-        { json: () => Promise.resolve(userResponse) }, // user?caId=ca-123
-        { json: () => Promise.resolve(legalResponse) } // legal?caId=ca-123
+        { json: () => Promise.resolve(caData) }, // CA fetch
+        { json: () => Promise.resolve(userData) }, // user?caId=ca-123
+        { json: () => Promise.resolve(legalData) } // legal?caId=ca-123
     ]);
 
     const component = certificatorTab();
     await component.loadCertificates();
 
-    expect(component.certificates.ca).toEqual(caResponse);
-    expect(component.certificates.user).toEqual(userResponse);
-    expect(component.certificates.legal).toEqual(legalResponse);
+    // Verify hierarchical structure
+    expect(component.certificates).toHaveLength(1);
+    const caStructure = component.certificates[0];
+
+    expect(caStructure.alias).toBe("ca-123");
+    expect(caStructure.ca).toEqual({ alias: "ca-123", subject: "CN=Test CA" });
+
+    expect(caStructure.userCertificates).toHaveLength(1);
+    expect(caStructure.userCertificates[0]).toEqual({ alias: "user-456", caId: "ca-123", email: "user@test.com", iin: "123456789012" });
+
+    expect(caStructure.legalCertificates).toHaveLength(1);
+    expect(caStructure.legalCertificates[0]).toEqual({ alias: "legal-789", caId: "ca-123", email: "legal@test.com", bin: "123456789012" });
 });
 
-test('filters users by CA correctly', () => {
-    const component = certificatorTab();
-    component.certificates.user = {
-        "user-1": { alias: "user-1", caId: "ca-123", email: "user1@test.com" },
-        "user-2": { alias: "user-2", caId: "ca-456", email: "user2@test.com" },
-        "user-3": { alias: "user-3", caId: "ca-123", email: "user3@test.com" }
-    };
 
-    const usersForCa123 = component.getUsersForCA("ca-123");
-    expect(usersForCa123.length).toBe(2);
-    expect(usersForCa123).toEqual(
-        expect.arrayContaining([
-            expect.objectContaining({ caId: "ca-123" })
-        ])
-    );
-
-    const usersForCa456 = component.getUsersForCA("ca-456");
-    expect(usersForCa456.length).toBe(1);
-    expect(usersForCa456[0].caId).toBe("ca-456");
-});
-
-test('filters legals by CA correctly', () => {
-    const component = certificatorTab();
-    component.certificates.legal = {
-        "legal-1": { alias: "legal-1", caId: "ca-123", email: "legal1@test.com" },
-        "legal-2": { alias: "legal-2", caId: "ca-456", email: "legal2@test.com" }
-    };
-
-    const legalsForCa123 = component.getLegalsForCA("ca-123");
-    expect(legalsForCa123.length).toBe(1);
-    expect(legalsForCa123[0].caId).toBe("ca-123");
-
-    const legalsForCa456 = component.getLegalsForCA("ca-456");
-    expect(legalsForCa456.length).toBe(1);
-    expect(legalsForCa456[0].caId).toBe("ca-456");
-});
-
-test('toggles CA expansion correctly', () => {
-    const component = certificatorTab();
-    component.expandedCAs = { "ca-123": false, "ca-456": true };
-
-    component.toggleCAExpansion("ca-123");
-    expect(component.expandedCAs["ca-123"]).toBe(true);
-
-    component.toggleCAExpansion("ca-123");
-    expect(component.expandedCAs["ca-123"]).toBe(false);
-
-    expect(component.expandedCAs["ca-456"]).toBe(true); // unchanged
-});
 
 test('formats dates correctly', () => {
     const component = certificatorTab();
@@ -122,9 +83,9 @@ test('shows loading states during generation', async () => {
     // Sequence: generate CA -> load CA -> load user certs -> load legal certs
     global.fetch = createFetchMock([
         { ok: true, json: () => Promise.resolve({ alias: "ca-new", type: "ca" }) }, // generate CA
-        { json: () => Promise.resolve({ "ca-new": { alias: "ca-new" } }) }, // load CA certs
-        { json: () => Promise.resolve({}) }, // load user certs for ca-new
-        { json: () => Promise.resolve({}) }  // load legal certs for ca-new
+        { json: () => Promise.resolve({ certificates: [{ alias: "ca-new" }] }) }, // load CA certs
+        { json: () => Promise.resolve({ certificates: [] }) }, // load user certs for ca-new
+        { json: () => Promise.resolve({ certificates: [] }) }  // load legal certs for ca-new
     ]);
 
     const component = certificatorTab();
@@ -151,4 +112,44 @@ test('clipboard copy functionality is available', () => {
     };
 
     expect(() => component.copyToClipboard('test')).not.toThrow();
+});
+
+test('generates initials correctly', () => {
+    const component = certificatorTab();
+
+    // Test with subject containing CN
+    const certWithCN = { subject: 'CN=John Doe, OU=Test' };
+    expect(component.generateInitials(certWithCN)).toBe('JD');
+
+    // Test with single name in CN
+    const certWithSingleName = { subject: 'CN=John, OU=Test' };
+    expect(component.generateInitials(certWithSingleName)).toBe('JO');
+
+    // Test fallback to alias
+    const certWithAlias = { alias: 'test-cert-123' };
+    expect(component.generateInitials(certWithAlias)).toBe('TE');
+
+    // Test empty values
+    expect(component.generateInitials({})).toBe('NA');
+});
+
+test('generates avatar patterns deterministically', () => {
+    const component = certificatorTab();
+
+    const cert1 = { alias: 'test-cert-1' };
+    const cert2 = { alias: 'test-cert-1' };
+    const cert3 = { alias: 'different-cert' };
+
+    // Same input should produce same pattern
+    expect(component.getAvatarPattern(cert1)).toBe(component.getAvatarPattern(cert2));
+
+    // Different input should potentially produce different pattern
+    // (though there's a chance they could be the same, but unlikely with our hash)
+    const pattern1 = component.getAvatarPattern(cert1);
+    const pattern3 = component.getAvatarPattern(cert3);
+
+    // Verify it's a valid Tailwind class
+    expect(pattern1).toContain('bg-gradient-to-br');
+    expect(pattern1).toContain('from-');
+    expect(pattern1).toContain('to-');
 });

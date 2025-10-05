@@ -3,6 +3,7 @@ package knca.signer;
 import io.vertx.core.Handler;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
+import knca.signer.service.CertificateReader;
 import knca.signer.service.CertificateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,7 @@ import java.util.Map;
 public class CertificateHandler {
 
     private final CertificateService certificateService;
+    private final CertificateReader certificateReader;
 
     /**
      * Handles requests to retrieve CA certificate information.
@@ -83,13 +85,51 @@ public class CertificateHandler {
         return ctx -> handleGetCertificatesForCA(ctx, "legal", certificateService.getLegalCertificates(), this::buildEntityCertJson);
     }
 
+    /**
+     * Handles requests to retrieve all certificates from the filesystem with full CertificateInfo.
+     *
+     * @return Handler for reading filesystem certificates
+     */
+    public Handler<RoutingContext> handleGetFilesystemCertificates() {
+        return ctx -> {
+            try {
+                log.info("Reading all certificates from filesystem");
+                var certificates = certificateReader.readAllCertificates();
+                var result = new JsonObject();
+                var filesArray = new io.vertx.core.json.JsonArray();
+                for (var certInfo : certificates) {
+                    var certJson = new JsonObject()
+                            .put("type", certInfo.getType())
+                            .put("filename", certInfo.getFilename())
+                            .put("serialNumber", certInfo.getSerialNumber())
+                            .put("issuer", certInfo.getIssuer())
+                            .put("subject", certInfo.getSubject())
+                            .put("notBefore", certInfo.getNotBefore())
+                            .put("notAfter", certInfo.getNotAfter())
+                            .put("email", certInfo.getEmail())
+                            .put("iin", certInfo.getIin())
+                            .put("bin", certInfo.getBin())
+                            .put("publicKeyAlgorithm", certInfo.getPublicKeyAlgorithm())
+                            .put("keySize", certInfo.getKeySize());
+                    filesArray.add(certJson);
+                }
+                result.put("certificates", filesArray);
+                sendJsonResponse(ctx, result);
+            } catch (Exception e) {
+                handleError(ctx, "reading filesystem certificates", e);
+            }
+        };
+    }
+
     /* ============= */
 
     private <T> void handleGetCertificates(RoutingContext ctx, String type, Map<String, T> certs, CertJsonBuilder<T> builder) {
         try {
             log.info("Retrieving {} certificates", type);
             var result = new JsonObject();
-            certs.forEach((alias, data) -> result.put(alias, builder.build(alias, data)));
+            var certList = new io.vertx.core.json.JsonArray();
+            certs.forEach((alias, data) -> certList.add(builder.build(alias, data)));
+            result.put("certificates", certList);
             sendJsonResponse(ctx, result);
         } catch (Exception e) {
             handleError(ctx, "retrieving " + type + " certificates", e);
@@ -101,6 +141,7 @@ public class CertificateHandler {
             var caId = extractCaIdFromQuery(ctx);
             log.info("Retrieving {} certificates for CA: {}", type, caId);
             var result = new JsonObject();
+            var certList = new io.vertx.core.json.JsonArray();
             certs.entrySet().stream()
                     .filter(entry -> {
                         if (type.equals("user") || type.equals("legal")) {
@@ -109,7 +150,8 @@ public class CertificateHandler {
                         }
                         return true; // For CA certificates, return all
                     })
-                    .forEach(entry -> result.put(entry.getKey(), builder.build(entry.getKey(), entry.getValue())));
+                    .forEach(entry -> certList.add(builder.build(entry.getKey(), entry.getValue())));
+            result.put("certificates", certList);
             sendJsonResponse(ctx, result);
         } catch (Exception e) {
             handleError(ctx, "retrieving " + type + " certificates", e);
@@ -132,21 +174,44 @@ public class CertificateHandler {
 
     private JsonObject buildCACertJson(String alias, Object certData) {
         var cert = ((CertificateService.CertificateData) certData).getCertificate();
+        var certInfo = certificateReader.extractCertificateInfo(cert, "CA", alias + ".crt");
         return new JsonObject()
                 .put("alias", alias)
-                .put("subject", cert.getSubjectDN().getName())
-                .put("issuer", cert.getIssuerDN().getName())
-                .put("notBefore", toLocalDateTime(cert.getNotBefore().toInstant()))
-                .put("notAfter", toLocalDateTime(cert.getNotAfter().toInstant()));
+                .put("type", certInfo.getType())
+                .put("filename", certInfo.getFilename())
+                .put("serialNumber", certInfo.getSerialNumber())
+                .put("issuer", certInfo.getIssuer())
+                .put("subject", certInfo.getSubject())
+                .put("notBefore", certInfo.getNotBefore())
+                .put("notAfter", certInfo.getNotAfter())
+                .put("email", certInfo.getEmail())
+                .put("iin", certInfo.getIin())
+                .put("bin", certInfo.getBin())
+                .put("publicKeyAlgorithm", certInfo.getPublicKeyAlgorithm())
+                .put("keySize", certInfo.getKeySize());
     }
 
     private JsonObject buildEntityCertJson(String alias, Object certData) {
         var data = (CertificateService.CertificateData) certData;
-        return buildCACertJson(alias, certData)
-                .put("caId", data.getCaId())
-                .put("email", data.getEmail())
-                .put("iin", data.getIin())
-                .put("bin", data.getBin());
+        var cert = data.getCertificate();
+        // Determine type based on the method being called (this is called for user/legal certificates)
+        String type = cert.getSubjectDN().getName().contains("OU=BIN") ? "LEGAL" : "USER";
+        var certInfo = certificateReader.extractCertificateInfo(cert, type, alias + ".p12");
+        return new JsonObject()
+                .put("alias", alias)
+                .put("type", certInfo.getType())
+                .put("filename", certInfo.getFilename())
+                .put("serialNumber", certInfo.getSerialNumber())
+                .put("issuer", certInfo.getIssuer())
+                .put("subject", certInfo.getSubject())
+                .put("notBefore", certInfo.getNotBefore())
+                .put("notAfter", certInfo.getNotAfter())
+                .put("email", certInfo.getEmail())
+                .put("iin", certInfo.getIin())
+                .put("bin", certInfo.getBin())
+                .put("publicKeyAlgorithm", certInfo.getPublicKeyAlgorithm())
+                .put("keySize", certInfo.getKeySize())
+                .put("caId", data.getCaId());
     }
 
     private LocalDateTime toLocalDateTime(java.time.Instant instant) {

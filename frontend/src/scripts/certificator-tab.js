@@ -1,13 +1,9 @@
 export default () => ({
-    // Certificate collections
-    certificates: {
-        ca: {},
-        user: {},
-        legal: {}
-    },
+    // Certificate collections - now hierarchical array structure
+    /* Structure: Array of CA objects, each containing CA info and its user/legal certificates */
+    certificates: [],
 
     // UI state
-    expandedCAs: {},
     generatingCA: false,
     generatingUser: false,
     generatingLegal: false,
@@ -15,42 +11,87 @@ export default () => ({
     // Form data
     newCAAlias: '',
 
+    activeSubTab: 'create',
+
     async init() {
         await this.loadCertificates();
+    },
+
+    buildHierarchicalFromFlat(flatCertificates) {
+        const caMap = new Map();
+        const result = [];
+
+        for (const cert of flatCertificates) {
+            switch (cert.type) {
+                case 'CA':
+                    const caStructure = {
+                        ca: cert,
+                        userCertificates: [],
+                        legalCertificates: [],
+                        alias: cert.alias || cert.subject
+                    };
+                    caMap.set(cert.alias || cert.subject, caStructure);
+                    result.push(caStructure);
+                    break;
+                case 'USER':
+                    const userCaAlias = cert.issuer || cert.caId; // Assume caId or extract from issuer
+                    if (caMap.has(userCaAlias)) {
+                        caMap.get(userCaAlias).userCertificates.push(cert);
+                    }
+                    break;
+                case 'LEGAL':
+                    const legalCaAlias = cert.issuer || cert.caId;
+                    if (caMap.has(legalCaAlias)) {
+                        caMap.get(legalCaAlias).legalCertificates.push(cert);
+                    }
+                    break;
+            }
+        }
+
+        return result;
     },
 
     async loadCertificates() {
         try {
             // First, load CA certificates
             const caResponse = await fetch('/api/certificates/ca');
-            this.certificates.ca = await caResponse.json();
+            const caData = await caResponse.json();
 
-            // Initialize expanded state for all CAs
-            Object.keys(this.certificates.ca).forEach(caId => {
-                this.expandedCAs[caId] = false;
-            });
+            // Build hierarchical structure: array of CA objects with nested user/legal certificates
+            this.certificates = [];
 
-            // Load user and legal certificates for each CA
-            const certificatePromises = [];
-            Object.keys(this.certificates.ca).forEach(caId => {
-                certificatePromises.push(fetch(`/api/certificates/user?caId=${caId}`));
-                certificatePromises.push(fetch(`/api/certificates/legal?caId=${caId}`));
-            });
+            for (const caCert of caData.certificates) {
+                // Create CA structure with its certificates
+                const caStructure = {
+                    ca: caCert,
+                    userCertificates: [],
+                    legalCertificates: [],
+                    alias: caCert.alias // convenience property
+                };
 
-            const responses = await Promise.all(certificatePromises);
+                // Load user certificates for this CA
+                try {
+                    const userResponse = await fetch(`/api/certificates/user?caId=${caCert.alias}`);
+                    const userData = await userResponse.json();
+                    caStructure.userCertificates = userData.certificates;
+                } catch (e) {
+                    console.warn(`Failed to load user certificates for CA ${caCert.alias}:`, e);
+                }
 
-            // Process responses in pairs (user, legal for each CA)
-            let responseIndex = 0;
-            for (const caId of Object.keys(this.certificates.ca)) {
-                const userResponse = responses[responseIndex++];
-                const legalResponse = responses[responseIndex++];
+                // Load legal certificates for this CA
+                try {
+                    const legalResponse = await fetch(`/api/certificates/legal?caId=${caCert.alias}`);
+                    const legalData = await legalResponse.json();
+                    caStructure.legalCertificates = legalData.certificates;
+                } catch (e) {
+                    console.warn(`Failed to load legal certificates for CA ${caCert.alias}:`, e);
+                }
 
-                const userCerts = await userResponse.json();
-                const legalCerts = await legalResponse.json();
+                this.certificates.push(caStructure);
+            }
 
-                // Merge with existing certificates
-                Object.assign(this.certificates.user, userCerts);
-                Object.assign(this.certificates.legal, legalCerts);
+            if(this.certificates) {
+                this.activeSubTab = this.certificates[0].alias;
             }
 
         } catch (error) {
@@ -76,7 +117,7 @@ export default () => ({
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             const result = await response.json();
@@ -84,36 +125,51 @@ export default () => ({
             // Refresh certificates
             await this.loadCertificates();
 
-            // Expand the newly generated CA
-            this.expandedCAs[result.alias] = true;
+            // Switch to the newly created CA view
+            this.activeSubTab = result.alias;
 
             this.successMessage = `CA certificate generated successfully: ${result.alias}`;
 
             // Clear the input field
             this.newCAAlias = '';
 
+            // Auto-clear success message after 5 seconds
+            setTimeout(() => {
+                if (this.successMessage === `CA certificate generated successfully: ${result.alias}`) {
+                    this.successMessage = '';
+                }
+            }, 5000);
+
         } catch (error) {
             console.error('Failed to generate CA:', error);
             this.errorMessage = 'Failed to generate CA certificate';
+
+            // Auto-clear error message after 8 seconds
+            setTimeout(() => {
+                this.errorMessage = '';
+            }, 8000);
         } finally {
             this.generatingCA = false;
         }
     },
 
-    async generateUser(caId) {
-        this.generatingUser = true;
+    // Common certificate generation pattern
+    async generateCertificate(type, url, body = null) {
+        const loadingFlag = `generating${type.charAt(0).toUpperCase() + type.slice(1)}`;
+
+        this[loadingFlag] = true;
         this.errorMessage = '';
         this.successMessage = '';
 
         try {
-            const response = await fetch('/api/certificates/generate/user', {
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ caId })
+                body: body ? JSON.stringify(body) : null
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             const result = await response.json();
@@ -121,61 +177,159 @@ export default () => ({
             // Refresh certificates
             await this.loadCertificates();
 
-            this.successMessage = `User certificate generated successfully: ${result.alias}`;
+            this.successMessage = `${type === 'CA' ? 'CA' : type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()} certificate generated successfully: ${result.alias}`;
+
+            // Auto-clear success message after 5 seconds
+            const successMsg = this.successMessage;
+            setTimeout(() => {
+                if (this.successMessage === successMsg) {
+                    this.successMessage = '';
+                }
+            }, 5000);
+
+            return result;
 
         } catch (error) {
-            console.error('Failed to generate user certificate:', error);
-            this.errorMessage = 'Failed to generate user certificate';
+            console.error(`Failed to generate ${type.toLowerCase()} certificate:`, error);
+            this.errorMessage = `Failed to generate ${type.toLowerCase()} certificate`;
+
+            // Auto-clear error message after 8 seconds
+            setTimeout(() => {
+                this.errorMessage = '';
+            }, 8000);
+
+            throw error;
         } finally {
-            this.generatingUser = false;
+            this[loadingFlag] = false;
         }
+    },
+
+    async generateUser(caId) {
+        return this.generateCertificate('user', '/api/certificates/generate/user', { caId });
     },
 
     async generateLegal(caId) {
-        this.generatingLegal = true;
-        this.errorMessage = '';
-        this.successMessage = '';
+        return this.generateCertificate('legal', '/api/certificates/generate/legal', { caId });
+    },
 
-        try {
-            const response = await fetch('/api/certificates/generate/legal', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ caId })
-            });
+    // Parse certificate subject into structured data
+    parseSubject(subject) {
+        if (!subject) return {};
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+        const parsed = {};
+
+        // Split by comma and process each part
+        subject.split(',').forEach(part => {
+            const [key, ...valueParts] = part.trim().split('=');
+            if (key && valueParts.length > 0) {
+                const value = valueParts.join('=').trim();
+                parsed[key.toLowerCase()] = value;
             }
+        });
 
-            const result = await response.json();
+        return parsed;
+    },
 
-            // Refresh certificates
-            await this.loadCertificates();
+    // Get formatted certificate details from subject parsing
+    getCertificateDetails(cert) {
+        const parsed = this.parseSubject(cert.subject);
 
-            this.successMessage = `Legal certificate generated successfully: ${result.alias}`;
+        return {
+            commonName: parsed.cn || parsed.caption || '',
+            surname: parsed.surname || '',
+            givenName: parsed.g || '',
+            organization: parsed.o || '',
+            organizationalUnit: parsed.ou || '',
+            bin: this.extractBinFromOU(parsed.ou) || cert.bin,
+            businessCategory: parsed.businesscategory || '',
+            position: parsed.dc || parsed.g || '',
+            country: parsed.c || '',
+            email: parsed.e || cert.email || ''
+        };
+    },
 
-        } catch (error) {
-            console.error('Failed to generate legal certificate:', error);
-            this.errorMessage = 'Failed to generate legal certificate';
-        } finally {
-            this.generatingLegal = false;
+    // Extract BIN from OU string if it contains BIN=
+    extractBinFromOU(ou) {
+        if (!ou) return null;
+        const match = ou.match(/BIN(\d+)/);
+        return match ? match[1] : null;
+    },
+
+    // Generate initials for pseudo avatar from certificate subject or alias
+    generateInitials(cert) {
+        const details = this.getCertificateDetails(cert);
+
+        // First try from parsed subject data
+        if (details.givenName && details.surname) {
+            return (details.givenName[0] + details.surname[0]).toUpperCase();
         }
+        if (details.commonName && details.surname) {
+            return (details.commonName[0] + details.surname[0]).toUpperCase();
+        }
+
+        // Fallback to current logic
+        if (cert.subject) {
+            const cnMatch = cert.subject.match(/CN=([^,]+)/i);
+            if (cnMatch && cnMatch[1]) {
+                const name = cnMatch[1].trim();
+                const parts = name.split(/\s+/);
+                if (parts.length >= 2) {
+                    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                } else if (parts.length === 1) {
+                    return parts[0].substring(0, 2).toUpperCase();
+                }
+            }
+        }
+
+        // Fallback to alias first two characters
+        return cert.alias ? cert.alias.substring(0, 2).toUpperCase() : 'NA';
     },
 
-    toggleCAExpansion(caId) {
-        this.expandedCAs[caId] = !this.expandedCAs[caId];
+    // Generate full name from certificate data
+    getFullName(cert) {
+        const details = this.getCertificateDetails(cert);
+        const parts = [];
+
+        if (details.givenName) parts.push(details.givenName);
+        if (details.commonName) parts.push(details.commonName);
+        //if (details.surname) parts.push(details.surname);
+
+        return parts.length > 0 ? parts.join(' ') : cert.alias;
     },
 
-    getUsersForCA(caId) {
-        return Object.values(this.certificates.user).filter(cert => cert.caId === caId);
-    },
-
-    getLegalsForCA(caId) {
-        return Object.values(this.certificates.legal).filter(cert => cert.caId === caId);
+    // Generate avatar background pattern using certificate properties
+    getAvatarPattern(cert) {
+        // Create pseudo-random pattern based on alias or serial number
+        const seed = cert.alias || cert.serialNumber || cert.subject || 'default';
+        const patterns = [
+            'bg-gradient-to-br from-blue-400 to-blue-600',
+            'bg-gradient-to-br from-green-400 to-green-600',
+            'bg-gradient-to-br from-purple-400 to-purple-600',
+            'bg-gradient-to-br from-orange-400 to-orange-600',
+            'bg-gradient-to-br from-pink-400 to-pink-600',
+            'bg-gradient-to-br from-teal-400 to-teal-600',
+            'bg-gradient-to-br from-indigo-400 to-indigo-600',
+            'bg-gradient-to-br from-red-400 to-red-600'
+        ];
+        // Simple hash to get consistent pattern
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return patterns[Math.abs(hash) % patterns.length];
     },
 
     formatDate(dateString) {
         return new Date(dateString).toLocaleDateString();
+    },
+
+    formatKeyInfo(cert) {
+        if (!cert.publicKeyAlgorithm && !cert.keySize) return 'N/A';
+        const parts = [];
+        if (cert.publicKeyAlgorithm) parts.push(cert.publicKeyAlgorithm);
+        if (cert.keySize) parts.push(`${cert.keySize} bits`);
+        return parts.join(', ');
     },
 
     copyToClipboard(text) {

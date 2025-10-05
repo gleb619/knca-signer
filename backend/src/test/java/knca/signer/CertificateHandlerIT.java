@@ -8,12 +8,14 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
+import knca.signer.service.CertificateReader;
 import knca.signer.service.CertificateService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,7 +68,8 @@ public class CertificateHandlerIT {
                 .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-        certificateHandler = new CertificateHandler(certificateService);
+        var certificateReader = new CertificateReader(config);
+        certificateHandler = new CertificateHandler(certificateService, certificateReader);
 
         // Set up routes
         Router router = Router.router(vertx);
@@ -76,6 +79,7 @@ public class CertificateHandlerIT {
         router.get("/certificates/ca").handler(certificateHandler.handleGetCACertificate());
         router.get("/certificates/user").handler(certificateHandler.handleGetUserCertificate());
         router.get("/certificates/legal").handler(certificateHandler.handleGetLegalCertificate());
+        router.get("/certificates/filesystem").handler(certificateHandler.handleGetFilesystemCertificates());
         router.post("/certificates/generate/ca").handler(certificateHandler.handleGenerateCACertificate());
         router.post("/certificates/generate/user").handler(certificateHandler.handleGenerateUserCertificate());
         router.post("/certificates/generate/legal").handler(certificateHandler.handleGenerateLegalCertificate());
@@ -270,8 +274,10 @@ public class CertificateHandlerIT {
                     response.body().onComplete(testContext.succeeding(buffer -> {
                         testContext.verify(() -> {
                             JsonObject json = new JsonObject(buffer.toString());
-                            // Should contain user certificates for the default CA
+                            // Should contain certificates array
                             assertNotNull(json);
+                            assertTrue(json.containsKey("certificates"));
+                            assertInstanceOf(JsonArray.class, json.getJsonArray("certificates"));
                         });
                         testContext.completeNow();
                     }));
