@@ -151,9 +151,15 @@
 
     <!-- Error/Success Messages -->
     <div :class="errorMessage ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'"
-         class="rounded-lg p-4"
+         class="fixed top-4 right-4 rounded-lg p-4 shadow-lg max-w-sm w-full z-50"
+         x-cloak
          x-show="errorMessage || successMessage"
-         x-transition>
+         x-transition:enter="transform ease-out duration-300 transition"
+         x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
+         x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+         x-transition:leave="transition ease-in duration-100"
+         x-transition:leave-end="opacity-0"
+         x-transition:leave-start="opacity-100">
         <div class="flex items-center justify-between">
             <span x-text="errorMessage || successMessage"></span>
             <button @click="clearMessages" class="text-current hover:opacity-75">

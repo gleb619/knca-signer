@@ -44,6 +44,7 @@ public class SigningHandlerIT {
                 "certs/",
                 "certs/ca.crt",
                 2048,
+                "RSA",
                 "1.2.840.113549.1.1.11",
                 "123456",
                 10,

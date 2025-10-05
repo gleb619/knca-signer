@@ -88,7 +88,7 @@ export default () => ({
                 this.isConnected = false;
                 this.stopHeartbeat();
                 if (!event.wasClean && event.code !== 1000) {
-                    this.errorMessage = 'Connection lost unexpectedly. Please try again.';
+                    this.errorMessage = 'WebSocket connection lost unexpectedly. Please try again.';
                     if(shouldOpenDialog) {
                         this.openDialog();
                     }

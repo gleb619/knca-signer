@@ -200,7 +200,7 @@ public class CertificateService {
     }
 
     private KeyPair generateKeyPair() throws NoSuchAlgorithmException, NoSuchProviderException {
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance(config.getSignatureAlgorithm(), provider.getName());
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance(config.getKeyFactoryType(), provider.getName());
         kpg.initialize(config.getKeySize());
         return kpg.generateKeyPair();
     }
@@ -404,8 +404,8 @@ public class CertificateService {
             byte[] keyBytes = Base64.getDecoder().decode(keyText);
 
             PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-            //TODO: we ge got error: `no such algorithm: 1.2.840.113549.1.1.11 for provider KALKAN`, we need to trace which algorithms supported by kalkan lib
-            KeyFactory keyFactory = KeyFactory.getInstance(config.getSignatureAlgorithm(), provider.getName());
+            // Look at https://github.com/pkigovkz/java-jwt/blob/master/lib/src/test/java/com/auth0/jwt/algorithms/RSAAlgorithmTest.java#L42
+            KeyFactory keyFactory = KeyFactory.getInstance(config.getKeyFactoryType(), provider.getName());
             caPrivateKey = keyFactory.generatePrivate(keySpec);
         }
 
@@ -504,33 +504,11 @@ public class CertificateService {
     }
 
     private CertificateMetadata extractCertificateMetadata(X509Certificate cert) {
-        String email = "user@example.com";
-        String iin = "123456789012";
-        String bin = null;
-
-        try {
-            // Use KalkanAdapter methods to properly extract metadata via reflection
-            email = KalkanAdapter.extractEmailFromCertificate(cert);
-            iin = KalkanAdapter.extractIINFromCertificate(cert);
-            bin = KalkanAdapter.extractBINFromCertificate(cert);
-
-        } catch (Exception e) {
-            // Fall back to JRE methods if Kalkan methods fail during development
-            try {
-                // Use standard X509Certificate methods as fallback
-                Collection<?> sans = cert.getSubjectAlternativeNames();
-                if (sans != null) {
-                    for (Object san : sans) {
-                        List<?> sanList = (List<?>) san;
-                        if (sanList.size() >= 2 && sanList.get(0).equals(1)) { // RFC822Name
-                            email = (String) sanList.get(1);
-                        }
-                    }
-                }
-            } catch (Exception jreException) {
-                // Keep default values if both methods fail
-            }
-        }
+        // Use CertificateReader for consistent metadata extraction
+        CertificateReader reader = new CertificateReader(config);
+        String email = reader.extractEmail(cert);
+        String iin = reader.extractIIN(cert);
+        String bin = reader.extractBIN(cert);
 
         return new CertificateMetadata(email, iin, bin);
     }

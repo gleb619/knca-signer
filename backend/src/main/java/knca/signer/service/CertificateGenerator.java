@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.StringWriter;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.*;
@@ -278,7 +279,9 @@ public class CertificateGenerator {
         KalkanAdapter.writeObject(pemWriter, cert);
         KalkanAdapter.flush(pemWriter);
         String pem = stringWriter.toString();
-        Files.write(Paths.get(filename), pem.getBytes(), StandardOpenOption.CREATE);
+        Path path = Paths.get(filename);
+        Files.createDirectories(path.getParent());
+        Files.write(path, pem.getBytes(), StandardOpenOption.CREATE);
     }
 
     /**

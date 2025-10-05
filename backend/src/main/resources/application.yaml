@@ -20,6 +20,7 @@ certificate:
   certsPath: "certs/"
   caCertPath: "certs/ca.crt"
   keySize: 2048
+  keyFactoryType: "RSA"
   signatureAlgorithm: "1.2.840.113549.1.1.11"
   keystorePassword: "123456"
   caValidityYears: 10

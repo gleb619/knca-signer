@@ -1,4 +1,4 @@
-package knca.signer;
+package knca.signer.example;
 
 import knca.signer.config.ApplicationConfig;
 import knca.signer.security.KalkanRegistry;
@@ -28,6 +28,7 @@ public class GeneratorTest {
                 "certs/",
                 "certs/ca.crt",
                 2048,
+                "RSA",
                 "1.2.840.113549.1.1.11",
                 "123456",
                 10,
@@ -41,7 +42,8 @@ public class GeneratorTest {
                 "certs/",
                 "certs/ca.crt",
                 2048,
-                "1.2.840.113549.1.1.11",
+                "RSA",
+                "1.2.398.3.3.4.1.1",
                 "123456",
                 10,
                 1

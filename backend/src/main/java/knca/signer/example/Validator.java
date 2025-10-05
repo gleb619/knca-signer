@@ -33,6 +33,7 @@ public class Validator {
                     "certs/",
                     "certs/ca.crt",
                     2048,
+                    "RSA",
                     "1.2.840.113549.1.1.11",
                     "123456",
                     10,
@@ -46,8 +47,7 @@ public class Validator {
 
             log.info("Validation result: " + valid);
         } catch (Exception e) {
-            log.error("Validation failed: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Validation failed: %s".formatted(e.getMessage()), e);
         }
     }
 }

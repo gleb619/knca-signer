@@ -1,7 +1,6 @@
-package knca.signer;
+package knca.signer.example;
 
 import knca.signer.config.ApplicationConfig;
-import knca.signer.example.Validator;
 import knca.signer.security.KalkanProxy;
 import knca.signer.security.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
@@ -79,6 +78,7 @@ public class ValidatorTest {
                 "certs/",
                 "certs/ca.crt",
                 2048,
+                "RSA",
                 "1.2.840.113549.1.1.11",
                 "123456",
                 10,
@@ -178,6 +178,7 @@ public class ValidatorTest {
                 "certs/",
                 "certs/ca.crt",
                 2048,
+                "RSA",
                 "1.2.840.113549.1.1.11",
                 "123456",
                 10,

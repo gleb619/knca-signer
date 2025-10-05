@@ -65,6 +65,7 @@ public class ApplicationConfig {
         private String certsPath;
         private String caCertPath;
         private int keySize;
+        private String keyFactoryType;
         private String signatureAlgorithm;
         private String keystorePassword;
         private int caValidityYears;
