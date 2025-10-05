@@ -5,10 +5,7 @@ import knca.signer.kalkan.KalkanAdapter;
 import knca.signer.kalkan.KalkanConstants;
 import knca.signer.kalkan.KalkanProxy;
 import knca.signer.service.CertificateValidator.XmlValidator;
-import lombok.Data;
-import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
-import lombok.Value;
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
@@ -63,6 +60,11 @@ public class CertificateService {
         sig.update(data.getBytes(StandardCharsets.UTF_8));
         byte[] signatureBytes = sig.sign();
         return Base64.getEncoder().encodeToString(signatureBytes);
+    }
+
+    public SignedData signDataWithResult(String data, String certAlias) throws Exception {
+        String signature = signData(data, certAlias);
+        return new SignedData(data, signature, certAlias);
     }
 
     public boolean verifySignature(String data, String signature, String certAlias) throws Exception {
@@ -589,6 +591,38 @@ public class CertificateService {
         private final String caId;
         private final X509Certificate certificate;
 
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class SignedData {
+
+        private final String originalData;
+        private final String signature;
+        private final String certAlias;
+
+        /**
+         * Returns the signature combined with the original data for easy use
+         */
+        public String getSignedContent() {
+            return originalData + signature;
+        }
+
+        /**
+         * Returns a formatted string with both data and signature
+         */
+        public String getFormattedSignedContent() {
+            return String.format("<content><data>%s</data><signature>%s<signature><alias>%s</alias></content>",
+                    escapeXml(originalData), escapeXml(signature), escapeXml(certAlias));
+        }
+
+        private String escapeXml(String s) {
+            return s.replaceAll("&", "&amp;")
+                    .replaceAll(">", "&gt;")
+                    .replaceAll("<", "&lt;")
+                    .replaceAll("\"", "&quot;")
+                    .replaceAll("'", "&apos;");
+        }
     }
 
     @Value
