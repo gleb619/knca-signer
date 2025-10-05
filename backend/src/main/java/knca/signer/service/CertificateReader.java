@@ -14,7 +14,6 @@ import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -217,26 +216,15 @@ public class CertificateReader {
      * Extract email from certificate.
      */
     public String extractEmail(X509Certificate cert) {
+        if (cert == null) {
+            return "N/A";
+        }
         try {
             // First try KalkanAdapter method
             return KalkanAdapter.extractEmailFromCertificate(cert);
         } catch (Exception e) {
-            log.debug("KalkanAdapter email extraction failed, trying fallback methods: {}", e.getMessage());
-            try {
-                // Try standard Java API first
-                Collection<List<?>> sans = cert.getSubjectAlternativeNames();
-                if (sans != null) {
-                    for (List<?> san : sans) {
-                        if (san.size() >= 2 && san.get(0).equals(1)) { // RFC822Name
-                            return (String) san.get(1);
-                        }
-                    }
-                }
-            } catch (Exception javaException) {
-                log.debug("Standard Java SAN extraction failed, trying string parsing: {}", javaException.getMessage());
-            }
-
-            // Ultimate fallback: parse from certificate string representation
+            log.debug("KalkanAdapter email extraction failed, using string parsing fallback: {}", e.getMessage());
+            // Parse from certificate string representation (reliable fallback)
             String certString = cert.toString();
             return parseEmailFromCertificateString(certString);
         }
@@ -246,6 +234,9 @@ public class CertificateReader {
      * Extract IIN from certificate.
      */
     public String extractIIN(X509Certificate cert) {
+        if (cert == null) {
+            return "N/A";
+        }
         try {
             // First try KalkanAdapter method
             return KalkanAdapter.extractIINFromCertificate(cert);
@@ -260,6 +251,9 @@ public class CertificateReader {
      * Extract BIN from certificate.
      */
     public String extractBIN(X509Certificate cert) {
+        if (cert == null) {
+            return "N/A";
+        }
         try {
             // First try KalkanAdapter method
             return KalkanAdapter.extractBINFromCertificate(cert);
@@ -377,7 +371,7 @@ public class CertificateReader {
             return extractValueFromExtensionString(certString, CertificateDataGenerator.BIN_OID);
         }
 
-        return null; // BIN is optional, return null instead of "N/A"
+        return "N/A"; // BIN is optional, but return "N/A" for consistency
     }
 
     /**

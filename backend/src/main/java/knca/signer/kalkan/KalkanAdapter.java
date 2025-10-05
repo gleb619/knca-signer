@@ -418,127 +418,69 @@ public class KalkanAdapter {
 
     /**
      * Extract IIN (Individual Identification Number) from certificate's otherName SAN entry
+     * Uses string parsing instead of ASN.1 parsing due to Kalkan certificate incompatibilities
      */
     public static String extractIINFromCertificate(Object x509Certificate) {
         try {
-            // Create proxy for certificate if needed
-            if (x509Certificate instanceof KalkanProxy certProxy) {
-                // Invoke getSubjectAlternativeNames method using proxy pattern
-                KalkanProxy result = certProxy.invoke(ProxyArg.builder()
-                        .methodName("getSubjectAlternativeNames")
-                        .paramTypes(null)
-                        .args(null)
-                        .build());
+            // Use string parsing as the primary method - more reliable than ASN.1 parsing
+            String certString = x509Certificate.toString();
 
-                var sans = (Collection) result.getRealObject();
-                return extractOtherNameFromSAN(sans, CertificateDataGenerator.IIN_OID, "123456789012");
-            } else {
-                throw new KalkanException("Unknown object type: %s".formatted(x509Certificate.getClass().getName()));
+            // Parse IIN from DN field
+            if (certString.contains("SN=IIN") || certString.contains("SERIALNUMBER=IIN")) {
+                java.util.regex.Pattern iinPattern = java.util.regex.Pattern.compile("[A-Z]*IIN(\\d{12})");
+                java.util.regex.Matcher matcher = iinPattern.matcher(certString);
+                if (matcher.find()) {
+                    return matcher.group(1);
+                }
+            }
+
+            // Look for otherName IIN in extensions
+            if (certString.contains(CertificateDataGenerator.IIN_OID)) {
+                java.util.regex.Pattern digitPattern = java.util.regex.Pattern.compile("\\d{12}");
+                java.util.regex.Matcher digitMatcher = digitPattern.matcher(certString);
+                if (digitMatcher.find()) {
+                    return digitMatcher.group();
+                }
             }
         } catch (Exception e) {
-            // Fallback to direct reflection if proxy fails
-            return extractOtherNameFromCertificateFallback(x509Certificate, CertificateDataGenerator.IIN_OID, "123456789012");
+            log.debug("Failed to extract IIN using string parsing: {}", e.getMessage());
         }
+
+        return "123456789012"; // default fallback
     }
 
     /**
      * Extract BIN (Business Identification Number) from certificate's otherName SAN entry
+     * Uses string parsing instead of ASN.1 parsing due to Kalkan certificate incompatibilities
      */
     public static String extractBINFromCertificate(Object x509Certificate) {
         try {
-            // Create proxy for certificate if needed
-            if (x509Certificate instanceof KalkanProxy certProxy) {
-                // Invoke getSubjectAlternativeNames method using proxy pattern
-                KalkanProxy result = certProxy.invoke(ProxyArg.builder()
-                        .methodName("getSubjectAlternativeNames")
-                        .paramTypes(null)
-                        .args(null)
-                        .build());
+            // Use string parsing as the primary method - more reliable than ASN.1 parsing
+            String certString = x509Certificate.toString();
 
-                var sans = (Collection) result.getRealObject();
-                return extractOtherNameFromSAN(sans, CertificateDataGenerator.BIN_OID, "012345678912");
-            } else {
-                throw new KalkanException("Unknown object type: %s".formatted(x509Certificate.getClass().getName()));
-            }
-        } catch (Exception e) {
-            // Fallback to direct reflection if proxy fails
-            return extractOtherNameFromCertificateFallback(x509Certificate, CertificateDataGenerator.BIN_OID, "012345678912");
-        }
-    }
-
-    /**
-     * Extract otherName entries from SAN Collection using proper parsing
-     */
-    private static String extractOtherNameFromSAN(Collection sans, String oid, String defaultValue) {
-        if (sans != null) {
-            for (Object san : sans) {
-                var sanList = (List) san;
-                if (sanList.size() >= 2 && sanList.get(0).equals(0)) { // otherName = 0
-                    // The sanList.get(1) should be the ASN.1 OtherName structure
-                    // For Kazakh certificates, parse the OID and value
-                    Object otherName = sanList.get(1);
-                    if (otherName != null) {
-                        // Try to parse the OtherName structure properly
-                        try {
-                            // Create proxy for OtherName and extract data
-                            KalkanProxy otherNameProxy = KalkanRegistry.createOtherName("", "");
-                            // Set the real object if needed
-
-                            // For now, use string-based parsing as fallback
-                            String otherNameStr = otherName.toString();
-                            if (otherNameStr.contains(oid)) {
-                                return extractValueFromASN1String(otherNameStr, oid);
-                            }
-                        } catch (Exception e) {
-                            // Fall back to string parsing
-                            String otherNameStr = otherName.toString();
-                            if (otherNameStr.contains(oid)) {
-                                return extractValueFromASN1String(otherNameStr, oid);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return defaultValue; // default
-    }
-
-    /**
-     * Fallback method for certificate parsing when proxy fails
-     */
-    private static String extractOtherNameFromCertificateFallback(Object x509Certificate, String oid, String defaultValue) {
-        try {
-            // Use direct reflection as fallback
-            var sans = (Collection) ReflectionHelper.invokeMethod(x509Certificate, "getSubjectAlternativeNames", null, null);
-            return extractOtherNameFromSAN(sans, oid, defaultValue);
-        } catch (Exception e) {
-            return defaultValue; // default
-        }
-    }
-
-    /**
-     * Extract value from ASN.1 string representation
-     */
-    private static String extractValueFromASN1String(String asn1String, String oid) {
-        try {
-            int oidIndex = asn1String.indexOf(oid);
-            if (oidIndex >= 0) {
-                String afterOid = asn1String.substring(oidIndex + oid.length());
-                // Extract what looks like a value (simplified parsing)
-                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\{\\w+\\}|\\[\\w+\\]|\"[^\"]*\"|'[^']*'|\\w+)").matcher(afterOid);
+            // Parse BIN from DN field
+            if (certString.contains("OU=BIN") || certString.contains("ORGANIZATIONALUNITNAME=BIN")) {
+                java.util.regex.Pattern binPattern = java.util.regex.Pattern.compile("[A-Z]*BIN(\\d{12})");
+                java.util.regex.Matcher matcher = binPattern.matcher(certString);
                 if (matcher.find()) {
-                    String potentialValue = matcher.group(1);
-                    // Clean up brackets/quotes
-                    potentialValue = potentialValue.replaceAll("[{}\\[\\]\"']", "");
-                    if (potentialValue.length() > 3) {
-                        return potentialValue;
-                    }
+                    return matcher.group(1);
+                }
+            }
+
+            // Look for otherName BIN in extensions
+            if (certString.contains(CertificateDataGenerator.BIN_OID)) {
+                java.util.regex.Pattern digitPattern = java.util.regex.Pattern.compile("\\d{12}");
+                java.util.regex.Matcher digitMatcher = digitPattern.matcher(certString);
+                if (digitMatcher.find()) {
+                    return digitMatcher.group();
                 }
             }
         } catch (Exception e) {
-            // Silently fail
+            log.debug("Failed to extract BIN using string parsing: {}", e.getMessage());
         }
-        return "123456789012"; // default
+
+        return null; // BIN is optional, return null instead of default
     }
+
+
 }
