@@ -1,8 +1,6 @@
-package knca.signer.security;
+package knca.signer.kalkan;
 
 import lombok.*;
-
-import java.util.Objects;
 
 /**
  * Interface for dynamic proxies that wrap Kalkan cryptographic library objects.
@@ -31,20 +29,44 @@ public interface KalkanProxy {
      * Invokes a method on the proxied object with the given arguments.
      *
      * @param arg the method invocation arguments
-     * @return the result of the method invocation
+     * @return the result wrapped in a KalkanProxy
      * @throws RuntimeException if the invocation fails
      */
-    default ProxyResult invoke(ProxyArg arg) {
+    default KalkanProxy invoke(ProxyArg arg) {
         try {
             Object result = ReflectionHelper.invokeMethod(getRealObject(), arg.getMethodName(), arg.getParamTypes(), arg.getArgs());
-            Object rawValue = ReflectionHelper.unwrapValue(result);
-            return ProxyResult.builder()
-                    .result(result)
-                    .resultType(Objects.nonNull(rawValue) ? rawValue.getClass() : Void.class)
-                    .build();
+            return (KalkanProxy) KalkanRegistry.wrapValue(result);
         } catch (Exception e) {
             throw new RuntimeException("Invoke failed", e);
         }
+    }
+
+    /**
+     * Gets the result value from a proxied result.
+     *
+     * @return the underlying result object
+     */
+    default Object getResult() {
+        return getRealObject();
+    }
+
+    /**
+     * Gets the type of the result.
+     *
+     * @return the result type name
+     */
+    default String getResultType() {
+        return getRealObject().getClass().getName();
+    }
+
+    /**
+     * Casts the result to the specified type.
+     *
+     * @param <T> the type to cast to
+     * @return the typed result
+     */
+    default <T> T genericValue() {
+        return (T) getRealObject();
     }
 
     /**
@@ -85,23 +107,6 @@ public interface KalkanProxy {
 
     }
 
-    @Data
-    @Builder
-    @AllArgsConstructor
-    @NoArgsConstructor(access = AccessLevel.PUBLIC)
-    class ProxyResult {
 
-        private Object result;
-        private Class<?> resultType;
-
-        public String getType() {
-            return resultType.getName();
-        }
-
-        public <T> T genericValue() {
-            return (T) result;
-        }
-
-    }
 
 }

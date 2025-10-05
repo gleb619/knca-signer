@@ -2,9 +2,9 @@ package knca.signer.service;
 
 
 import knca.signer.config.ApplicationConfig;
-import knca.signer.security.KalkanAdapter;
-import knca.signer.security.KalkanConstants;
-import knca.signer.security.KalkanProxy;
+import knca.signer.kalkan.KalkanAdapter;
+import knca.signer.kalkan.KalkanConstants;
+import knca.signer.kalkan.KalkanProxy;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +19,7 @@ import java.security.cert.X509Certificate;
 import java.util.Calendar;
 import java.util.Date;
 
-import static knca.signer.security.KalkanConstants.ROOT_SUBJECT_DN;
+import static knca.signer.kalkan.KalkanConstants.ROOT_SUBJECT_DN;
 
 /**
  * Instance-based certificate generator that uses dependency injection.

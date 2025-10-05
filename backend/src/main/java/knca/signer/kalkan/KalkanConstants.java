@@ -1,4 +1,4 @@
-package knca.signer.security;
+package knca.signer.kalkan;
 
 /**
  * Consolidated constants for certificate generation.

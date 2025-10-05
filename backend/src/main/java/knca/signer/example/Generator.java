@@ -1,7 +1,7 @@
 package knca.signer.example;
 
 import knca.signer.config.ApplicationConfig;
-import knca.signer.security.KalkanRegistry;
+import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
 import lombok.extern.slf4j.Slf4j;
 

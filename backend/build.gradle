@@ -6,6 +6,7 @@ plugins {
 
 group = 'knca'
 version = '1.0.0'
+description = 'An application for creating a test CA, signing XML using NCALayer and test user certificate, verifying xml signatures using Kalkan.'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -23,21 +24,27 @@ repositories {
 }
 
 dependencies {
+    /* app */
     implementation 'io.vertx:vertx-core:4.4.6'
     implementation 'io.vertx:vertx-web:4.4.6'
     implementation 'io.vertx:vertx-config:4.4.6'
     implementation 'io.vertx:vertx-config-yaml:4.4.6'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2'
+
+    /* logs */
     implementation 'org.slf4j:slf4j-api:1.7.36'
     runtimeOnly 'org.slf4j:slf4j-simple:2.0.11'
 
+    /* misc */
     compileOnly 'org.projectlombok:lombok:1.18.30'
     annotationProcessor 'org.projectlombok:lombok:1.18.30'
 
+    /* bytecode for proxies */
     implementation 'net.bytebuddy:byte-buddy:1.17.7'
     runtimeOnly 'net.bytebuddy:byte-buddy-agent:1.17.7'
 
+    /* tests */
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.mockito:mockito-core:5.5.0'
@@ -57,14 +64,23 @@ application {
     mainClass = 'knca.signer.App'
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
+task runGenerator(type: JavaExec) {
+    mainClass = 'knca.signer.example.Generator'
+    classpath = sourceSets.main.runtimeClasspath
 }
 
-// Build frontend and copy static content to resources for production
-task buildFrontend(type: Exec) {
-    workingDir '../frontend'
-    commandLine 'npm', 'run', 'build'
+task runReader(type: JavaExec) {
+    mainClass = 'knca.signer.example.Reader'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+task runValidator(type: JavaExec) {
+    mainClass = 'knca.signer.example.Validator'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }
 
 task copyStatic(type: Copy) {

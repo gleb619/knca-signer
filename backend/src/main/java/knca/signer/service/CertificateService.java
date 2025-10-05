@@ -1,10 +1,9 @@
 package knca.signer.service;
 
 import knca.signer.config.ApplicationConfig;
-import knca.signer.security.KalkanAdapter;
-import knca.signer.security.KalkanConstants;
-import knca.signer.security.KalkanProxy;
-import knca.signer.security.KalkanProxy.ProxyResult;
+import knca.signer.kalkan.KalkanAdapter;
+import knca.signer.kalkan.KalkanConstants;
+import knca.signer.kalkan.KalkanProxy;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -237,10 +236,10 @@ public class CertificateService {
         KalkanProxy extGen = KalkanAdapter.createX509ExtensionsGenerator();
         KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.BasicConstraints, true, true);
         KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.KeyUsage, true, KalkanConstants.KeyUsage.keyCertSign | KalkanConstants.KeyUsage.cRLSign);
-        ProxyResult extResult = KalkanAdapter.generateExtensions(extGen);
+        KalkanProxy extResult = KalkanAdapter.generateExtensions(extGen);
         KalkanAdapter.setExtensions(tbsGen, extResult);
 
-        ProxyResult tbsResult = KalkanAdapter.generateTBSCertificate(tbsGen);
+        KalkanProxy tbsResult = KalkanAdapter.generateTBSCertificate(tbsGen);
 
         Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
         sig.initSign(keyPair.getPrivate());
@@ -251,7 +250,7 @@ public class CertificateService {
         KalkanProxy certGen = KalkanAdapter.createX509V3CertificateGenerator();
         KalkanAdapter.setSignatureAlgorithm(certGen, config.getSignatureAlgorithm());
 
-        ProxyResult certResult = KalkanAdapter.generateCertificate(certGen, tbsResult, signature);
+        KalkanProxy certResult = KalkanAdapter.generateCertificate(certGen, tbsResult, signature);
         return certResult.genericValue();
     }
 
@@ -292,10 +291,10 @@ public class CertificateService {
         }
         KalkanAdapter.addSubjectAlternativeName(extGen, sanVector);
 
-        ProxyResult extResult = KalkanAdapter.generateExtensions(extGen);
+        KalkanProxy extResult = KalkanAdapter.generateExtensions(extGen);
         KalkanAdapter.setExtensions(tbsGen, extResult);
 
-        ProxyResult tbsResult = KalkanAdapter.generateTBSCertificate(tbsGen);
+        KalkanProxy tbsResult = KalkanAdapter.generateTBSCertificate(tbsGen);
 
         Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
         sig.initSign(caPrivateKey);
@@ -306,7 +305,7 @@ public class CertificateService {
         KalkanProxy certGen = KalkanAdapter.createX509V3CertificateGenerator();
         KalkanAdapter.setSignatureAlgorithm(certGen, config.getSignatureAlgorithm());
 
-        ProxyResult certResult = KalkanAdapter.generateCertificate(certGen, tbsResult, signature);
+        KalkanProxy certResult = KalkanAdapter.generateCertificate(certGen, tbsResult, signature);
         return certResult.genericValue();
     }
 

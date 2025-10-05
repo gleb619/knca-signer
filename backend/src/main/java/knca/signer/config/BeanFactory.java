@@ -9,7 +9,7 @@ import io.vertx.core.json.jackson.DatabindCodec;
 import knca.signer.CertificateHandler;
 import knca.signer.SigningHandler;
 import knca.signer.WebSocketHandler;
-import knca.signer.security.KalkanRegistry;
+import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateService;
 import lombok.RequiredArgsConstructor;
 

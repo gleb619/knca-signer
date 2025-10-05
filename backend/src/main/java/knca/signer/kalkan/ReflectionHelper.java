@@ -1,6 +1,6 @@
-package knca.signer.security;
+package knca.signer.kalkan;
 
-import knca.signer.security.KalkanProxy.ProxyResult;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.invoke.MethodHandle;
@@ -139,8 +139,7 @@ public class ReflectionHelper {
     private static Class<?>[] inferParamTypes(Object[] args) {
         Class<?>[] types = new Class<?>[args.length];
         for (int i = 0; i < args.length; i++) {
-            Object u = args[i] instanceof KalkanProxy kp ? kp.getRealObject() :
-                    args[i] instanceof ProxyResult pr ? pr.getResult() : args[i];
+            Object u = unwrapValue(args[i]);
             types[i] = getPrimitiveClassIfWrapper(u.getClass());
         }
         return types;
@@ -186,8 +185,7 @@ public class ReflectionHelper {
     }
 
     public static Object unwrapValue(Object object) {
-        return object instanceof KalkanProxy p ? p.getRealObject() :
-                object instanceof ProxyResult r ? r.getResult() : object;
+        return object instanceof KalkanProxy p ? p.getRealObject() : object;
     }
 
     private static List<String> getAvailableConstructors(Class<?> clazz) {

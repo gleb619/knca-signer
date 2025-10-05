@@ -1,4 +1,4 @@
-package knca.signer.security;
+package knca.signer.kalkan;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +16,50 @@ import java.util.Objects;
 public class KalkanRegistry {
 
     private static final ByteBuddy buddy = new ByteBuddy();
+
+    private static boolean isKalkanClass(Class<?> clazz) {
+        return clazz.getName().startsWith("kz.gov.pki.kalkan");
+    }
+
+    public static Object wrapValue(Object result) {
+        if (result == null) return null;
+        if (result instanceof KalkanProxy) return result;
+        return createProxy(result.getClass(), result);
+    }
+
+    private static KalkanProxy createProxy(Class<?> clazz, Object instance) {
+        try {
+            DynamicType.Unloaded<?> unloaded = buddy
+                    .subclass(Object.class)
+                    .implement(KalkanProxy.class)
+                    .implement(clazz.getInterfaces())
+                    .method(ElementMatchers.named("getRealObject"))
+                    .intercept(InvocationHandlerAdapter.of((p, m, a) -> instance))
+                    .method(ElementMatchers.named("equals"))
+                    .intercept(InvocationHandlerAdapter.of((p, m, a) ->
+                            ((KalkanProxy) p).getRealObject().equals(ReflectionHelper.unwrapValue(a[0]))))
+                    .method(ElementMatchers.named("hashCode"))
+                    .intercept(InvocationHandlerAdapter.of((p, m, a) -> ((KalkanProxy) p).getRealObject().hashCode()))
+                    .method(ElementMatchers.named("toString"))
+                    .intercept(InvocationHandlerAdapter.of((p, m, a) ->
+                            "KalkanProxy[%s]: %s".formatted(((KalkanProxy) p).getRealObject().getClass().getName(), ((KalkanProxy) p).getRealObject())))
+                    .method(ElementMatchers.not(ElementMatchers.named("getRealObject")).and(ElementMatchers.not(ElementMatchers.named("invoke")))
+                            .and(ElementMatchers.not(ElementMatchers.named("getResult"))).and(ElementMatchers.not(ElementMatchers.named("getResultType")))
+                            .and(ElementMatchers.not(ElementMatchers.named("genericValue"))).and(ElementMatchers.not(ElementMatchers.named("equals")))
+                            .and(ElementMatchers.not(ElementMatchers.named("hashCode"))).and(ElementMatchers.not(ElementMatchers.named("toString"))))
+                    .intercept(InvocationHandlerAdapter.of(new TransparentProxyHandler(instance)))
+                    .make();
+
+            Class<?> proxyClass = unloaded.load(KalkanRegistry.class.getClassLoader()).getLoaded();
+            return (KalkanProxy) proxyClass.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new KalkanException("Failed to create proxy for " + clazz.getName(), e);
+        }
+    }
+
+    public static KalkanProxy wrap(Object realObject) {
+        return (KalkanProxy) wrapValue(realObject);
+    }
 
     public static KalkanProxy createAlgorithmIdentifier(Object objectId, Object parameters) {
         try {
@@ -238,29 +282,7 @@ public class KalkanRegistry {
         try {
             Class<?> realClass = ReflectionHelper.loadKalkanClass(className);
             Object instance = ReflectionHelper.newInstance(realClass, paramTypes, args);
-
-            DynamicType.Unloaded<?> unloaded = buddy
-                    .subclass(Object.class)
-                    .implement(KalkanProxy.class)
-                    .implement(realClass.getInterfaces())
-                    .method(ElementMatchers.named("getRealObject"))
-                    .intercept(InvocationHandlerAdapter.of((p, m, a) -> instance))
-                    .method(ElementMatchers.named("equals"))
-                    .intercept(InvocationHandlerAdapter.of((p, m, a) ->
-                            ((KalkanProxy) p).getRealObject().equals(ReflectionHelper.unwrapValue(a[0]))))
-                    .method(ElementMatchers.named("hashCode"))
-                    .intercept(InvocationHandlerAdapter.of((p, m, a) -> ((KalkanProxy) p).getRealObject().hashCode()))
-                    .method(ElementMatchers.named("toString"))
-                    .intercept(InvocationHandlerAdapter.of((p, m, a) ->
-                            "KalkanProxy[%s]: %s".formatted(((KalkanProxy) p).getRealObject().getClass().getName(), ((KalkanProxy) p).getRealObject())))
-                    .method(ElementMatchers.not(ElementMatchers.named("getRealObject")).and(ElementMatchers.not(ElementMatchers.named("invoke")))
-                            .and(ElementMatchers.not(ElementMatchers.named("equals"))).and(ElementMatchers.not(ElementMatchers.named("hashCode")))
-                            .and(ElementMatchers.not(ElementMatchers.named("toString"))))
-                    .intercept(InvocationHandlerAdapter.of(new TransparentProxyHandler(instance)))
-                    .make();
-
-            Class<?> proxyClass = unloaded.load(KalkanRegistry.class.getClassLoader()).getLoaded();
-            return (KalkanProxy) proxyClass.getDeclaredConstructor().newInstance();
+            return createProxy(realClass, instance);
         } catch (Exception e) {
             throw new KalkanException("Failed to create proxy for " + className, e);
         }
@@ -286,7 +308,7 @@ public class KalkanRegistry {
                 log.trace("Invoking method '{}' on {} with {} args", method.getName(), target.getClass().getSimpleName(), args != null ? args.length : 0);
                 Object result = method.invoke(target, args);
                 log.trace("Method '{}' returned successfully", method.getName());
-                return ReflectionHelper.unwrapValue(result);
+                return wrapValue(result);
             } catch (Throwable e) {
                 log.trace("Method '{}' threw exception: {}", method.getName(), e.getMessage());
                 throw Objects.nonNull(e.getCause()) ? e.getCause() : e;

@@ -39,7 +39,7 @@ public class SigningHandlerIT {
         tempDir = Files.createTempDirectory("knca-signer-test-");
 
         // Create config for CertificateService
-        java.security.Provider realProvider = knca.signer.security.KalkanRegistry.loadRealKalkanProvider();
+        java.security.Provider realProvider = knca.signer.kalkan.KalkanRegistry.loadRealKalkanProvider();
         knca.signer.config.ApplicationConfig.CertificateConfig config = new knca.signer.config.ApplicationConfig.CertificateConfig(
                 "certs/",
                 "certs/ca.crt",

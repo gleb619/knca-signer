@@ -1,8 +1,8 @@
 package knca.signer.example;
 
 import knca.signer.config.ApplicationConfig;
-import knca.signer.security.KalkanProxy;
-import knca.signer.security.KalkanRegistry;
+import knca.signer.kalkan.KalkanProxy;
+import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateValidator;
 import knca.signer.service.XmlValidator;

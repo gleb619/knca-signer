@@ -1,7 +1,6 @@
-package knca.signer.security;
+package knca.signer.kalkan;
 
-import knca.signer.security.KalkanProxy.ProxyArg;
-import knca.signer.security.KalkanProxy.ProxyResult;
+import knca.signer.kalkan.KalkanProxy.ProxyArg;
 import knca.signer.service.CertificateDataGenerator;
 import lombok.extern.slf4j.Slf4j;
 
@@ -187,23 +186,20 @@ public class KalkanAdapter {
                 .build());
     }
 
-    public static ProxyResult generateExtensions(KalkanProxy extGen) {
-        ProxyResult result = extGen.invoke(ProxyArg.builder()
+    public static KalkanProxy generateExtensions(KalkanProxy extGen) {
+        return extGen.invoke(ProxyArg.builder()
                 .methodName("generate")
                 .paramTypes(null)
                 .args(null)
                 .build());
-
-        return result;
     }
 
-    public static ProxyResult generateTBSCertificate(KalkanProxy tbsGen) {
-        ProxyResult result = tbsGen.invoke(ProxyArg.builder()
+    public static KalkanProxy generateTBSCertificate(KalkanProxy tbsGen) {
+        return tbsGen.invoke(ProxyArg.builder()
                 .methodName("generateTBSCertificate")
                 .paramTypes(null)
                 .args(null)
                 .build());
-        return result;
     }
 
     // ========== Additional Utility Methods ==========
@@ -224,13 +220,12 @@ public class KalkanAdapter {
                 .build());
     }
 
-    public static ProxyResult generateCertificate(KalkanProxy certGen, Object tbsCert, Object signature) {
-        ProxyResult result = certGen.invoke(ProxyArg.builder()
+    public static KalkanProxy generateCertificate(KalkanProxy certGen, Object tbsCert, Object signature) {
+        return certGen.invoke(ProxyArg.builder()
                 .methodName("generate")
                 .paramTypes(null)
                 .args(new Object[]{tbsCert, signature})
                 .build());
-        return result;
     }
 
     public static void writeObject(KalkanProxy pemWriter, Object obj) {
@@ -309,12 +304,12 @@ public class KalkanAdapter {
     public static byte[] getDEREncoded(Object tbsCert) {
         if (tbsCert instanceof KalkanProxy proxy) {
             // If it's already a proxy, invoke directly
-            ProxyResult result = proxy.invoke(ProxyArg.builder()
+            KalkanProxy result = proxy.invoke(ProxyArg.builder()
                     .methodName("getDEREncoded")
                     .paramTypes(null)
                     .args(null)
                     .build());
-            return (byte[]) result.getResult();
+            return (byte[]) result.getRealObject();
         } else {
             // Use reflection for objects that aren't proxies yet
             var rawValue = ReflectionHelper.unwrapValue(tbsCert);
@@ -429,13 +424,13 @@ public class KalkanAdapter {
             // Create proxy for certificate if needed
             if (x509Certificate instanceof KalkanProxy certProxy) {
                 // Invoke getSubjectAlternativeNames method using proxy pattern
-                ProxyResult result = certProxy.invoke(ProxyArg.builder()
+                KalkanProxy result = certProxy.invoke(ProxyArg.builder()
                         .methodName("getSubjectAlternativeNames")
                         .paramTypes(null)
                         .args(null)
                         .build());
 
-                var sans = (Collection) result.getResult();
+                var sans = (Collection) result.getRealObject();
                 return extractOtherNameFromSAN(sans, CertificateDataGenerator.IIN_OID, "123456789012");
             } else {
                 throw new KalkanException("Unknown object type: %s".formatted(x509Certificate.getClass().getName()));
@@ -454,13 +449,13 @@ public class KalkanAdapter {
             // Create proxy for certificate if needed
             if (x509Certificate instanceof KalkanProxy certProxy) {
                 // Invoke getSubjectAlternativeNames method using proxy pattern
-                ProxyResult result = certProxy.invoke(ProxyArg.builder()
+                KalkanProxy result = certProxy.invoke(ProxyArg.builder()
                         .methodName("getSubjectAlternativeNames")
                         .paramTypes(null)
                         .args(null)
                         .build());
 
-                var sans = (Collection) result.getResult();
+                var sans = (Collection) result.getRealObject();
                 return extractOtherNameFromSAN(sans, CertificateDataGenerator.BIN_OID, "012345678912");
             } else {
                 throw new KalkanException("Unknown object type: %s".formatted(x509Certificate.getClass().getName()));
