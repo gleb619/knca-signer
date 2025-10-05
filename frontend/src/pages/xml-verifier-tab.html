@@ -10,16 +10,21 @@
         <!-- Sidebar -->
         <div class="w-full lg:w-1/4">
             <div class="bg-white rounded-lg shadow-sm p-4">
-                <h4 class="text-base font-semibold mb-3 text-gray-700">Signing Method</h4>
+                <h4 class="text-base font-semibold mb-3 text-gray-700">Signing Action</h4>
                 <button :class="activeSubTab === 'server-sign' ? 'bg-blue-300 text-blue-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                         @click="activeSubTab = 'server-sign'"
                         class="w-full py-3 px-4 mb-2 rounded-lg font-medium transition-colors duration-200"
                         x-text="translate('serverSignMethod')">
                 </button>
-                <button :class="activeSubTab === 'verify' ? 'bg-blue-300 text-blue-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-                        @click="activeSubTab = 'verify'"
-                        class="w-full py-3 px-4 rounded-lg font-medium transition-colors duration-200"
+                <button :class="activeSubTab === 'xml' ? 'bg-blue-300 text-blue-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                        @click="activeSubTab = 'xml'"
+                        class="w-full py-3 px-4 mb-2 rounded-lg font-medium transition-colors duration-200"
                         x-text="translate('serverVerifyMethod')">
+                </button>
+                <button :class="activeSubTab === 'signature' ? 'bg-blue-300 text-blue-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                        @click="activeSubTab = 'signature'"
+                        class="w-full py-3 px-4 rounded-lg font-medium transition-colors duration-200"
+                        x-text="'Signature Verify'">
                 </button>
 
                 <!-- Help Section -->
@@ -29,9 +34,13 @@
                         Sign XML documents using server-hosted certificates and keys.
                         Supports various signature formats and standards.
                     </p>
-                    <p class="text-xs text-blue-600" x-show="activeSubTab === 'verify'">
+                    <p class="text-xs text-blue-600" x-show="activeSubTab === 'xml'">
                         Validate XML digital signatures against the certificate chain.
                         Ensures signature integrity and certificate validity.
+                    </p>
+                    <p class="text-xs text-blue-600" x-show="activeSubTab === 'signature'">
+                        Load certificate files (.p12, .pem, .crt) from your computer and verify digital signatures.
+                        Certificate data is processed client-side and not uploaded to the server.
                     </p>
                 </div>
             </div>
@@ -49,7 +58,7 @@
                 </div>
             </div>
         </template>
-        <template x-if="activeSubTab === 'verify'">
+        <template x-if="activeSubTab === 'xml'">
             <div class="w-full lg:w-3/4">
                 <div class="bg-white rounded-lg shadow-sm p-6">
                     <h4 class="text-base font-semibold mb-4 text-gray-700">XML Signature Verification</h4>
@@ -134,6 +143,140 @@
                         <p>• Click "Verify Signature" to validate the signature integrity</p>
                         <p>• The system will verify against the available CA certificates</p>
                         <p>• Only XML documents signed with known certificates can be validated</p>
+                    </div>
+                </div>
+            </div>
+        </template>
+        <template x-if="activeSubTab === 'signature'">
+            <div class="w-full lg:w-3/4">
+                <div class="bg-white rounded-lg shadow-sm p-6">
+                    <h4 class="text-base font-semibold mb-4 text-gray-700">Signature Verification</h4>
+
+                    <!-- Signature Input Form -->
+                    <form @submit.prevent="verifySignature()" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2" for="signatureData">
+                                Original Data
+                            </label>
+                            <textarea
+                                    class="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical font-mono text-sm"
+                                    id="signatureData"
+                                    placeholder="Enter the original data that was signed..."
+                                    x-model="signatureData">
+                            </textarea>
+                            <p class="mt-1 text-xs text-gray-500">
+                                Enter the plain text data that was used to generate the signature
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2" for="certificateFile">
+                                Certificate File
+                            </label>
+                            <input @change="loadCertificateFile"
+                                   accept=".p12,.pem,.crt"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                   id="certificateFile"
+                                   type="file">
+                            <p class="mt-1 text-xs text-gray-500">
+                                Select a certificate file (.p12, .pem, or .crt) from your computer
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2" for="signature">
+                                Certificate Data (Base64)
+                            </label>
+                            <textarea
+                                    class="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical font-mono text-sm"
+                                    id="signature"
+                                    placeholder="Certificate data will be loaded here as base64..."
+                                    x-model="signature">
+                            </textarea>
+                            <p class="mt-1 text-xs text-gray-500">
+                                The certificate data encoded in base64 format
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2" for="certAlias">
+                                Certificate Alias
+                            </label>
+                            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                   id="certAlias"
+                                   placeholder="user"
+                                   type="text"
+                                   x-model="certAlias">
+                            <p class="mt-1 text-xs text-gray-500">
+                                Certificate alias to verify against (default: 'user')
+                            </p>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex gap-3 pt-4">
+                            <button :disabled="isValidating"
+                                    class="flex-1 bg-blue-600 text-white py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                    type="submit">
+                                <span x-show="!isValidating">
+                                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor"
+                                         viewBox="0 0 24 24">
+                                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                                              stroke-linejoin="round"
+                                              stroke-width="2"></path>
+                                    </svg>
+                                    Verify Signature
+                                </span>
+                                <span class="flex items-center justify-center" x-show="isValidating">
+                                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                                         fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                                stroke-width="4"></circle>
+                                        <path class="opacity-75"
+                                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                              fill="currentColor"></path>
+                                    </svg>
+                                    Verifying...
+                                </span>
+                            </button>
+
+                            <button @click="resetValidation()"
+                                    class="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                                    type="button">
+                                Reset
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Validation Result -->
+                    <div class="mt-6 p-4 bg-gray-50 rounded-lg border" x-show="validationResult"
+                         x-transition:enter="transition ease-out duration-300">
+                        <h5 class="text-sm font-medium text-gray-900 mb-2">Validation Result</h5>
+                        <div class="flex items-center">
+                            <div :class="validationResult.valid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                                <svg :class="validationResult.valid ? 'text-green-500' : 'text-red-500'"
+                                     class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path clip-rule="evenodd"
+                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                          fill-rule="evenodd">
+                                    </path>
+                                </svg>
+                                <span x-text="validationResult.valid ? 'Valid' : 'Invalid'"></span>
+                            </div>
+                        </div>
+                        <p class="mt-2 text-sm text-gray-700" x-text="validationResult.message"></p>
+                    </div>
+                </div>
+
+                <!-- Help Section -->
+                <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <h5 class="text-sm font-medium text-blue-700 mb-2">How it works</h5>
+                    <div class="text-xs text-blue-600 space-y-1">
+                        <p>• Enter the original data that was signed</p>
+                        <p>• Select a certificate file (.p12, .pem, or .crt) to load as base64</p>
+                        <p>• The file is processed locally and not uploaded to the server</p>
+                        <p>• Optional: Specify the certificate alias to verify against</p>
+                        <p>• Click "Verify Signature" to validate the signature with the loaded certificate</p>
                     </div>
                 </div>
             </div>

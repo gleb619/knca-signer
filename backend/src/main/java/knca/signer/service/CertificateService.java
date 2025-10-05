@@ -66,7 +66,11 @@ public class CertificateService {
     }
 
     public boolean verifySignature(String data, String signature, String certAlias) throws Exception {
-        X509Certificate cert = getCertificate(certAlias);
+        X509Certificate[] chain = getCertificateChain(certAlias);
+        X509Certificate rootCaCert = certificateStorage.getCaCertificates().get(DEFAULT_CA_ALIAS).getCertificate();
+        CertificateValidator.validateCertificateChain(chain, rootCaCert, provider);
+
+        X509Certificate cert = chain[0]; // leaf certificate
         Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
         sig.initVerify(cert.getPublicKey());
         sig.update(data.getBytes(StandardCharsets.UTF_8));
@@ -160,8 +164,40 @@ public class CertificateService {
     public boolean validateXmlSignature(String xml) throws Exception {
         // Use first available CA for validation (default is "default")
         CertificateResult defaultCa = certificateStorage.getCaCertificates().values().iterator().next();
-        XmlValidator validator = new XmlValidator(defaultCa.getCertificate());
+        XmlValidator validator = new XmlValidator(defaultCa.getCertificate(), provider);
         return validator.validateXmlSignature(xml);
+    }
+
+    private X509Certificate[] getCertificateChain(String alias) {
+        CertificateData data = certificateStorage.getUserCertificates().get(alias);
+        if (data != null) {
+            // User certificate chain: [userCert, caCert]
+            X509Certificate caCert = certificateStorage.getCaCertificates().get(data.getCaId()).getCertificate();
+            return new X509Certificate[]{data.getCertificate(), caCert};
+        }
+        data = certificateStorage.getLegalCertificates().get(alias);
+        if (data != null) {
+            // Legal certificate chain: [legalCert, caCert]
+            X509Certificate caCert = certificateStorage.getCaCertificates().get(data.getCaId()).getCertificate();
+            return new X509Certificate[]{data.getCertificate(), caCert};
+        }
+        // CA certificate chain: [caCert]
+        CertificateResult caResult = certificateStorage.getCaCertificates().get(alias);
+        if (caResult != null) {
+            return new X509Certificate[]{caResult.getCertificate()};
+        }
+        // Backward compatibility
+        if ("user".equals(alias) && !certificateStorage.getUserCertificates().isEmpty()) {
+            data = certificateStorage.getUserCertificates().values().iterator().next();
+            X509Certificate caCert = certificateStorage.getCaCertificates().get(data.getCaId()).getCertificate();
+            return new X509Certificate[]{data.getCertificate(), caCert};
+        }
+        if ("legal".equals(alias) && !certificateStorage.getLegalCertificates().isEmpty()) {
+            data = certificateStorage.getLegalCertificates().values().iterator().next();
+            X509Certificate caCert = certificateStorage.getCaCertificates().get(data.getCaId()).getCertificate();
+            return new X509Certificate[]{data.getCertificate(), caCert};
+        }
+        throw new IllegalArgumentException("Unknown certificate alias: " + alias);
     }
 
     private X509Certificate getCertificate(String alias) {

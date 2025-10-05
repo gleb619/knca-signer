@@ -42,7 +42,7 @@ public class Validator {
             X509Certificate caCertificate = CertificateValidator.loadCACertificate(config.getCaCertPath());
 
             // Create and run XML validator
-            XmlValidator xmlValidator = new XmlValidator(caCertificate);
+            XmlValidator xmlValidator = new XmlValidator(caCertificate, (java.security.Provider) provider);
             boolean valid = xmlValidator.validateXmlSignature(xmlContent);
 
             log.info("Validation result: " + valid);

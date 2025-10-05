@@ -105,7 +105,7 @@ public class ValidatorTest {
             CertificateGenerator.CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
-            XmlValidator xmlValidator = new XmlValidator(caCert);
+            XmlValidator xmlValidator = new XmlValidator(caCert, realProvider);
             assertNotNull(xmlValidator, "XmlValidator should be created");
         } catch (Exception e) {
             fail("XmlValidator creation should succeed: " + e.getMessage());
@@ -120,7 +120,7 @@ public class ValidatorTest {
             assertNotNull(caCert, "CA certificate should be loaded");
 
             // Test certificate validation (self-signed CA should validate against itself)
-            CertificateValidator.validateCertificate(caCert, caCert);
+            CertificateValidator.validateCertificate(caCert, caCert, realProvider);
         } catch (Exception e) {
             fail("Certificate validation should succeed: " + e.getMessage());
         }
@@ -160,7 +160,7 @@ public class ValidatorTest {
             CertificateGenerator.CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
-            XmlValidator xmlValidator = new XmlValidator(caCert);
+            XmlValidator xmlValidator = new XmlValidator(caCert, realProvider);
 
             // Test with invalid XML (no signature)
             String invalidXml = "<root><test>Invalid XML</test></root>";

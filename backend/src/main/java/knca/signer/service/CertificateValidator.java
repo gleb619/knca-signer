@@ -24,14 +24,21 @@ import java.util.List;
  * Utility class for certificate validation operations.
  */
 @Slf4j
+@RequiredArgsConstructor
 public class CertificateValidator {
 
     /**
      * Validate a certificate against a CA certificate.
      */
-    public static void validateCertificate(X509Certificate userCert, X509Certificate caCert) throws Exception {
-        // Verify certificate signature
-        userCert.verify(caCert.getPublicKey());
+    public static void validateCertificate(X509Certificate userCert, X509Certificate caCert, java.security.Provider provider) throws Exception {
+        // Verify certificate signature using provider
+        String sigAlgo = userCert.getSigAlgName();
+        java.security.Signature sig = java.security.Signature.getInstance(sigAlgo, provider.getName());
+        sig.initVerify(caCert.getPublicKey());
+        sig.update(userCert.getTBSCertificate());
+        if (!sig.verify(userCert.getSignature())) {
+            throw new Exception("Certificate signature validation failed");
+        }
 
         // Check validity
         userCert.checkValidity();
@@ -52,7 +59,7 @@ public class CertificateValidator {
     /**
      * Validate certificate chain.
      */
-    public static void validateCertificateChain(X509Certificate[] chain, X509Certificate caCert) throws Exception {
+    public static void validateCertificateChain(X509Certificate[] chain, X509Certificate caCert, java.security.Provider provider) throws Exception {
         if (chain == null || chain.length == 0) {
             throw new Exception("Certificate chain is empty");
         }
@@ -61,14 +68,28 @@ public class CertificateValidator {
         for (int i = 0; i < chain.length - 1; i++) {
             X509Certificate cert = chain[i];
             X509Certificate issuer = chain[i + 1];
-            cert.verify(issuer.getPublicKey());
+            // Verify certificate signature using provider
+            String sigAlgo = cert.getSigAlgName();
+            java.security.Signature sig = java.security.Signature.getInstance(sigAlgo, provider.getName());
+            sig.initVerify(issuer.getPublicKey());
+            sig.update(cert.getTBSCertificate());
+            if (!sig.verify(cert.getSignature())) {
+                throw new Exception("Certificate signature validation failed for chain[" + i + "]");
+            }
             cert.checkValidity();
         }
 
         // Validate the root certificate against CA if it's not self-signed
         X509Certificate rootCert = chain[chain.length - 1];
         if (!rootCert.getSubjectDN().equals(rootCert.getIssuerDN())) {
-            rootCert.verify(caCert.getPublicKey());
+            // Verify root certificate signature
+            String sigAlgo = rootCert.getSigAlgName();
+            java.security.Signature sig = java.security.Signature.getInstance(sigAlgo, provider.getName());
+            sig.initVerify(caCert.getPublicKey());
+            sig.update(rootCert.getTBSCertificate());
+            if (!sig.verify(rootCert.getSignature())) {
+                throw new Exception("Root certificate signature validation failed");
+            }
         }
         rootCert.checkValidity();
 
@@ -84,6 +105,7 @@ public class CertificateValidator {
     public static class XmlValidator {
 
         private final X509Certificate caCertificate;
+        private final java.security.Provider provider;
 
 
         /**
@@ -113,7 +135,7 @@ public class CertificateValidator {
             XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
 
             // Create validation context
-            DOMValidateContext valContext = new DOMValidateContext(new XmlValidator.X509KeySelector(caCertificate), nl.item(0));
+            DOMValidateContext valContext = new DOMValidateContext(new X509KeySelector(caCertificate, provider), nl.item(0));
 
             // Unmarshal the XML Signature
             javax.xml.crypto.dsig.XMLSignature signature = fac.unmarshalXMLSignature(valContext);
@@ -142,11 +164,13 @@ public class CertificateValidator {
         /**
          * KeySelector which retrieves the public key from X509Data and validates against CA.
          */
-        private static class X509KeySelector extends KeySelector {
+        private class X509KeySelector extends KeySelector {
             private final X509Certificate caCertificate;
+            private final java.security.Provider provider;
 
-            public X509KeySelector(X509Certificate caCertificate) {
+            public X509KeySelector(X509Certificate caCertificate, java.security.Provider provider) {
                 this.caCertificate = caCertificate;
+                this.provider = provider;
             }
 
             public KeySelectorResult select(KeyInfo keyInfo,
@@ -167,7 +191,7 @@ public class CertificateValidator {
                             if (o instanceof X509Certificate cert) {
                                 // Validate certificate against CA
                                 try {
-                                    CertificateValidator.validateCertificate(cert, caCertificate);
+                                    CertificateValidator.validateCertificate(cert, caCertificate, provider);
                                     return cert::getPublicKey;
                                 } catch (Exception e) {
                                     throw new KeySelectorException("Certificate validation failed: " + e.getMessage());

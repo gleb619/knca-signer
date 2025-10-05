@@ -1,5 +1,5 @@
 export default () => ({
-    activeSubTab: 'verify',
+    activeSubTab: 'xml',
 
     // Form data for XML verification
     xmlContent: `\
@@ -31,6 +31,11 @@ export default () => ({
 </root>`,
     validationResult: null,
     isValidating: false,
+
+    // Form data for signature verification
+    signatureData: '',
+    signature: '',
+    certAlias: 'user',
 
     initXmlVerifier() {
         //ignore
@@ -82,27 +87,104 @@ export default () => ({
         }
     },
 
+    async verifySignature() {
+        // Clear previous messages
+        this.errorMessage = '';
+        this.successMessage = '';
+
+        // Validation
+        if (!this.signatureData || !this.signatureData.trim()) {
+            this.errorMessage = 'Data cannot be empty';
+            return;
+        }
+
+        if (!this.signature || !this.signature.trim()) {
+            this.errorMessage = 'Signature cannot be empty';
+            return;
+        }
+
+        this.isValidating = true;
+
+        try {
+            const response = await fetch('/api/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    data: this.signatureData.trim(),
+                    signature: this.signature.trim(),
+                    certAlias: this.certAlias || 'user'
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Verification failed');
+            }
+
+            this.validationResult = result;
+
+            if (result.valid) {
+                this.successMessage = result.message || 'Signature is valid';
+            } else {
+                this.errorMessage = result.message || 'Signature is invalid';
+            }
+
+        } catch (error) {
+            console.error('Signature verification error:', error);
+            this.errorMessage = error.message || 'Signature verification failed. Please check your input and try again.';
+        } finally {
+            this.isValidating = false;
+        }
+    },
+
     resetValidation() {
         this.xmlContent = '';
+        this.signatureData = '';
+        this.signature = '';
+        this.certAlias = 'user';
         this.validationResult = null;
         this.errorMessage = '';
         this.successMessage = '';
+
+        // Clear file input
+        const certificateFileInput = document.getElementById('certificateFile');
+        if (certificateFileInput) {
+            certificateFileInput.value = '';
+        }
     },
 
-    copyValidationResult() {
-        if (navigator.clipboard && window.isSecureContext) {
-            const resultText = this.validationResult
-                ? `Valid: ${this.validationResult.valid}\n${this.validationResult.message || ''}`
-                : 'No validation result available';
+    loadCertificateFile(event) {
+        const file = event.target.files[0];
+        if (file) {
+            this.successMessage = '';
+            this.errorMessage = '';
 
-            navigator.clipboard.writeText(resultText).then(() => {
-                this.successMessage = 'Validation result copied to clipboard!';
-                setTimeout(() => this.successMessage = '', 3000);
-            }).catch(() => {
-                this.fallbackCopyValidationResult(resultText);
-            });
-        } else {
-            this.fallbackCopyValidationResult(resultText);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    // Convert ArrayBuffer to base64
+                    const arrayBuffer = e.target.result;
+                    const bytes = new Uint8Array(arrayBuffer);
+                    let binary = '';
+                    for (let i = 0; i < bytes.byteLength; i++) {
+                        binary += String.fromCharCode(bytes[i]);
+                    }
+                    const base64 = btoa(binary);
+                    this.signature = base64;
+                    this.successMessage = `Certificate file loaded successfully (${file.name})`;
+                    setTimeout(() => this.successMessage = '', 3000);
+                } catch (error) {
+                    console.error('Error processing file:', error);
+                    this.errorMessage = 'Failed to process the certificate file';
+                }
+            };
+            reader.onerror = () => {
+                this.errorMessage = 'Failed to read the certificate file';
+            };
+            reader.readAsArrayBuffer(file);
         }
     },
 
