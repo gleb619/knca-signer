@@ -22,13 +22,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for SigningHandler HTTP endpoints
+ * Integration tests for VerifierHandler HTTP endpoints
  */
 @ExtendWith(VertxExtension.class)
-public class SigningHandlerIT {
+public class VerifierHandlerIT {
 
     private CertificateService certificateService;
-    private SigningHandler signingHandler;
+    private VerifierHandler signingHandler;
     private int serverPort;
 
     private Path tempDir;
@@ -59,7 +59,7 @@ public class SigningHandlerIT {
         certificateService.generateUserCertificate("default");
         certificateService.generateLegalEntityCertificate("default");
 
-        signingHandler = new SigningHandler(certificateService);
+        signingHandler = new VerifierHandler(certificateService);
 
         // Set up routes
         Router router = Router.router(vertx);
@@ -67,7 +67,6 @@ public class SigningHandlerIT {
 
         // Signing operations
         router.post("/sign").handler(signingHandler.handleSignData());
-        router.post("/verify").handler(signingHandler.handleVerifySignature());
 
         // XML validation
         router.post("/validate/xml").handler(signingHandler.handleValidateXml());
@@ -133,45 +132,7 @@ public class SigningHandlerIT {
                 }));
     }
 
-    @Test
-    void testVerifySignature(Vertx vertx, VertxTestContext testContext) throws Exception {
-        HttpClient client = vertx.createHttpClient();
 
-        JsonObject signRequest = new JsonObject()
-                .put("data", "test data to verify")
-                .put("certAlias", "user");
-
-        client.request(HttpMethod.POST, serverPort, "localhost", "/sign")
-                .compose(req -> req.send(signRequest.encode()))
-                .compose(signResponse -> signResponse.body())
-                .compose(signBuffer -> {
-                    JsonObject signJson = new JsonObject(signBuffer.toString());
-                    String signature = signJson.getString("signature");
-
-                    // Now verify the signature
-                    JsonObject verifyRequest = new JsonObject()
-                            .put("data", "test data to verify")
-                            .put("signature", signature)
-                            .put("certAlias", "user");
-
-                    return client.request(HttpMethod.POST, serverPort, "localhost", "/verify")
-                            .compose(req -> req.send(verifyRequest.encode()));
-                })
-                .onComplete(testContext.succeeding(response -> {
-                    testContext.verify(() -> {
-                        assertEquals(200, response.statusCode());
-                    });
-
-                    response.body().onComplete(testContext.succeeding(buffer -> {
-                        testContext.verify(() -> {
-                            JsonObject json = new JsonObject(buffer.toString());
-                            assertTrue(json.getBoolean("valid"));
-                            assertEquals("user", json.getString("certAlias"));
-                        });
-                        testContext.completeNow();
-                    }));
-                }));
-    }
 
     @Test
     void testSignDataWithInvalidCertificate(Vertx vertx, VertxTestContext testContext) throws Exception {
@@ -221,29 +182,6 @@ public class SigningHandlerIT {
                 }));
     }
 
-    @Test
-    void testVerifySignatureWithMissingData(Vertx vertx, VertxTestContext testContext) throws Exception {
-        HttpClient client = vertx.createHttpClient();
-
-        JsonObject requestBody = new JsonObject()
-                .put("signature", "somesignature"); // Missing data field
-
-        client.request(HttpMethod.POST, serverPort, "localhost", "/verify")
-                .compose(req -> req.send(requestBody.encode()))
-                .onComplete(testContext.succeeding(response -> {
-                    testContext.verify(() -> {
-                        assertEquals(400, response.statusCode());
-                    });
-
-                    response.body().onComplete(testContext.succeeding(buffer -> {
-                        testContext.verify(() -> {
-                            JsonObject json = new JsonObject(buffer.toString());
-                            assertEquals("Data and signature are required", json.getString("error"));
-                        });
-                        testContext.completeNow();
-                    }));
-                }));
-    }
 
     @Test
     void testValidateXmlWithInvalidXml(Vertx vertx, VertxTestContext testContext) throws Exception {
@@ -288,6 +226,70 @@ public class SigningHandlerIT {
                         testContext.verify(() -> {
                             JsonObject json = new JsonObject(buffer.toString());
                             assertEquals("XML content is required", json.getString("error"));
+                        });
+                        testContext.completeNow();
+                    }));
+                }));
+    }
+
+    @Test
+    void testValidateXmlWithValidationFlags(Vertx vertx, VertxTestContext testContext) throws Exception {
+        HttpClient client = vertx.createHttpClient();
+
+        JsonObject requestBody = new JsonObject()
+                .put("xml", "<invalid>xml<content>")
+                .put("checkKalkanProvider", true)
+                .put("checkData", false)
+                .put("checkTime", false)
+                .put("checkIinInCert", false)
+                .put("checkIinInSign", false)
+                .put("checkCertificateChain", false);
+
+        client.request(HttpMethod.POST, serverPort, "localhost", "/validate/xml")
+                .compose(req -> req.send(requestBody.encode()))
+                .onComplete(testContext.succeeding(response -> {
+                    testContext.verify(() -> {
+                        // Should return 200 with detailed result
+                        assertEquals(200, response.statusCode());
+                    });
+
+                    response.body().onComplete(testContext.succeeding(buffer -> {
+                        testContext.verify(() -> {
+                            JsonObject json = new JsonObject(buffer.toString());
+                            assertFalse(json.getBoolean("valid"));
+                            assertNotNull(json.getString("message"));
+                            assertNotNull(json.getJsonObject("details"));
+                        });
+                        testContext.completeNow();
+                    }));
+                }));
+    }
+
+    @Test
+    void testValidateXmlWithPublicKeyCheck(Vertx vertx, VertxTestContext testContext) throws Exception {
+        HttpClient client = vertx.createHttpClient();
+
+        // Generate a valid XML with signature first
+        // This is a simplified test - in practice you'd need a properly signed XML
+        String xmlContent = "<xml>test content</xml>";
+
+        JsonObject requestWithoutPublicKey = new JsonObject()
+                .put("xml", xmlContent);
+
+        // Test without public key
+        client.request(HttpMethod.POST, serverPort, "localhost", "/validate/xml")
+                .compose(req -> req.send(requestWithoutPublicKey.encode()))
+                .onComplete(testContext.succeeding(response -> {
+                    testContext.verify(() -> {
+                        assertEquals(200, response.statusCode());
+                    });
+
+                    response.body().onComplete(testContext.succeeding(buffer -> {
+                        testContext.verify(() -> {
+                            JsonObject json = new JsonObject(buffer.toString());
+                            // Should still have a result (might be invalid due to no signature)
+                            assertNotNull(json.getBoolean("valid"));
+                            assertNotNull(json.getString("message"));
                         });
                         testContext.completeNow();
                     }));

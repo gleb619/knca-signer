@@ -16,7 +16,7 @@ import java.util.Map;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class CertificateHandler {
+public class CertificatorHandler {
 
     private final CertificateService certificateService;
 

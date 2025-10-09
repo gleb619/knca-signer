@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.jackson.DatabindCodec;
-import knca.signer.CertificateHandler;
-import knca.signer.SigningHandler;
+import knca.signer.CertificatorHandler;
+import knca.signer.VerifierHandler;
 import knca.signer.WebSocketHandler;
 import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateService;
@@ -25,8 +25,8 @@ public class BeanFactory {
     // Singleton instances
     private CertificateService certificateService;
     private WebSocketHandler webSocketHandler;
-    private CertificateHandler certificateHandler;
-    private SigningHandler signingHandler;
+    private CertificatorHandler certificateHandler;
+    private VerifierHandler signingHandler;
 
 
     public BeanFactory init() {
@@ -60,16 +60,16 @@ public class BeanFactory {
         return webSocketHandler;
     }
 
-    public CertificateHandler getCertificateHandler() {
+    public CertificatorHandler getCertificateHandler() {
         if (certificateHandler == null) {
-            certificateHandler = new CertificateHandler(getCertificateService());
+            certificateHandler = new CertificatorHandler(getCertificateService());
         }
         return certificateHandler;
     }
 
-    public SigningHandler getSigningHandler() {
+    public VerifierHandler getSigningHandler() {
         if (signingHandler == null) {
-            signingHandler = new SigningHandler(getCertificateService());
+            signingHandler = new VerifierHandler(getCertificateService());
         }
         return signingHandler;
     }

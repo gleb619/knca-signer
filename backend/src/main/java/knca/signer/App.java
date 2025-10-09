@@ -141,12 +141,11 @@ public class App extends AbstractVerticle {
                             .encode());
         });
 
-        CertificateHandler ch = beanFactory.getCertificateHandler();
-        SigningHandler sh = beanFactory.getSigningHandler();
+        CertificatorHandler ch = beanFactory.getCertificateHandler();
+        VerifierHandler sh = beanFactory.getSigningHandler();
 
         router.post("/api/sign").handler(BodyHandler.create()).handler(sh.handleSignData());
-        router.post("/api/verify").handler(BodyHandler.create()).handler(sh.handleVerifySignature());
-        router.post("/api/validate/xml").handler(BodyHandler.create()).handler(sh.handleValidateXml());
+        router.post("/api/verify").handler(BodyHandler.create()).handler(sh.handleValidateXml());
         router.get("/api/certificates/ca").handler(ch.handleGetCACertificate());
         router.get("/api/certificates/user").handler(ch.handleGetUserCertificate());
         router.get("/api/certificates/legal").handler(ch.handleGetLegalCertificate());

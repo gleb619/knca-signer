@@ -4,12 +4,13 @@ import io.vertx.core.Handler;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import knca.signer.service.CertificateService;
-import lombok.RequiredArgsConstructor;
+import knca.signer.service.CertificateService.ValidationResult;
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-public class SigningHandler {
+public class VerifierHandler {
 
     private static final String CONTENT_TYPE = "application/json";
     private static final String DEFAULT_CERT_ALIAS = "user";
@@ -57,70 +58,28 @@ public class SigningHandler {
     }
 
     /**
-     * Handles signature verification requests.
-     * Expects JSON with "data", "signature", and optional "certAlias" (defaults to "user").
-     *
-     * @return Handler for verifying signatures
-     */
-    public Handler<RoutingContext> handleVerifySignature() {
-        return ctx -> {
-            try {
-                JsonObject req = ctx.getBodyAsJson();
-                String data = req.getString("data");
-                String signature = req.getString("signature");
-                String certAlias = req.getString("certAlias", DEFAULT_CERT_ALIAS);
-
-                log.info("Verifying signature with certAlias: {}", certAlias);
-
-                if (data == null || signature == null) {
-                    log.warn("Data and signature are required for verification");
-                    respondError(ctx, 400, "Data and signature are required");
-                    return;
-                }
-
-                boolean isValid = certificateService.verifySignature(data, signature, certAlias);
-                log.info("Signature verification result for certAlias {}: {}", certAlias, isValid);
-
-                respondJson(ctx, new JsonObject()
-                        .put("valid", isValid)
-                        .put("certAlias", certAlias));
-
-            } catch (IllegalArgumentException e) {
-                log.warn("Invalid certificate alias in verify request: {}", e.getMessage());
-                respondError(ctx, 404, e.getMessage());
-            } catch (Exception e) {
-                log.error("Error verifying signature: {}", e.getMessage(), e);
-                respondError(ctx, 500, "Internal server error");
-            }
-        };
-    }
-
-    /**
      * Handles XML signature validation requests.
-     * Expects JSON with "xml" content.
+     * Expects JSON with "xml" and validation configuration.
      *
      * @return Handler for validating XML signatures
      */
     public Handler<RoutingContext> handleValidateXml() {
         return ctx -> {
             try {
-                JsonObject req = ctx.getBodyAsJson();
-                String xmlContent = req.getString("xml");
+                XmlValidationRequest validationRequest = ctx.body().asPojo(XmlValidationRequest.class);
 
-                log.info("Validating XML signature");
+                log.info("Validating XML signature with configuration");
 
-                if (xmlContent == null || xmlContent.isEmpty()) {
+                if (validationRequest.getXml() == null || validationRequest.getXml().isEmpty()) {
                     log.warn("XML content is required for validation");
                     respondError(ctx, 400, "XML content is required");
                     return;
                 }
 
-                boolean isValid = certificateService.validateXmlSignature(xmlContent);
-                log.info("XML validation result: {}", isValid);
+                ValidationResult result = certificateService.validateXmlSignature(validationRequest);
+                log.info("XML validation result: {}", result.isValid());
 
-                respondJson(ctx, new JsonObject()
-                        .put("valid", isValid)
-                        .put("message", isValid ? "XML signature is valid" : "XML signature is invalid"));
+                respondJson(ctx, JsonObject.mapFrom(result));
 
             } catch (Exception e) {
                 log.error("Error validating XML signature: {}", e.getMessage(), e);
@@ -141,4 +100,28 @@ public class SigningHandler {
                 .putHeader("content-type", CONTENT_TYPE)
                 .end(new JsonObject().put("error", msg).encode());
     }
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor(access = AccessLevel.PUBLIC)
+    public static class XmlValidationRequest {
+
+        private String xml;
+        private String publicKey; // Optional base64 encoded public key
+        private String caPem; // Optional base64 encoded CA certificate PEM
+        private boolean checkKalkanProvider = false;
+        private boolean checkData = false;
+        private boolean checkTime = false;
+        private boolean checkIinInCert = false;
+        private boolean checkIinInSign = false;
+        private boolean checkBinInCert = false;
+        private boolean checkBinInSign = false;
+        private boolean checkCertificateChain = false;
+        private boolean checkPublicKey = false;
+        private String expectedIin; // Optional expected IIN
+        private String expectedBin; // Optional expected BIN for legal certificates
+
+    }
+
 }

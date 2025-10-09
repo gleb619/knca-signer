@@ -2,7 +2,8 @@ export default () => ({
     activeSubTab: 'xml',
 
     // Form data for XML verification
-    xmlContent: `\
+    xmlContent: ``,
+    xmlContentSample: `\
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <root>
 	<item>Sample content to verify</item>
@@ -29,16 +30,77 @@ export default () => ({
 		</ds:KeyInfo>
 	</ds:Signature>
 </root>`,
+    xmlContentBase64: '',//TODO: add base64 example
     validationResult: null,
     isValidating: false,
 
-    // Form data for signature verification
-    signatureData: '',
-    signature: '',
-    certAlias: 'user',
+    // Validation configuration
+    validationConfig: {
+        checkKalkanProvider: false,
+        checkData: false,
+        checkTime: false,
+        checkIinInCert: false,
+        checkIinInSign: false,
+        checkBinInCert: false,
+        checkBinInSign: false,
+        checkCertificateChain: false,
+        checkPublicKey: false,
+        expectedIin: '',
+        expectedBin: ''
+    },
+
+    // Public key file handling
+    publicKeyFile: null,
+    publicKeyFileName: '',
+
+    // CA PEM file handling
+    caPemFile: null,
+    caPemFileName: '',
 
     initXmlVerifier() {
         //ignore
+    },
+
+    async handlePublicKeyFileChange(event) {
+        const file = event.target.files[0];
+        if (file) {
+            this.publicKeyFileName = file.name;
+            this.publicKeyFile = file;
+
+            // Read file content as base64
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Remove the data URL prefix (data:text/plain;base64,) and keep only base64 data
+                const base64Content = e.target.result.split(',')[1];
+                this.validationConfig.publicKey = base64Content;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            this.publicKeyFileName = '';
+            this.publicKeyFile = null;
+            this.validationConfig.publicKey = '';
+        }
+    },
+
+    async handleCaPemFileChange(event) {
+        const file = event.target.files[0];
+        if (file) {
+            this.caPemFileName = file.name;
+            this.caPemFile = file;
+
+            // Read file content as base64
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Remove the data URL prefix (data:text/plain;base64,) and keep only base64 data
+                const base64Content = e.target.result.split(',')[1];
+                this.validationConfig.caPem = base64Content;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            this.caPemFileName = '';
+            this.caPemFile = null;
+            this.validationConfig.caPem = '';
+        }
     },
 
     async validateXml() {
@@ -48,21 +110,38 @@ export default () => ({
 
         // Validation
         if (!this.xmlContent || !this.xmlContent.trim()) {
-            this.errorMessage = 'XML content cannot be empty';
+            this.errorMessage = this.translate('xmlValidationRequired');
+            return;
+        }
+
+        // Check if public key file is required but not provided
+        if (this.validationConfig.checkPublicKey && (!this.validationConfig.publicKey || !this.validationConfig.publicKey.trim())) {
+            this.errorMessage = this.translate('publicKeyRequired');
             return;
         }
 
         this.isValidating = true;
 
         try {
-            const response = await fetch('/api/validate/xml', {
+            const requestData = {
+                xml: this.xmlContent.trim(),
+                ...this.validationConfig
+            };
+
+            // Remove empty expectedIin and expectedBin
+            if (!requestData.expectedIin.trim()) {
+                delete requestData.expectedIin;
+            }
+            if (!requestData.expectedBin.trim()) {
+                delete requestData.expectedBin;
+            }
+
+            const response = await fetch('/api/verify', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    xml: this.xmlContent.trim()
-                })
+                body: JSON.stringify(requestData)
             });
 
             const result = await response.json();
@@ -74,67 +153,14 @@ export default () => ({
             this.validationResult = result;
 
             if (result.valid) {
-                this.successMessage = result.message || 'XML signature is valid';
+                this.successMessage = result.message || this.translate('xmlVerificationPassed');
             } else {
-                this.errorMessage = result.message || 'XML signature is invalid';
+                this.errorMessage = result.message || this.translate('xmlVerificationFailed');
             }
 
         } catch (error) {
             console.error('XML validation error:', error);
-            this.errorMessage = error.message || 'XML validation failed. Please check your input and try again.';
-        } finally {
-            this.isValidating = false;
-        }
-    },
-
-    async verifySignature() {
-        // Clear previous messages
-        this.errorMessage = '';
-        this.successMessage = '';
-
-        // Validation
-        if (!this.signatureData || !this.signatureData.trim()) {
-            this.errorMessage = 'Data cannot be empty';
-            return;
-        }
-
-        if (!this.signature || !this.signature.trim()) {
-            this.errorMessage = 'Signature cannot be empty';
-            return;
-        }
-
-        this.isValidating = true;
-
-        try {
-            const response = await fetch('/api/verify', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    data: this.signatureData.trim(),
-                    signature: this.signature.trim(),
-                    certAlias: this.certAlias || 'user'
-                })
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Verification failed');
-            }
-
-            this.validationResult = result;
-
-            if (result.valid) {
-                this.successMessage = result.message || 'Signature is valid';
-            } else {
-                this.errorMessage = result.message || 'Signature is invalid';
-            }
-
-        } catch (error) {
-            console.error('Signature verification error:', error);
-            this.errorMessage = error.message || 'Signature verification failed. Please check your input and try again.';
+            this.errorMessage = error.message || this.translate('xmlVerificationFailedGeneral');
         } finally {
             this.isValidating = false;
         }
@@ -142,49 +168,59 @@ export default () => ({
 
     resetValidation() {
         this.xmlContent = '';
-        this.signatureData = '';
-        this.signature = '';
-        this.certAlias = 'user';
+        this.validationConfig.checkKalkanProvider = false;
+        this.validationConfig.checkData = false;
+        this.validationConfig.checkTime = false;
+        this.validationConfig.checkIinInCert = false;
+        this.validationConfig.checkIinInSign = false;
+        this.validationConfig.checkBinInCert = false;
+        this.validationConfig.checkBinInSign = false;
+        this.validationConfig.checkCertificateChain = false;
+        this.validationConfig.checkPublicKey = false;
+        this.validationConfig.expectedIin = '';
+        this.validationConfig.expectedBin = '';
+        // Reset public key file
+        this.publicKeyFile = null;
+        this.publicKeyFileName = '';
+        this.validationConfig.publicKey = '';
+        // Reset CA PEM file
+        this.caPemFile = null;
+        this.caPemFileName = '';
+        this.validationConfig.caPem = '';
+        // Clear file inputs
+        const publicKeyFileInput = document.getElementById('publicKeyFile');
+        if (publicKeyFileInput) publicKeyFileInput.value = '';
+        const caPemFileInput = document.getElementById('caPemFile');
+        if (caPemFileInput) caPemFileInput.value = '';
         this.validationResult = null;
         this.errorMessage = '';
         this.successMessage = '';
-
-        // Clear file input
-        const certificateFileInput = document.getElementById('certificateFile');
-        if (certificateFileInput) {
-            certificateFileInput.value = '';
-        }
     },
 
-    loadCertificateFile(event) {
-        const file = event.target.files[0];
-        if (file) {
-            this.successMessage = '';
-            this.errorMessage = '';
+    copyValidationResult() {
+        if (!this.validationResult) return;
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    // Convert ArrayBuffer to base64
-                    const arrayBuffer = e.target.result;
-                    const bytes = new Uint8Array(arrayBuffer);
-                    let binary = '';
-                    for (let i = 0; i < bytes.byteLength; i++) {
-                        binary += String.fromCharCode(bytes[i]);
-                    }
-                    const base64 = btoa(binary);
-                    this.signature = base64;
-                    this.successMessage = `Certificate file loaded successfully (${file.name})`;
-                    setTimeout(() => this.successMessage = '', 3000);
-                } catch (error) {
-                    console.error('Error processing file:', error);
-                    this.errorMessage = 'Failed to process the certificate file';
-                }
-            };
-            reader.onerror = () => {
-                this.errorMessage = 'Failed to read the certificate file';
-            };
-            reader.readAsArrayBuffer(file);
+        // Create a formatted string with validation details
+        let resultText = `${this.translate('validationResult')}: ${this.validationResult.valid ? this.translate('valid') : this.translate('invalid')}\n`;
+        resultText += `${this.translate('validationDetails')}: ${this.validationResult.message}\n`;
+
+        if (this.validationResult.details) {
+            resultText += `\n${this.translate('validationDetails')}:\n`;
+            for (const [key, value] of Object.entries(this.validationResult.details)) {
+                resultText += `${key}: ${value}\n`;
+            }
+        }
+
+        // Try modern clipboard API first
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(resultText).then(() => {
+                this.successMessage = this.translate('copySuccess');
+                setTimeout(() => this.successMessage = '', 3000);
+            }).catch(() => {
+                this.fallbackCopyValidationResult(resultText);
+            });
+        } else {
+            this.fallbackCopyValidationResult(resultText);
         }
     },
 
@@ -199,11 +235,13 @@ export default () => ({
         textArea.select();
         try {
             document.execCommand('copy');
-            this.successMessage = 'Validation result copied to clipboard!';
+            this.successMessage = this.translate('copySuccess');
             setTimeout(() => this.successMessage = '', 3000);
         } catch (err) {
-            this.errorMessage = 'Failed to copy validation result';
+            this.errorMessage = this.translate('copyFailed');
         }
         document.body.removeChild(textArea);
-    }
+    },
+
+
 });

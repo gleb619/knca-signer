@@ -1,15 +1,15 @@
 import { test, expect } from 'vitest';
-import ncaApp from '../src/scripts/app.js';
+import kncaApp from '../src/scripts/app.js';
 
-test('ncaApp initializes with default values', () => {
-  const instance = ncaApp();
+test('kncaApp initializes with default values', () => {
+  const instance = kncaApp();
 
   expect(instance.isKK).toBe(true);
   expect(instance.activeTab).toBe('xml-verifier');
 });
 
 test('switchTab changes activeTab', () => {
-  const instance = ncaApp();
+  const instance = kncaApp();
 
   // Simulate tab click (though in real app it's via x-on:click)
   instance.activeTab = 'certificate-authority';
@@ -17,7 +17,7 @@ test('switchTab changes activeTab', () => {
 });
 
 test('changeLocale toggles locale', () => {
-  const instance = ncaApp();
+  const instance = kncaApp();
 
   // Mock localStorage, window, and Alpine.js $nextTick
   global.localStorage = {
@@ -44,7 +44,7 @@ test('changeLocale toggles locale', () => {
 });
 
 test('translate calls translator', () => {
-  const instance = ncaApp();
+  const instance = kncaApp();
 
   global.window = {
     knca: {
@@ -58,7 +58,7 @@ test('translate calls translator', () => {
 });
 
 test('changeLocale updates translator locale and affects translations', () => {
-  const instance = ncaApp();
+  const instance = kncaApp();
 
   // Mock the translator with proper translations
   global.window = {

@@ -27,13 +27,13 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for CertificateHandler HTTP endpoints
+ * Integration tests for CertificatorHandler HTTP endpoints
  */
 @ExtendWith(VertxExtension.class)
-public class CertificateHandlerIT {
+public class CertificatorHandlerIT {
 
     private CertificateService certificateService;
-    private CertificateHandler certificateHandler;
+    private CertificatorHandler certificateHandler;
     private int serverPort;
 
     private Path tempDir;
@@ -67,7 +67,7 @@ public class CertificateHandlerIT {
                 .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-        certificateHandler = new CertificateHandler(certificateService);
+        certificateHandler = new CertificatorHandler(certificateService);
 
         // Set up routes
         Router router = Router.router(vertx);

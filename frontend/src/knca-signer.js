@@ -16,13 +16,13 @@ window.knca = {
 window.knca.translator.addResource("kk", kk);
 window.knca.translator.addResource("ru", ru);
 
-import ncaApp from './scripts/app.js';
+import kncaApp from './scripts/app.js';
 import xmlSignerTab from './scripts/xml-signer-tab.js';
 import certificatorTab from './scripts/certificator-tab.js';
 import xmlVerifierTab from './scripts/xml-verifier-tab.js';
 
 // Register Alpine components immediately
-Alpine.data('ncaApp', ncaApp);
+Alpine.data('kncaApp', kncaApp);
 Alpine.data('xmlSignerTab', xmlSignerTab);
 Alpine.data('certificatorTab', certificatorTab);
 Alpine.data('xmlVerifierTab', xmlVerifierTab);
@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 Alpine.start();
 
-const element = document.querySelector('[x-data="ncaApp"]');
+const element = document.querySelector('[x-data="kncaApp"]');
 if(element) {
     element.style.removeProperty('display');
 }
