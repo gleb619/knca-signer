@@ -17,10 +17,6 @@ public class KalkanRegistry {
 
     private static final ByteBuddy buddy = new ByteBuddy();
 
-    private static boolean isKalkanClass(Class<?> clazz) {
-        return clazz.getName().startsWith("kz.gov.pki.kalkan");
-    }
-
     public static Object wrapValue(Object result) {
         if (result == null) return null;
         if (result instanceof KalkanProxy) return result;
@@ -55,10 +51,6 @@ public class KalkanRegistry {
         } catch (Exception e) {
             throw new KalkanException("Failed to create proxy for " + clazz.getName(), e);
         }
-    }
-
-    public static KalkanProxy wrap(Object realObject) {
-        return (KalkanProxy) wrapValue(realObject);
     }
 
     public static KalkanProxy createAlgorithmIdentifier(Object objectId, Object parameters) {
@@ -217,65 +209,6 @@ public class KalkanRegistry {
         Class<?> asn1ObjectClass = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.ASN1Object");
         return ReflectionHelper.invokeStaticMethod(asn1ObjectClass, "fromByteArray", asn1ObjectClass,
                 new Class[]{byte[].class}, new Object[]{publicKey.getEncoded()});
-    }
-
-    /**
-     * Create ASN.1 parser for certificate extensions
-     */
-    public static KalkanProxy createASN1InputStream(byte[] data) {
-        return create("kz.gov.pki.kalkan.asn1.ASN1InputStream", new Class[]{byte[].class}, new Object[]{data});
-    }
-
-    /**
-     * Create X509Extension wrapper
-     */
-    public static KalkanProxy createX509Extension(Object oid, Object critical, Object value) {
-        try {
-            return create("kz.gov.pki.kalkan.asn1.x509.X509Extension",
-                    new Class[]{ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.DERObjectIdentifier"),
-                            boolean.class, ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.ASN1OctetString")},
-                    new Object[]{ReflectionHelper.unwrapValue(oid), critical, ReflectionHelper.unwrapValue(value)});
-        } catch (ClassNotFoundException e) {
-            throw new KalkanException("Failed to load X509Extension classes", e);
-        }
-    }
-
-    /**
-     * Create OtherName for SAN entries
-     */
-    public static KalkanProxy createOtherName(Object typeId, Object value) {
-        try {
-            return create("kz.gov.pki.kalkan.asn1.x509.qualified.OtherName",
-                    new Class[]{ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.DERObjectIdentifier"),
-                            ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.DEREncodable")},
-                    new Object[]{ReflectionHelper.unwrapValue(typeId), ReflectionHelper.unwrapValue(value)});
-        } catch (ClassNotFoundException e) {
-            throw new KalkanException("Failed to load OtherName classes", e);
-        }
-    }
-
-    /**
-     * Create Extensions object for certificate parsing
-     */
-    public static KalkanProxy createExtensions(Object... extensions) {
-        try {
-            Class<?> extensionClass = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.x509.X509Extension");
-            return create("kz.gov.pki.kalkan.asn1.x509.Extensions",
-                    new Class[]{extensionClass.getClass()}, new Object[]{extensions});
-        } catch (ClassNotFoundException e) {
-            throw new KalkanException("Failed to load Extensions classes", e);
-        }
-    }
-
-    /**
-     * Create a generic proxy for objects that need to be wrapped
-     */
-    public static KalkanProxy createObjectProxy(Class<?> clazz) {
-        try {
-            return create(clazz.getName(), null, null);
-        } catch (Exception e) {
-            throw new KalkanException("Failed to create proxy for " + clazz.getName(), e);
-        }
     }
 
     private static KalkanProxy create(String className, Class<?>[] paramTypes, Object[] args) {

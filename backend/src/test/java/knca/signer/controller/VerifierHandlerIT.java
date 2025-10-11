@@ -1,4 +1,4 @@
-package knca.signer;
+package knca.signer.controller;
 
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
@@ -8,7 +8,10 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
+import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService;
+import knca.signer.service.CertificateStorageService;
+import knca.signer.service.CertificateValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,7 +55,10 @@ public class VerifierHandlerIT {
         );
 
         // Create real CertificateService - no mocking
-        certificateService = new CertificateService(realProvider, config).init();
+        var registryService = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+        var generationService = new CertificateGenerator(realProvider, config, registryService);
+        var validationService = new CertificateValidator(realProvider, registryService);
+        certificateService = new CertificateService(realProvider, config, registryService, generationService, validationService).init();
         System.out.println("Using real CertificateService for integration tests");
 
         // Ensure user and legal certificates are generated

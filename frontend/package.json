@@ -13,6 +13,7 @@
     "test": "vitest"
   },
   "devDependencies": {
+    "@alpinejs/morph": "^3.15.0",
     "alpinejs": "^3.15.0",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",
@@ -25,6 +26,7 @@
   "license": "MIT",
   "dependencies": {
     "@owja/i18n": "^1.0.0-alpha.9",
-    "htmx.org": "^2.0.7"
+    "htmx.org": "^2.0.7",
+    "htmx-ext-alpine-morph": "^2.0.1"
   }
 }

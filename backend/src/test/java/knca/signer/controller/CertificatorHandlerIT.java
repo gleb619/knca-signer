@@ -1,4 +1,4 @@
-package knca.signer;
+package knca.signer.controller;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -15,7 +15,10 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
+import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService;
+import knca.signer.service.CertificateStorageService;
+import knca.signer.service.CertificateValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,7 +60,11 @@ public class CertificatorHandlerIT {
         );
 
         // Create real CertificateService - no mocking
-        certificateService = new CertificateService(realProvider, config).init();
+        var storageService = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+        var generationService = new CertificateGenerator(realProvider, config, storageService);
+        var validationService = new CertificateValidator(realProvider, storageService);
+        certificateService = new CertificateService(realProvider, config, storageService, generationService, validationService)
+                .init();
         System.out.println("Using real CertificateService for integration tests");
 
         DatabindCodec.mapper()
@@ -67,7 +74,7 @@ public class CertificatorHandlerIT {
                 .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-        certificateHandler = new CertificatorHandler(certificateService);
+        certificateHandler = new CertificatorHandler(certificateService, storageService);
 
         // Set up routes
         Router router = Router.router(vertx);

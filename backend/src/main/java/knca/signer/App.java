@@ -18,6 +18,8 @@ import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 import knca.signer.config.ApplicationConfig;
 import knca.signer.config.BeanFactory;
+import knca.signer.controller.CertificatorHandler;
+import knca.signer.controller.VerifierHandler;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -153,6 +155,7 @@ public class App extends AbstractVerticle {
         router.post("/api/certificates/generate/ca").handler(BodyHandler.create()).handler(ch.handleGenerateCACertificate());
         router.post("/api/certificates/generate/user").handler(BodyHandler.create()).handler(ch.handleGenerateUserCertificate());
         router.post("/api/certificates/generate/legal").handler(BodyHandler.create()).handler(ch.handleGenerateLegalCertificate());
+        router.get("/api/certificates/download/:alias/:format").handler(ch.handleDownloadCertificate());
 
         router.route("/*").handler(StaticHandler.create(config.getStaticConfig().getWebRoot()));
     }

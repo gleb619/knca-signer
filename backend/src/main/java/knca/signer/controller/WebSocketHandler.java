@@ -1,4 +1,4 @@
-package knca.signer;
+package knca.signer.controller;
 
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
@@ -6,31 +6,31 @@ import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;
 import knca.signer.service.CertificateService;
+import knca.signer.service.CertificateStorageService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
+@RequiredArgsConstructor
 public class WebSocketHandler implements Handler<ServerWebSocket> {
 
     private final CertificateService certificateService;
+    private final CertificateStorageService storage;
+    private final Map<String, ServerWebSocket> connectedClients;
     private final Vertx vertx;
     private final EventBus eventBus;
-    private final Map<String, ServerWebSocket> connectedClients;
 
-    public WebSocketHandler(CertificateService certificateService, Vertx vertx) {
-        this.certificateService = certificateService;
-        this.vertx = vertx;
-        this.eventBus = vertx.eventBus();
-        this.connectedClients = new ConcurrentHashMap<>();
-
+    public WebSocketHandler init() {
         // Register event bus consumer for broadcasting messages
         eventBus.consumer("signature.events", message -> {
             JsonObject event = (JsonObject) message.body();
             broadcastEvent(event);
         });
+
+        return this;
     }
 
     @Override
@@ -110,7 +110,7 @@ public class WebSocketHandler implements Handler<ServerWebSocket> {
         String alias = args.getString(1);
 
         try {
-            Map<String, CertificateService.CertificateData> certs = certificateService.getCertificates();
+            Map<String, CertificateService.CertificateData> certs = storage.getCertificates();
             CertificateService.CertificateData certData = certs.get(alias);
 
             if (certData == null) {
@@ -214,7 +214,7 @@ public class WebSocketHandler implements Handler<ServerWebSocket> {
 
     private void handleGetStorageList(ServerWebSocket webSocket, String id) {
         try {
-            Map<String, CertificateService.CertificateData> certs = certificateService.getCertificates();
+            Map<String, CertificateService.CertificateData> certs = storage.getCertificates();
             io.vertx.core.json.JsonArray storageList = new io.vertx.core.json.JsonArray();
             storageList.add("PKCS12");
 

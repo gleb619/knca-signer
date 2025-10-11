@@ -1,10 +1,8 @@
-package knca.signer.example;
+package knca.signer;
 
 import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanRegistry;
-import knca.signer.service.CertificateGenerator;
-import knca.signer.service.CertificateReader;
-import knca.signer.service.CertificateService;
+import knca.signer.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -56,8 +54,11 @@ public class MainTest {
         java.security.Provider realProvider = KalkanRegistry.loadRealKalkanProvider();
         assertNotNull(realProvider, "KalkanProvider should be loaded");
 
+        // Create registry service
+        var storage = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+
         // 1. Generate certificates (CA, User, Legal)
-        CertificateGenerator generator = new CertificateGenerator(realProvider, tempConfig);
+        CertificateGenerator generator = new CertificateGenerator(realProvider, tempConfig, storage);
         generator.generateAllCertificates();
 
         // 2. Read certificates back
@@ -77,13 +78,15 @@ public class MainTest {
         assertEquals(1, userCount, "Should have exactly 1 user certificate");
         assertEquals(1, legalCount, "Should have exactly 1 legal certificate");
 
-        // 3. Initialize CertificateService for signing operations
-        CertificateService certService = new CertificateService(realProvider, tempConfig);
+        // 3. Initialize CertificateService for signing operations (reuse existing registryService)
+        var generationService = new CertificateGenerator(realProvider, tempConfig, storage);
+        var validationService = new CertificateValidator(realProvider, storage);
+        CertificateService certService = new CertificateService(realProvider, tempConfig, storage, generationService, validationService);
         certService.init();
 
         // 4. Get certificates for signing
-        var caCerts = certService.getCACertificates();
-        var userCerts = certService.getUserCertificates();
+        var caCerts = storage.getCACertificates();
+        var userCerts = storage.getUserCertificates();
 
         assertFalse(caCerts.isEmpty(), "Should have CA certificates");
         assertFalse(userCerts.isEmpty(), "Should have user certificates");

@@ -4,6 +4,8 @@ import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanProxy;
 import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
+import knca.signer.service.CertificateService.CertificateResult;
+import knca.signer.service.CertificateStorageService;
 import knca.signer.service.CertificateValidator;
 import knca.signer.service.CertificateValidator.XmlValidator;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,8 +103,9 @@ public class ValidatorTest {
     public void testXmlValidatorCreation() {
         try {
             // Create a dummy CA certificate for testing
-            CertificateGenerator generator = new CertificateGenerator(realProvider, config);
-            CertificateGenerator.CertificateResult caResult = generator.generateCACertificate();
+            var registryService = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+            CertificateGenerator generator = new CertificateGenerator(realProvider, config, registryService);
+            CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
             XmlValidator xmlValidator = new XmlValidator(caCert, realProvider);
@@ -156,8 +159,9 @@ public class ValidatorTest {
     public void testXmlValidationWithInvalidXml() {
         try {
             // Create a dummy CA certificate
-            CertificateGenerator generator = new CertificateGenerator(realProvider, config);
-            CertificateGenerator.CertificateResult caResult = generator.generateCACertificate();
+            var registryService = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+            CertificateGenerator generator = new CertificateGenerator(realProvider, config, registryService);
+            CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
             XmlValidator xmlValidator = new XmlValidator(caCert, realProvider);

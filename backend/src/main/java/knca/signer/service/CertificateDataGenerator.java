@@ -6,10 +6,12 @@ import java.util.Random;
  * Utility class for generating fake Kazakh certificate data.
  */
 public class CertificateDataGenerator {
+
     // OIDs for Kazakh extensions
     public static final String IIN_OID = "1.2.398.3.3.4.1.1";
     public static final String BIN_OID = "1.2.398.3.3.4.1.2";
     private static final Random random = new Random();
+
     // Kazakh names data
     private static final String[] KAZAKH_SURNAMES = {
             "ҚҰНАНБАЙ", "БӨКЕЙХАН", "БАЙТҰРСЫН", "ДУЛАТ", "ШОҚАЙ", "ӘЛІХАН", "АХМЕТ", "МҰСТАФА", "МІРЖАҚЫП", "НҰРМҰХАМЕД",

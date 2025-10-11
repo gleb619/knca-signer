@@ -1,57 +1,35 @@
 package knca.signer.service;
 
-import knca.signer.VerifierHandler.XmlValidationRequest;
 import knca.signer.config.ApplicationConfig;
-import knca.signer.kalkan.KalkanAdapter;
-import knca.signer.kalkan.KalkanConstants;
-import knca.signer.kalkan.KalkanProxy;
-import knca.signer.service.CertificateValidator.XmlValidator;
-import lombok.*;
+import knca.signer.controller.VerifierHandler.XmlValidationRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.*;
-import java.security.cert.CertificateFactory;
+import java.security.PrivateKey;
+import java.security.Signature;
 import java.security.cert.X509Certificate;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.stream.Stream;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
 public class CertificateService {
 
-    public static final String DEFAULT_CA_ALIAS = "default";
-
     private final java.security.Provider provider;
     private final ApplicationConfig.CertificateConfig config;
-
-    private final CertificateStorage certificateStorage = new CertificateStorage();
+    private final CertificateStorageService storage;
+    private final CertificateGenerator generationService;
+    private final CertificateValidator validationService;
 
     public CertificateService init() {
         try {
-            // Load or generate CA certificates
-            loadOrGenerateCACertificates();
-
-            // Load or generate user certificates for each CA
-            loadOrGenerateUserCertificates();
-
-            // Load or generate legal certificates for each CA
-            loadOrGenerateLegalCertificates();
-
-            // Load filesystem certificates for fast retrieval
-            loadFilesystemCertificates();
-
+            generationService.initialize();
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize CertificateService", e);
         }
-
         return this;
     }
 
@@ -69,788 +47,231 @@ public class CertificateService {
         return new SignedData(data, signature, certAlias);
     }
 
-    public boolean verifySignature(String data, String signature, String certAlias) throws Exception {
-        X509Certificate[] chain = getCertificateChain(certAlias);
-        X509Certificate rootCaCert = certificateStorage.getCaCertificates().get(DEFAULT_CA_ALIAS).getCertificate();
-        CertificateValidator.validateCertificateChain(chain, rootCaCert, provider);
-
-        X509Certificate cert = chain[0]; // leaf certificate
-        Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
-        sig.initVerify(cert.getPublicKey());
-        sig.update(data.getBytes(StandardCharsets.UTF_8));
-        byte[] signatureBytes = Base64.getDecoder().decode(signature);
-        return sig.verify(signatureBytes);
-    }
-
-    public Map<String, CertificateData> getCertificates() {
-        Map<String, CertificateData> certs = new HashMap<>();
-        // Add all CA certificates
-        certificateStorage.getCaCertificates().forEach((alias, result) ->
-                certs.put("ca-" + alias, new CertificateData(null, null, null, alias, result.getCertificate())));
-        // Add all user certificates
-        certificateStorage.getUserCertificates().forEach((alias, data) -> certs.put("user-" + alias, data));
-        // Add all legal certificates
-        certificateStorage.getLegalCertificates().forEach((alias, data) -> certs.put("legal-" + alias, data));
-        return certs;
-    }
-
-    public Map<String, CertificateData> getCACertificates() {
-        Map<String, CertificateData> cas = new HashMap<>();
-        certificateStorage.getCaCertificates().forEach((alias, result) ->
-                cas.put(alias, new CertificateData(null, null, null, alias, result.getCertificate())));
-        return cas;
-    }
-
-    public Map<String, CertificateData> getUserCertificates() {
-        return new HashMap<>(certificateStorage.getUserCertificates());
-    }
-
-    public Map<String, CertificateData> getLegalCertificates() {
-        return new HashMap<>(certificateStorage.getLegalCertificates());
-    }
-
     @SneakyThrows
     public Map.Entry<String, CertificateData> generateUserCertificate(String caId) {
-        CertificateResult caResult = certificateStorage.getCaCertificates().get(caId);
-        if (caResult == null) {
-            throw new IllegalArgumentException("Unknown CA: " + caId);
-        }
-
-        String alias = "user-" + UUID.randomUUID().toString().substring(0, 8);
-        String userSubjectDN = CertificateDataGenerator.generateIndividualSubjectDN();
-        String email = CertificateDataGenerator.extractEmail(userSubjectDN);
-        String iin = CertificateDataGenerator.extractIIN(userSubjectDN);
-        String bin = CertificateDataGenerator.extractBIN(userSubjectDN);
-
-        KeyPair keyPair = generateKeyPair();
-        X509Certificate userCert = generateUserCert(keyPair.getPublic(), caResult.getKeyPair().getPrivate(),
-                caResult.getCertificate(), userSubjectDN, email, iin, bin);
-        CertificateData data = new CertificateData(email, iin, bin, caId, userCert);
-        certificateStorage.getUserKeys().put(alias, keyPair);
-        certificateStorage.getUserCertificates().put(alias, data);
-        return Map.entry(alias, data);
+        return generationService.generateUserCertificate(caId);
     }
 
     @SneakyThrows
     public Map.Entry<String, CertificateData> generateLegalEntityCertificate(String caId) {
-        CertificateResult caResult = certificateStorage.getCaCertificates().get(caId);
-        if (caResult == null) {
-            throw new IllegalArgumentException("Unknown CA: " + caId);
-        }
-
-        String alias = "legal-" + UUID.randomUUID().toString().substring(0, 8);
-        String legalEntitySubjectDN = CertificateDataGenerator.generateLegalEntitySubjectDN();
-        String email = CertificateDataGenerator.extractEmail(legalEntitySubjectDN);
-        String iin = CertificateDataGenerator.extractIIN(legalEntitySubjectDN);
-        String bin = CertificateDataGenerator.extractBIN(legalEntitySubjectDN);
-
-        KeyPair keyPair = generateKeyPair();
-        X509Certificate legalCert = generateUserCert(keyPair.getPublic(), caResult.getKeyPair().getPrivate(),
-                caResult.getCertificate(), legalEntitySubjectDN, email, iin, bin);
-        CertificateData data = new CertificateData(email, iin, bin, caId, legalCert);
-        certificateStorage.getLegalKeys().put(alias, keyPair);
-        certificateStorage.getLegalCertificates().put(alias, data);
-        return Map.entry(alias, data);
+        return generationService.generateLegalEntityCertificate(caId);
     }
 
     public Map.Entry<String, CertificateResult> generateCACertificate(String alias) throws Exception {
-        if (alias == null || alias.trim().isEmpty()) {
-            alias = "ca-" + UUID.randomUUID().toString().substring(0, 8);
-        }
-        if (certificateStorage.getCaCertificates().containsKey(alias)) {
-            throw new IllegalArgumentException("CA alias already exists: " + alias);
-        }
-        CertificateResult result = generateCACertificate();
-        certificateStorage.getCaCertificates().put(alias, result);
-        return Map.entry(alias, result);
+        return generationService.generateCACertificate(alias);
     }
 
     public ValidationResult validateXmlSignature(XmlValidationRequest request) throws Exception {
-        Map<String, String> details = new HashMap<>();
-        ValidationResult result = new ValidationResult(true, "XML signature validation successful", details);
+        return validationService.validateXmlSignature(request);
+    }
 
-        CertificateResult defaultCa = certificateStorage.getCaCertificates().values().iterator().next();
-        XmlValidator validator = new XmlValidator(defaultCa.getCertificate(), provider);
+    public List<CertificateReader.CertificateInfo> getFilesystemCertificates() {
+        return storage.getFilesystemCertificates();
+    }
 
+    /**
+     * Download certificate in the specified format.
+     *
+     * @param alias  Certificate alias
+     * @param format Format: crt, pem, p12, jks
+     * @return CertificateDownloadData with filename and binary data, or null if not found
+     */
+    @SneakyThrows
+    public CertificateDownloadData downloadCertificate(String alias, String format) {
+        // TODO: This could be moved to a separate service if needed
+        log.info("Generating download data for certificate {} in format {}", alias, format);
+
+        // Find the certificate: could be CA, user, or legal
+        X509Certificate cert;
         try {
-            // Basic signature validation
-            boolean signatureValid = validator.validateXmlSignature(request.getXml());
-            if (!signatureValid) {
-                result.setValid(false);
-                result.setMessage("XML signature is invalid");
-                details.put("signatureValid", "false");
-                return result;
-            }
-            details.put("signatureValid", "true");
-
-            // Check Kalkan provider if requested
-            if (request.isCheckKalkanProvider()) {
-                try {
-                    boolean kalkanUsed = validator.checkKalkanProvider(request.getXml());
-                    details.put("kalkanProviderUsed", String.valueOf(kalkanUsed));
-                } catch (Exception e) {
-                    details.put("kalkanProviderCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Kalkan provider check failed: " + e.getMessage());
-                }
-            }
-
-            // Check data integrity if requested
-            if (request.isCheckData()) {
-                try {
-                    boolean dataIntegrity = validator.checkDataIntegrity(request.getXml());
-                    details.put("dataIntegrityValid", String.valueOf(dataIntegrity));
-                    if (!dataIntegrity) {
-                        result.setValid(false);
-                        result.setMessage("Data integrity check failed");
-                    }
-                } catch (Exception e) {
-                    details.put("dataIntegrityCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Data integrity check failed: " + e.getMessage());
-                }
-            }
-
-            // Validate timestamps if requested
-            if (request.isCheckTime()) {
-                try {
-                    boolean timestampValid = validator.validateTimestamp(request.getXml());
-                    details.put("timestampValid", String.valueOf(timestampValid));
-                    if (!timestampValid) {
-                        result.setValid(false);
-                        result.setMessage("Timestamp validation failed");
-                    }
-                } catch (Exception e) {
-                    details.put("timestampCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Timestamp validation failed: " + e.getMessage());
-                }
-            }
-
-            // Extract IIN from certificate if requested
-            if (request.isCheckIinInCert()) {
-                try {
-                    String certIin = validator.extractIinFromCertificate(request.getXml());
-                    details.put("certificateIin", certIin != null ? certIin : "not found");
-
-                    if (request.getExpectedIin() != null && certIin != null) {
-                        boolean iinMatches = request.getExpectedIin().equals(certIin);
-                        details.put("certificateIinMatches", String.valueOf(iinMatches));
-                        if (!iinMatches) {
-                            result.setValid(false);
-                            result.setMessage("Certificate IIN does not match expected value");
-                        }
-                    }
-                } catch (Exception e) {
-                    details.put("certificateIinCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Certificate IIN check failed: " + e.getMessage());
-                }
-            }
-
-            // Extract IIN from signature if requested
-            if (request.isCheckIinInSign()) {
-                try {
-                    String signIin = validator.extractIinFromSignature(request.getXml());
-                    details.put("signatureIin", signIin != null ? signIin : "not found");
-
-                    if (request.getExpectedIin() != null && signIin != null) {
-                        boolean iinMatches = request.getExpectedIin().equals(signIin);
-                        details.put("signatureIinMatches", String.valueOf(iinMatches));
-                        if (!iinMatches) {
-                            result.setValid(false);
-                            result.setMessage("Signature IIN does not match expected value");
-                        }
-                    }
-                } catch (Exception e) {
-                    details.put("signatureIinCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Signature IIN check failed: " + e.getMessage());
-                }
-            }
-
-            // Extract BIN from certificate if requested
-            if (request.isCheckBinInCert()) {
-                try {
-                    String certBin = validator.extractBinFromCertificate(request.getXml());
-                    details.put("certificateBin", certBin != null ? certBin : "not found");
-
-                    if (request.getExpectedBin() != null && certBin != null) {
-                        boolean binMatches = request.getExpectedBin().equals(certBin);
-                        details.put("certificateBinMatches", String.valueOf(binMatches));
-                        if (!binMatches) {
-                            result.setValid(false);
-                            result.setMessage("Certificate BIN does not match expected value");
-                        }
-                    }
-                } catch (Exception e) {
-                    details.put("certificateBinCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Certificate BIN check failed: " + e.getMessage());
-                }
-            }
-
-            // Extract BIN from signature if requested
-            if (request.isCheckBinInSign()) {
-                try {
-                    String signBin = validator.extractBinFromSignature(request.getXml());
-                    details.put("signatureBin", signBin != null ? signBin : "not found");
-
-                    if (request.getExpectedBin() != null && signBin != null) {
-                        boolean binMatches = request.getExpectedBin().equals(signBin);
-                        details.put("signatureBinMatches", String.valueOf(binMatches));
-                        if (!binMatches) {
-                            result.setValid(false);
-                            result.setMessage("Signature BIN does not match expected value");
-                        }
-                    }
-                } catch (Exception e) {
-                    details.put("signatureBinCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Signature BIN check failed: " + e.getMessage());
-                }
-            }
-
-            // Validate certificate chain if requested
-            if (request.isCheckCertificateChain()) {
-                try {
-                    X509Certificate caCertToUse = defaultCa.getCertificate();
-
-                    // If custom CA PEM is provided, parse and use it
-                    if (request.getCaPem() != null && !request.getCaPem().trim().isEmpty()) {
-                        try {
-                            String pemContent = new String(Base64.getDecoder().decode(request.getCaPem()));
-                            // Remove PEM headers/footers and clean up
-                            pemContent = pemContent.replaceAll("-----BEGIN CERTIFICATE-----", "")
-                                    .replaceAll("-----END CERTIFICATE-----", "")
-                                    .replaceAll("-----BEGIN PUBLIC KEY-----", "")
-                                    .replaceAll("-----END PUBLIC KEY-----", "")
-                                    .replaceAll("\\s", "");
-
-                            byte[] certBytes = Base64.getDecoder().decode(pemContent);
-                            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-                            caCertToUse = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes));
-                            log.info("Using custom CA certificate for chain validation");
-                        } catch (Exception caParseException) {
-                            log.warn("Failed to parse custom CA PEM: {}", caParseException.getMessage());
-                            details.put("customCaParseError", caParseException.getMessage());
-                            result.setValid(false);
-                            result.setMessage("Custom CA certificate parsing failed: " + caParseException.getMessage());
-                            return result;
-                        }
-                    }
-
-                    boolean chainValid = validator.validateCertificateChain(request.getXml(), caCertToUse);
-                    details.put("certificateChainValid", String.valueOf(chainValid));
-                    if (!chainValid) {
-                        result.setValid(false);
-                        result.setMessage("Certificate chain validation failed");
-                    }
-                } catch (Exception e) {
-                    details.put("certificateChainCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Certificate chain validation failed: " + e.getMessage());
-                }
-            }
-
-            // Validate public key if requested
-            if (request.isCheckPublicKey()) {
-                try {
-                    boolean publicKeyValid = validator.validatePublicKey(request.getXml(), request.getPublicKey());
-                    details.put("publicKeyValid", String.valueOf(publicKeyValid));
-                    if (!publicKeyValid) {
-                        result.setValid(false);
-                        result.setMessage("Public key validation failed - provided key does not match certificate");
-                    }
-                } catch (Exception e) {
-                    details.put("publicKeyCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Public key validation error: " + e.getMessage());
-                }
-            }
-
-        } catch (Exception e) {
-            result.setValid(false);
-            result.setMessage("Validation failed: " + e.getMessage());
-            details.put("generalError", e.getMessage());
+            cert = getCertificate(alias);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
 
-        return result;
+        X509Certificate caCert = null;
+        PrivateKey privateKey = null;
+        String filename;
+
+        // Try to find certificate in different stores
+        if (storage.hasCACertificate(alias)) {
+            // CA certificate
+            var caResult = storage.getCACertificate(alias).orElseThrow();
+            caCert = cert; // Self-signed CA
+            privateKey = caResult.getKeyPair().getPrivate();
+            filename = alias + "." + format;
+        } else {
+            // User or legal certificate - need to find CA cert and private key
+            CertificateData certData = storage.getUserCertificate(alias).orElse(null);
+            if (certData == null) {
+                certData = storage.getLegalCertificate(alias).orElse(null);
+            }
+            if (certData != null) {
+                String caAlias = certData.getCaId();
+                caCert = storage.getCACertificate(caAlias).orElseThrow().getCertificate();
+                privateKey = storage.getUserKey(alias)
+                        .orElseGet(() -> storage.getLegalKey(alias).orElse(null))
+                        .getPrivate();
+                filename = alias + "." + format;
+            } else {
+                log.warn("Certificate not found: {}", alias);
+                return null;
+            }
+        }
+
+        // Generate file content based on format
+        byte[] data;
+        switch (format.toLowerCase()) {
+            case "crt":
+            case "pem":
+                // Generate PEM certificate
+                data = generatePemCertificate(cert);
+                break;
+            case "p12":
+                // Generate PKCS12 keystore
+                data = generatePKCS12Keystore(privateKey, cert, caCert);
+                break;
+            case "jks":
+                // Generate JKS keystore
+                data = generateJKSKeystore(privateKey, cert, caCert);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported format: " + format);
+        }
+
+        return new CertificateDownloadData(filename, data);
     }
 
-    private X509Certificate[] getCertificateChain(String alias) {
-        CertificateData data = certificateStorage.getUserCertificates().get(alias);
-        if (data != null) {
-            // User certificate chain: [userCert, caCert]
-            X509Certificate caCert = certificateStorage.getCaCertificates().get(data.getCaId()).getCertificate();
-            return new X509Certificate[]{data.getCertificate(), caCert};
-        }
-        data = certificateStorage.getLegalCertificates().get(alias);
-        if (data != null) {
-            // Legal certificate chain: [legalCert, caCert]
-            X509Certificate caCert = certificateStorage.getCaCertificates().get(data.getCaId()).getCertificate();
-            return new X509Certificate[]{data.getCertificate(), caCert};
-        }
-        // CA certificate chain: [caCert]
-        CertificateResult caResult = certificateStorage.getCaCertificates().get(alias);
-        if (caResult != null) {
-            return new X509Certificate[]{caResult.getCertificate()};
-        }
-        // Backward compatibility
-        if ("user".equals(alias) && !certificateStorage.getUserCertificates().isEmpty()) {
-            data = certificateStorage.getUserCertificates().values().iterator().next();
-            X509Certificate caCert = certificateStorage.getCaCertificates().get(data.getCaId()).getCertificate();
-            return new X509Certificate[]{data.getCertificate(), caCert};
-        }
-        if ("legal".equals(alias) && !certificateStorage.getLegalCertificates().isEmpty()) {
-            data = certificateStorage.getLegalCertificates().values().iterator().next();
-            X509Certificate caCert = certificateStorage.getCaCertificates().get(data.getCaId()).getCertificate();
-            return new X509Certificate[]{data.getCertificate(), caCert};
-        }
-        throw new IllegalArgumentException("Unknown certificate alias: " + alias);
+    @SneakyThrows
+    private byte[] generatePemCertificate(X509Certificate cert) {
+        // Use existing PEM writing logic from CertificateGenerator
+        java.io.StringWriter stringWriter = new java.io.StringWriter();
+        var kalkanProxy = knca.signer.kalkan.KalkanAdapter.createPEMWriter(stringWriter);
+        knca.signer.kalkan.KalkanAdapter.writeObject(kalkanProxy, cert);
+        knca.signer.kalkan.KalkanAdapter.flush(kalkanProxy);
+        return stringWriter.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    private X509Certificate getCertificate(String alias) {
-        if (certificateStorage.getUserCertificates().containsKey(alias)) {
-            return certificateStorage.getUserCertificates().get(alias).getCertificate();
+    @SneakyThrows
+    private byte[] generatePKCS12Keystore(PrivateKey privateKey, X509Certificate cert, X509Certificate caCert) {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        java.security.KeyStore keyStore = java.security.KeyStore.getInstance("PKCS12", provider.getName());
+        keyStore.load(null, null);
+
+        java.security.cert.Certificate[] chain = new java.security.cert.Certificate[]{cert, caCert};
+        keyStore.setKeyEntry("user", privateKey, config.getKeystorePassword().toCharArray(), chain);
+
+        keyStore.store(baos, config.getKeystorePassword().toCharArray());
+        return baos.toByteArray();
+    }
+
+    @SneakyThrows
+    private byte[] generateJKSKeystore(PrivateKey privateKey, X509Certificate cert, X509Certificate caCert) {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        java.security.KeyStore keyStore = java.security.KeyStore.getInstance("JKS");
+        keyStore.load(null, null);
+
+        java.security.cert.Certificate[] chain = new java.security.cert.Certificate[]{cert, caCert};
+        keyStore.setKeyEntry("user", privateKey, config.getKeystorePassword().toCharArray(), chain);
+
+        keyStore.store(baos, config.getKeystorePassword().toCharArray());
+        return baos.toByteArray();
+    }
+
+    public X509Certificate getCertificate(String alias) {
+        if (storage.hasUserCertificate(alias)) {
+            return storage.getUserCertificate(alias).orElseThrow().getCertificate();
         }
-        if (certificateStorage.getLegalCertificates().containsKey(alias)) {
-            return certificateStorage.getLegalCertificates().get(alias).getCertificate();
+        if (storage.hasLegalCertificate(alias)) {
+            return storage.getLegalCertificate(alias).orElseThrow().getCertificate();
         }
-        if (certificateStorage.getCaCertificates().containsKey(alias)) {
-            return certificateStorage.getCaCertificates().get(alias).getCertificate();
+        if (storage.hasCACertificate(alias)) {
+            return storage.getCACertificate(alias).orElseThrow().getCertificate();
         }
         // For backward compatibility
-        if ("user".equals(alias) && !certificateStorage.getUserCertificates().isEmpty()) {
-            return certificateStorage.getUserCertificates().values().iterator().next().getCertificate();
+        if ("user".equals(alias) && !storage.getUserCertificates().isEmpty()) {
+            return storage.getUserCertificates().values().iterator().next().getCertificate();
         }
-        if ("legal".equals(alias) && !certificateStorage.getLegalCertificates().isEmpty()) {
-            return certificateStorage.getLegalCertificates().values().iterator().next().getCertificate();
+        if ("legal".equals(alias) && !storage.getLegalCertificates().isEmpty()) {
+            return storage.getLegalCertificates().values().iterator().next().getCertificate();
         }
         throw new IllegalArgumentException("Unknown certificate alias: " + alias);
     }
 
     private PrivateKey getPrivateKey(String alias) {
-        if (certificateStorage.getUserKeys().containsKey(alias)) {
-            return certificateStorage.getUserKeys().get(alias).getPrivate();
+        if (storage.getUserKey(alias).isPresent()) {
+            return storage.getUserKey(alias).orElseThrow().getPrivate();
         }
-        if (certificateStorage.getLegalKeys().containsKey(alias)) {
-            return certificateStorage.getLegalKeys().get(alias).getPrivate();
+        if (storage.getLegalKey(alias).isPresent()) {
+            return storage.getLegalKey(alias).orElseThrow().getPrivate();
         }
         // For backward compatibility
-        if ("user".equals(alias) && !certificateStorage.getUserKeys().isEmpty()) {
-            return certificateStorage.getUserKeys().values().iterator().next().getPrivate();
+        if ("user".equals(alias)) {
+            return storage.getFirstUserPrivateKey().orElseThrow(() ->
+                    new IllegalArgumentException("No user certificate found"));
         }
-        if ("legal".equals(alias) && !certificateStorage.getLegalKeys().isEmpty()) {
-            return certificateStorage.getLegalKeys().values().iterator().next().getPrivate();
+        if ("legal".equals(alias)) {
+            return storage.getFirstLegalPrivateKey().orElseThrow(() ->
+                    new IllegalArgumentException("No legal certificate found"));
         }
         throw new IllegalArgumentException("Unknown certificate alias: " + alias);
     }
 
-    private KeyPair generateKeyPair() throws NoSuchAlgorithmException, NoSuchProviderException {
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance(config.getKeyFactoryType(), provider.getName());
-        kpg.initialize(config.getKeySize());
-        return kpg.generateKeyPair();
-    }
-
-    @SneakyThrows
-    public CertificateResult generateCACertificate() {
-        KeyPair caKeyPair = generateKeyPair();
-        X509Certificate rootCert = generateRootCA(caKeyPair);
-        return new CertificateResult(caKeyPair, rootCert);
-    }
-
-    private X509Certificate generateRootCA(KeyPair keyPair) throws Exception {
-        KalkanProxy tbsGen = KalkanAdapter.createV3TBSCertificateGenerator();
-
-        SecureRandom random = new SecureRandom();
-        byte[] serNum = new byte[20];
-        while (serNum[0] < 16) {
-            random.nextBytes(serNum);
-        }
-        KalkanAdapter.setSerialNumber(tbsGen, serNum);
-        KalkanAdapter.setSignature(tbsGen, config.getSignatureAlgorithm());
-        String ROOT_SUBJECT_DN = "C=KZ, CN=НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (RSA) TEST 2025";
-        KalkanAdapter.setIssuer(tbsGen, ROOT_SUBJECT_DN);
-        KalkanAdapter.setSubject(tbsGen, ROOT_SUBJECT_DN);
-        KalkanAdapter.setSubjectPublicKeyInfo(tbsGen, keyPair.getPublic());
-
-        Calendar cal = Calendar.getInstance();
-        Date nowDate = cal.getTime();
-        cal.add(Calendar.YEAR, config.getCaValidityYears());
-        Date nextDate = cal.getTime();
-        KalkanAdapter.setStartDate(tbsGen, nowDate);
-        KalkanAdapter.setEndDate(tbsGen, nextDate);
-
-        KalkanProxy extGen = KalkanAdapter.createX509ExtensionsGenerator();
-        KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.BasicConstraints, true, true);
-        KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.KeyUsage, true, KalkanConstants.KeyUsage.keyCertSign | KalkanConstants.KeyUsage.cRLSign);
-        KalkanProxy extResult = KalkanAdapter.generateExtensions(extGen);
-        KalkanAdapter.setExtensions(tbsGen, extResult);
-
-        KalkanProxy tbsResult = KalkanAdapter.generateTBSCertificate(tbsGen);
-
-        Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
-        sig.initSign(keyPair.getPrivate());
-        byte[] derEncoded = KalkanAdapter.getDEREncoded(tbsResult);
-        sig.update(derEncoded);
-        byte[] signature = sig.sign();
-
-        KalkanProxy certGen = KalkanAdapter.createX509V3CertificateGenerator();
-        KalkanAdapter.setSignatureAlgorithm(certGen, config.getSignatureAlgorithm());
-
-        KalkanProxy certResult = KalkanAdapter.generateCertificate(certGen, tbsResult, signature);
-        return certResult.genericValue();
-    }
-
-    private X509Certificate generateUserCert(PublicKey userPublicKey, PrivateKey caPrivateKey,
-                                             X509Certificate caCert, String subjectDN, String email,
-                                             String iin, String bin) throws Exception {
-        KalkanProxy tbsGen = KalkanAdapter.createV3TBSCertificateGenerator();
-
-        SecureRandom random = new SecureRandom();
-        byte[] serNum = new byte[20];
-        while (serNum[0] < 16) {
-            random.nextBytes(serNum);
-        }
-        KalkanAdapter.setSerialNumber(tbsGen, serNum);
-        KalkanAdapter.setSignature(tbsGen, config.getSignatureAlgorithm());
-        KalkanAdapter.setIssuer(tbsGen, caCert.getSubjectDN().getName());
-        KalkanAdapter.setSubject(tbsGen, subjectDN);
-        KalkanAdapter.setSubjectPublicKeyInfo(tbsGen, userPublicKey);
-
-        Calendar cal = Calendar.getInstance();
-        Date nowDate = cal.getTime();
-        cal.add(Calendar.YEAR, config.getUserValidityYears());
-        Date nextDate = cal.getTime();
-        KalkanAdapter.setStartDate(tbsGen, nowDate);
-        KalkanAdapter.setEndDate(tbsGen, nextDate);
-
-        KalkanProxy extGen = KalkanAdapter.createX509ExtensionsGenerator();
-        KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.BasicConstraints, true, false);
-        KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.KeyUsage, true, KalkanConstants.KeyUsage.digitalSignature | KalkanConstants.KeyUsage.keyEncipherment);
-
-        KalkanAdapter.addExtendedKeyUsageEmailProtection(extGen);
-
-        KalkanProxy sanVector = KalkanAdapter.createASN1EncodableVector();
-        KalkanAdapter.addGeneralNameEmail(sanVector, email);
-        KalkanAdapter.addGeneralNameOtherName(sanVector, CertificateDataGenerator.IIN_OID, iin);
-        if (bin != null) {
-            KalkanAdapter.addGeneralNameOtherName(sanVector, CertificateDataGenerator.BIN_OID, bin);
-        }
-        KalkanAdapter.addSubjectAlternativeName(extGen, sanVector);
-
-        KalkanProxy extResult = KalkanAdapter.generateExtensions(extGen);
-        KalkanAdapter.setExtensions(tbsGen, extResult);
-
-        KalkanProxy tbsResult = KalkanAdapter.generateTBSCertificate(tbsGen);
-
-        Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
-        sig.initSign(caPrivateKey);
-        byte[] derEncoded = KalkanAdapter.getDEREncoded(tbsResult);
-        sig.update(derEncoded);
-        byte[] signature = sig.sign();
-
-        KalkanProxy certGen = KalkanAdapter.createX509V3CertificateGenerator();
-        KalkanAdapter.setSignatureAlgorithm(certGen, config.getSignatureAlgorithm());
-
-        KalkanProxy certResult = KalkanAdapter.generateCertificate(certGen, tbsResult, signature);
-        return certResult.genericValue();
-    }
-
-    private void loadOrGenerateCACertificates() throws Exception {
-        Map<String, CertificateResult> loadedCAs = loadCACertificates();
-        if (loadedCAs.isEmpty()) {
-            // Generate default CA if no CAs are found
-            CertificateResult ca = generateCACertificate();
-            certificateStorage.getCaCertificates().put(DEFAULT_CA_ALIAS, ca);
-        } else {
-            // Add loaded CAs
-            certificateStorage.getCaCertificates().putAll(loadedCAs);
-            // Ensure there's always a default CA
-            if (!certificateStorage.getCaCertificates().containsKey(DEFAULT_CA_ALIAS)) {
-                CertificateResult ca = generateCACertificate();
-                certificateStorage.getCaCertificates().put(DEFAULT_CA_ALIAS, ca);
-            }
-        }
-    }
-
-    private void loadOrGenerateUserCertificates() throws Exception {
-        // For each CA, try to load or generate user certificates
-        for (String caAlias : certificateStorage.getCaCertificates().keySet()) {
-            Map<String, CertificateData> loadedUsers = loadUserCertificates(caAlias);
-            if (loadedUsers.isEmpty()) {
-                generateUserCertificate(caAlias);
-            } else {
-                certificateStorage.getUserCertificates().putAll(loadedUsers);
-            }
-        }
-    }
-
-    private void loadOrGenerateLegalCertificates() throws Exception {
-        // For each CA, try to load or generate legal certificates
-        for (String caAlias : certificateStorage.getCaCertificates().keySet()) {
-            Map<String, CertificateData> loadedLegal = loadLegalCertificates(caAlias);
-            if (loadedLegal.isEmpty()) {
-                generateLegalEntityCertificate(caAlias);
-            } else {
-                certificateStorage.getLegalCertificates().putAll(loadedLegal);
-            }
-        }
-    }
-
-    private Map<String, CertificateResult> loadCACertificates() throws Exception {
-        Map<String, CertificateResult> loadedCAs = new HashMap<>();
-        Path certsDir = Paths.get(config.getCertsPath());
-
-        if (!Files.exists(certsDir)) {
-            return loadedCAs;
-        }
-
-        // Load all ca*.crt files as separate CAs
-        try (Stream<Path> paths = Files.walk(certsDir, 1)) {
-            paths.filter(path -> {
-                String filename = path.getFileName().toString();
-                return filename.startsWith("ca") && filename.endsWith(".crt") && Files.isRegularFile(path);
-            }).forEach(caCertPath -> {
-                try {
-                    String filename = caCertPath.getFileName().toString();
-                    String alias = filename.substring(0, filename.lastIndexOf('.')); // e.g., "ca2" from "ca2.crt"
-
-                    // Try to load corresponding private key
-                    Path caKeyPath = Paths.get(config.getCertsPath(), alias + ".pem");
-                    CertificateResult result = loadCACertificateFromFiles(caCertPath, caKeyPath);
-                    if (result != null) {
-                        loadedCAs.put(alias, result);
-                    }
-                } catch (Exception e) {
-                    log.error("CERT_ERROR: ", e);
-                }
-            });
-        }
-
-        return loadedCAs;
-    }
-
-    private CertificateResult loadCACertificateFromFiles(Path caCertPath, Path caKeyPath) throws Exception {
-        if (!Files.exists(caCertPath)) {
-            return null;
-        }
-
-        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        X509Certificate caCert;
-        try (var is = Files.newInputStream(caCertPath)) {
-            caCert = (X509Certificate) certFactory.generateCertificate(is);
-        }
-
-        // Try to load CA private key
-        PrivateKey caPrivateKey = null;
-        if (Files.exists(caKeyPath)) {
-            String keyText = Files.readString(caKeyPath);
-            // Remove PEM headers and decode
-            keyText = keyText.replaceAll("-----[A-Z ]*-----", "").replaceAll("\\s", "");
-            byte[] keyBytes = Base64.getDecoder().decode(keyText);
-
-            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-            // Look at https://github.com/pkigovkz/java-jwt/blob/master/lib/src/test/java/com/auth0/jwt/algorithms/RSAAlgorithmTest.java#L42
-            KeyFactory keyFactory = KeyFactory.getInstance(config.getKeyFactoryType(), provider.getName());
-            caPrivateKey = keyFactory.generatePrivate(keySpec);
-        }
-
-        if (caPrivateKey == null) {
-            // Generate a new key pair if private key is missing
-            KeyPair keyPair = generateKeyPair();
-            return new CertificateResult(keyPair, caCert);
-        } else {
-            // Create CertificateResult with loaded key
-            KeyPair keyPair = new KeyPair(caCert.getPublicKey(), caPrivateKey);
-            return new CertificateResult(keyPair, caCert);
-        }
-    }
-
-    private Map<String, CertificateData> loadUserCertificates(String caAlias) {
-        Map<String, CertificateData> loadedCerts = new HashMap<>();
-        try {
-            // Try to load from ca-specific keystore first, then fallback to generic user.p12
-            Path p12Path = getCertificateFilePath(caAlias, "user");
-
-            if (!Files.exists(p12Path)) {
-                // Fallback to generic user.p12 for default CA only
-                if (DEFAULT_CA_ALIAS.equals(caAlias)) {
-                    p12Path = Paths.get(config.getCertsPath(), "user.p12");
-                }
-                if (!Files.exists(p12Path)) {
-                    return loadedCerts;
-                }
-            }
-
-            // Load from PKCS12 keystore
-            X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
-                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
-            PrivateKey privateKey = KeyStoreManager.loadPrivateKeyFromPKCS12(
-                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
-
-            // Extract metadata from certificate
-            CertificateMetadata metadata = extractCertificateMetadata(cert);
-            CertificateData data = new CertificateData(
-                    metadata.email, metadata.iin, metadata.bin, caAlias, cert);
-
-            String alias = "user-" + UUID.randomUUID().toString().substring(0, 8);
-            certificateStorage.getUserKeys().put(alias, new KeyPair(cert.getPublicKey(), privateKey));
-            loadedCerts.put(alias, data);
-
-        } catch (Exception e) {
-            log.error("CERT_ERROR: ", e);
-        }
-        return loadedCerts;
-    }
-
-    private Map<String, CertificateData> loadLegalCertificates(String caAlias) {
-        Map<String, CertificateData> loadedCerts = new HashMap<>();
-        try {
-            // Try to load from ca-specific keystore first, then fallback to generic legal.p12
-            Path p12Path = getCertificateFilePath(caAlias, "legal");
-
-            if (!Files.exists(p12Path)) {
-                // Fallback to generic legal.p12 for default CA only
-                if (DEFAULT_CA_ALIAS.equals(caAlias)) {
-                    p12Path = Paths.get(config.getCertsPath(), "legal.p12");
-                }
-                if (!Files.exists(p12Path)) {
-                    return loadedCerts;
-                }
-            }
-
-            // Load from PKCS12 keystore
-            X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
-                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
-            PrivateKey privateKey = KeyStoreManager.loadPrivateKeyFromPKCS12(
-                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
-
-            // Extract metadata from certificate
-            CertificateMetadata metadata = extractCertificateMetadata(cert);
-            CertificateData data = new CertificateData(
-                    metadata.email, metadata.iin, metadata.bin, caAlias, cert);
-
-            String alias = "legal-" + UUID.randomUUID().toString().substring(0, 8);
-            certificateStorage.getLegalKeys().put(alias, new KeyPair(cert.getPublicKey(), privateKey));
-            loadedCerts.put(alias, data);
-
-        } catch (Exception e) {
-            log.error("CERT_ERROR: ", e);
-        }
-        return loadedCerts;
-    }
-
-    private Path getCertificateFilePath(String caAlias, String certType) {
-        // For default CA, use generic naming (user.p12, legal.p12)
-        if (DEFAULT_CA_ALIAS.equals(caAlias)) {
-            return Paths.get(config.getCertsPath(), certType + ".p12");
-        }
-        // For other CAs, use ca-specific naming (e.g., user-ca2.p12, legal-ca2.p12)
-        return Paths.get(config.getCertsPath(), certType + "-" + caAlias + ".p12");
-    }
-
-    private CertificateMetadata extractCertificateMetadata(X509Certificate cert) {
-        // Use CertificateReader for consistent metadata extraction
-        CertificateReader reader = new CertificateReader(config);
-        String email = reader.extractEmail(cert);
-        String iin = reader.extractIIN(cert);
-        String bin = reader.extractBIN(cert);
-
-        return new CertificateMetadata(email, iin, bin);
-    }
-
-    private void loadFilesystemCertificates() throws Exception {
-        CertificateReader reader = new CertificateReader(config);
-        List<CertificateReader.CertificateInfo> certificates = reader.readAllCertificates();
-        certificateStorage.getFilesystemCertificates().addAll(certificates);
-        log.info("Loaded {} certificates from filesystem", certificates.size());
-    }
-
-    public List<CertificateReader.CertificateInfo> getFilesystemCertificates() {
-        return new ArrayList<>(certificateStorage.getFilesystemCertificates());
-    }
-
-    @Data
-    @RequiredArgsConstructor
-    private static class CertificateMetadata {
-        private final String email;
-        private final String iin;
-        private final String bin;
-    }
-
-    @Data
-    @RequiredArgsConstructor
+    // Nested classes for backward compatibility
+    @lombok.Data
+    @lombok.RequiredArgsConstructor
     public static class CertificateResult {
-
-        private final KeyPair keyPair;
-        private final X509Certificate certificate;
-
+        private final java.security.KeyPair keyPair;
+        private final java.security.cert.X509Certificate certificate;
     }
 
-    @Data
-    @RequiredArgsConstructor
+    @lombok.Data
+    @lombok.RequiredArgsConstructor
     public static class CertificateData {
-
         private final String email;
         private final String iin;
         private final String bin;
         private final String caId;
-        private final X509Certificate certificate;
-
+        private final java.security.cert.X509Certificate certificate;
     }
 
-    @Data
-    @AllArgsConstructor
+    @lombok.Data
+    @lombok.AllArgsConstructor
     public static class ValidationResult {
         private boolean valid;
         private String message;
         private Map<String, String> details;
     }
 
-    @Data
-    @AllArgsConstructor
+    @lombok.Data
+    @lombok.AllArgsConstructor
     public static class SignedData {
-
         private final String originalData;
         private final String signature;
         private final String certAlias;
 
-        /**
-         * Returns the signature combined with the original data for easy use
-         */
         public String getSignedContent() {
             return originalData + signature;
         }
 
-        /**
-         * Returns a formatted string with both data and signature
-         */
         public String getFormattedSignedContent() {
-            return String.format("<content><data>%s</data><signature>%s<signature><alias>%s</alias></content>",
+            return String.format("<content><data>%s</data><signature>%s</signature><alias>%s</alias></content>",
                     escapeXml(originalData), escapeXml(signature), escapeXml(certAlias));
         }
 
         private String escapeXml(String s) {
-            return s.replaceAll("&", "&amp;")
-                    .replaceAll(">", "&gt;")
-                    .replaceAll("<", "&lt;")
-                    .replaceAll("\"", "&quot;")
-                    .replaceAll("'", "&apos;");
+            return s.replaceAll("&", "&")
+                    .replaceAll(">", ">")
+                    .replaceAll("<", "<")
+                    .replaceAll("\\\"", "\"")
+                    .replaceAll("'", "'");
         }
     }
 
-    @Value
-    public static class CertificateStorage {
-
-        Map<String, CertificateResult> caCertificates = new ConcurrentHashMap<>();
-        Map<String, KeyPair> userKeys = new ConcurrentHashMap<>();
-        Map<String, CertificateData> userCertificates = new ConcurrentHashMap<>();
-        Map<String, KeyPair> legalKeys = new ConcurrentHashMap<>();
-        Map<String, CertificateData> legalCertificates = new ConcurrentHashMap<>();
-        Queue<CertificateReader.CertificateInfo> filesystemCertificates = new ConcurrentLinkedQueue<>();
-
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class CertificateDownloadData {
+        private final String filename;
+        private final byte[] data;
     }
-
 }

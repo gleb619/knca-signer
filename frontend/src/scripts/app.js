@@ -2,7 +2,7 @@ export default () => ({
     isKK: true,
 
     // Tab management
-    activeTab: 'xml-verifier', // xml-signer | certificate-authority | xml-verifier
+    activeTab: 'certificate-authority', // certificate-authority | xml-signer | xml-verifier
 
     errorMessage: '',
     successMessage: '',

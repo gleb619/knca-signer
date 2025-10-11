@@ -1,9 +1,11 @@
-package knca.signer;
+package knca.signer.controller;
 
 import io.vertx.core.Handler;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import knca.signer.service.CertificateService;
+import knca.signer.service.CertificateStorageService;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,6 +21,7 @@ import java.util.Map;
 public class CertificatorHandler {
 
     private final CertificateService certificateService;
+    private final CertificateStorageService storageService;
 
     /**
      * Handles requests to retrieve CA certificate information.
@@ -26,7 +29,7 @@ public class CertificatorHandler {
      * @return Handler for getting CA certificates
      */
     public Handler<RoutingContext> handleGetCACertificate() {
-        return ctx -> handleGetCertificates(ctx, "CA", certificateService.getCACertificates(), (alias, data) -> buildCertificateDto(alias, data, false));
+        return ctx -> handleGetCertificates(ctx, "CA", storageService.getCACertificates(), (alias, data) -> buildCertificateDto(alias, data, false));
     }
 
     /**
@@ -35,10 +38,8 @@ public class CertificatorHandler {
      * @return Handler for getting user certificates for a CA
      */
     public Handler<RoutingContext> handleGetUserCertificate() {
-        return ctx -> handleGetCertificatesForCA(ctx, "user", certificateService.getUserCertificates(), (alias, data) -> buildCertificateDto(alias, data, true));
+        return ctx -> handleGetCertificatesForCA(ctx, "user", storageService.getUserCertificates(), (alias, data) -> buildCertificateDto(alias, data, true));
     }
-
-
 
     /**
      * Handles requests to generate CA certificate.
@@ -51,7 +52,7 @@ public class CertificatorHandler {
                 var alias = ctx.queryParam("alias").stream().findFirst().orElse(null);
                 log.info("Generating new CA certificate with alias: {}", alias);
                 var entry = certificateService.generateCACertificate(alias);
-                var certData = certificateService.getCACertificates().get(entry.getKey());
+                var certData = storageService.getCACertificates().get(entry.getKey());
                 var dto = buildCertificateDto(entry.getKey(), certData, false).toBuilder()
                         .type("ca")
                         .generated(true)
@@ -83,7 +84,7 @@ public class CertificatorHandler {
      * @return Handler for getting legal certificates for a CA
      */
     public Handler<RoutingContext> handleGetLegalCertificate() {
-        return ctx -> handleGetCertificatesForCA(ctx, "legal", certificateService.getLegalCertificates(), (alias, data) -> buildCertificateDto(alias, data, true));
+        return ctx -> handleGetCertificatesForCA(ctx, "legal", storageService.getLegalCertificates(), (alias, data) -> buildCertificateDto(alias, data, true));
     }
 
     /**
@@ -120,6 +121,52 @@ public class CertificatorHandler {
             } catch (Exception e) {
                 handleError(ctx, "retrieving filesystem certificates", e);
             }
+        };
+    }
+
+    /**
+     * Handles requests to download certificate files in different formats.
+     *
+     * @return Handler for downloading certificate files
+     */
+    public Handler<RoutingContext> handleDownloadCertificate() {
+        return ctx -> {
+            try {
+                var alias = ctx.pathParam("alias");
+                var format = ctx.pathParam("format");
+
+                log.info("Downloading certificate with alias: {} in format: {}", alias, format);
+
+                var certificateData = certificateService.downloadCertificate(alias, format);
+                if (certificateData == null) {
+                    ctx.response().setStatusCode(404).putHeader("content-type", "application/json")
+                            .end(new JsonObject().put("error", "Certificate not found").encode());
+                    return;
+                }
+
+                var filename = certificateData.getFilename();
+                var contentType = getContentTypeForFormat(format);
+                var contentDisposition = "attachment; filename=\"" + filename + "\"";
+
+                ctx.response()
+                        .putHeader("Content-Type", contentType)
+                        .putHeader("Content-Disposition", contentDisposition)
+                        .putHeader("Cache-Control", "no-cache")
+                        .end(Buffer.buffer(certificateData.getData()));
+
+                log.info("Successfully sent certificate file: {}", filename);
+            } catch (Exception e) {
+                handleError(ctx, "downloading certificate", e);
+            }
+        };
+    }
+
+    private String getContentTypeForFormat(String format) {
+        return switch (format.toLowerCase()) {
+            case "crt", "pem" -> "application/x-pem-file";
+            case "p12" -> "application/x-pkcs12";
+            case "jks" -> "application/octet-stream";
+            default -> "application/octet-stream";
         };
     }
 
@@ -244,7 +291,7 @@ public class CertificatorHandler {
     }
 
     private String extractCaId(RoutingContext ctx) {
-        var body = ctx.getBodyAsJson();
+        var body = ctx.body().asJsonObject();
         return body != null && body.containsKey("caId") ? body.getString("caId", "default") : "default";
     }
 
@@ -268,19 +315,18 @@ public class CertificatorHandler {
 
     @FunctionalInterface
     private interface CertDtoBuilder<T> {
+
         CertificateDto build(String alias, T data);
+
     }
 
     @FunctionalInterface
     private interface CertGenerator {
+
         Map.Entry<String, ?> generate(String caId);
+
     }
 
-    /**
-     * Legacy DTO class kept for interface compatibility.
-     * Can be removed after all clients migrate to CertificateDto.
-     */
-    @Deprecated
     @Data
     @AllArgsConstructor
     @Builder(toBuilder = true)
