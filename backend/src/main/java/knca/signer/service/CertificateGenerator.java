@@ -5,6 +5,10 @@ import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanAdapter;
 import knca.signer.kalkan.KalkanConstants;
 import knca.signer.kalkan.KalkanProxy;
+import knca.signer.kalkan.api.PEMWriter;
+import knca.signer.kalkan.api.V3TBSCertificateGenerator;
+import knca.signer.kalkan.api.X509ExtensionsGenerator;
+import knca.signer.kalkan.api.X509V3CertificateGenerator;
 import knca.signer.service.CertificateService.CertificateData;
 import knca.signer.service.CertificateService.CertificateResult;
 import lombok.RequiredArgsConstructor;
@@ -459,7 +463,7 @@ public class CertificateGenerator {
     }
 
     private X509Certificate generateRootCA(KeyPair keyPair) throws Exception {
-        KalkanProxy tbsGen = KalkanAdapter.createV3TBSCertificateGenerator();
+        V3TBSCertificateGenerator tbsGen = KalkanAdapter.createV3TBSCertificateGenerator();
 
         // Set certificate fields
         SecureRandom random = new SecureRandom();
@@ -467,48 +471,47 @@ public class CertificateGenerator {
         while (serNum[0] < 16) {
             random.nextBytes(serNum);
         }
-        KalkanAdapter.setSerialNumber(tbsGen, serNum);
-        KalkanAdapter.setSignature(tbsGen, config.getSignatureAlgorithm());
-        KalkanAdapter.setIssuer(tbsGen, ROOT_SUBJECT_DN);
-        KalkanAdapter.setSubject(tbsGen, ROOT_SUBJECT_DN);
-        KalkanAdapter.setSubjectPublicKeyInfo(tbsGen, keyPair.getPublic());
+        tbsGen.setSerialNumber(serNum);
+        tbsGen.setSignature(config.getSignatureAlgorithm());
+        tbsGen.setIssuer(ROOT_SUBJECT_DN);
+        tbsGen.setSubject(ROOT_SUBJECT_DN);
+        tbsGen.setSubjectPublicKeyInfo(keyPair.getPublic());
 
         // Validity period
         Calendar cal = Calendar.getInstance();
         Date nowDate = cal.getTime();
         cal.add(Calendar.YEAR, config.getCaValidityYears());
         Date nextDate = cal.getTime();
-        KalkanAdapter.setStartDate(tbsGen, nowDate);
-        KalkanAdapter.setEndDate(tbsGen, nextDate);
+        tbsGen.setStartDate(nowDate);
+        tbsGen.setEndDate(nextDate);
 
         // Extensions
-        KalkanProxy extGen = KalkanAdapter.createX509ExtensionsGenerator();
-        KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.BasicConstraints, true, true);
-        KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.KeyUsage, true, KalkanConstants.KeyUsage.keyCertSign | KalkanConstants.KeyUsage.cRLSign);
-        var extResult = KalkanAdapter.generateExtensions(extGen);
-        KalkanAdapter.setExtensions(tbsGen, extResult.getResult());
+        X509ExtensionsGenerator extGen = KalkanAdapter.createX509ExtensionsGenerator();
+        extGen.addExtension(KalkanConstants.X509Extensions.BasicConstraints, true, true);
+        extGen.addExtension(KalkanConstants.X509Extensions.KeyUsage, true, KalkanConstants.KeyUsage.keyCertSign | KalkanConstants.KeyUsage.cRLSign);
+        var extResult = extGen.generate();
+        tbsGen.setExtensions(extResult.getResult());
 
         // Generate TBS certificate
-        var tbsResult = KalkanAdapter.generateTBSCertificate(tbsGen);
+        var tbsResult = tbsGen.generateTBSCertificate();
 
         // Sign the certificate
         Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
         sig.initSign(keyPair.getPrivate());
-        byte[] derEncoded = KalkanAdapter.getDEREncoded(tbsResult.getResult());
+        byte[] derEncoded = KalkanAdapter.getDEREncoded(tbsResult);
         sig.update(derEncoded);
         byte[] signature = sig.sign();
 
-        KalkanProxy certGen = KalkanAdapter.createX509V3CertificateGenerator();
-        KalkanAdapter.setSignatureAlgorithm(certGen, config.getSignatureAlgorithm());
+        X509V3CertificateGenerator certGen = KalkanAdapter.createX509V3CertificateGenerator();
+        certGen.setSignatureAlgorithm(config.getSignatureAlgorithm());
 
-        var certResult = KalkanAdapter.generateCertificate(certGen, tbsResult.getResult(), signature);
-        return (X509Certificate) certResult.getResult();
+        return certGen.generate(tbsResult, signature);
     }
 
     private X509Certificate generateUserCertificate(PublicKey userPublicKey, PrivateKey caPrivateKey,
                                                     X509Certificate caCert, String subjectDN, String email,
                                                     String iin, String bin) throws Exception {
-        KalkanProxy tbsGen = KalkanAdapter.createV3TBSCertificateGenerator();
+        V3TBSCertificateGenerator tbsGen = KalkanAdapter.createV3TBSCertificateGenerator();
 
         // Set certificate fields
         SecureRandom random = new SecureRandom();
@@ -516,27 +519,27 @@ public class CertificateGenerator {
         while (serNum[0] < 16) {
             random.nextBytes(serNum);
         }
-        KalkanAdapter.setSerialNumber(tbsGen, serNum);
-        KalkanAdapter.setSignature(tbsGen, config.getSignatureAlgorithm());
-        KalkanAdapter.setIssuer(tbsGen, caCert.getSubjectDN().getName());
-        KalkanAdapter.setSubject(tbsGen, subjectDN);
-        KalkanAdapter.setSubjectPublicKeyInfo(tbsGen, userPublicKey);
+        tbsGen.setSerialNumber(serNum);
+        tbsGen.setSignature(config.getSignatureAlgorithm());
+        tbsGen.setIssuer(caCert.getSubjectDN().getName());
+        tbsGen.setSubject(subjectDN);
+        tbsGen.setSubjectPublicKeyInfo(userPublicKey);
 
         // Validity period
         Calendar cal = Calendar.getInstance();
         Date nowDate = cal.getTime();
         cal.add(Calendar.YEAR, config.getUserValidityYears());
         Date nextDate = cal.getTime();
-        KalkanAdapter.setStartDate(tbsGen, nowDate);
-        KalkanAdapter.setEndDate(tbsGen, nextDate);
+        tbsGen.setStartDate(nowDate);
+        tbsGen.setEndDate(nextDate);
 
         // Extensions
-        KalkanProxy extGen = KalkanAdapter.createX509ExtensionsGenerator();
-        KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.BasicConstraints, true, false);
-        KalkanAdapter.addExtension(extGen, KalkanConstants.X509Extensions.KeyUsage, true, KalkanConstants.KeyUsage.digitalSignature | KalkanConstants.KeyUsage.keyEncipherment);
+        X509ExtensionsGenerator extGen = KalkanAdapter.createX509ExtensionsGenerator();
+        extGen.addExtension(KalkanConstants.X509Extensions.BasicConstraints, true, false);
+        extGen.addExtension(KalkanConstants.X509Extensions.KeyUsage, true, KalkanConstants.KeyUsage.digitalSignature | KalkanConstants.KeyUsage.keyEncipherment);
 
         // Extended Key Usage
-        KalkanAdapter.addExtendedKeyUsageEmailProtection(extGen);
+        extGen.addExtendedKeyUsageEmailProtection();
 
         // Subject Alternative Name with IIN and BIN
         KalkanProxy sanVector = KalkanAdapter.createASN1EncodableVector();
@@ -545,33 +548,32 @@ public class CertificateGenerator {
         if (bin != null) {
             KalkanAdapter.addGeneralNameOtherName(sanVector, CertificateDataGenerator.BIN_OID, bin);
         }
-        KalkanAdapter.addSubjectAlternativeName(extGen, sanVector);
+        extGen.addSubjectAlternativeName(sanVector);
 
-        var extResult = KalkanAdapter.generateExtensions(extGen);
-        KalkanAdapter.setExtensions(tbsGen, extResult.getResult());
+        var extResult = extGen.generate();
+        tbsGen.setExtensions(extResult.getResult());
 
         // Generate TBS certificate
-        var tbsResult = KalkanAdapter.generateTBSCertificate(tbsGen);
+        var tbsResult = tbsGen.generateTBSCertificate();
 
         // Sign the certificate
         Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
         sig.initSign(caPrivateKey);
-        byte[] derEncoded = KalkanAdapter.getDEREncoded(tbsResult.getResult());
+        byte[] derEncoded = KalkanAdapter.getDEREncoded(tbsResult);
         sig.update(derEncoded);
         byte[] signature = sig.sign();
 
-        KalkanProxy certGen = KalkanAdapter.createX509V3CertificateGenerator();
-        KalkanAdapter.setSignatureAlgorithm(certGen, config.getSignatureAlgorithm());
+        X509V3CertificateGenerator certGen = KalkanAdapter.createX509V3CertificateGenerator();
+        certGen.setSignatureAlgorithm(config.getSignatureAlgorithm());
 
-        var certResult = KalkanAdapter.generateCertificate(certGen, tbsResult.getResult(), signature);
-        return (X509Certificate) certResult.getResult();
+        return certGen.generate(tbsResult, signature);
     }
 
     private void saveCertificate(X509Certificate cert, String filename) throws Exception {
         StringWriter stringWriter = new StringWriter();
-        KalkanProxy pemWriter = KalkanAdapter.createPEMWriter(stringWriter);
-        KalkanAdapter.writeObject(pemWriter, cert);
-        KalkanAdapter.flush(pemWriter);
+        PEMWriter pemWriter = KalkanAdapter.createPEMWriter(stringWriter);
+        pemWriter.writeObject(cert);
+        pemWriter.flush();
         String pem = stringWriter.toString();
         Path path = Paths.get(filename);
         Files.createDirectories(path.getParent());

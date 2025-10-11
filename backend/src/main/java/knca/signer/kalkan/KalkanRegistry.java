@@ -1,21 +1,31 @@
 package knca.signer.kalkan;
 
+import knca.signer.kalkan.api.PEMWriter;
+import knca.signer.kalkan.api.V3TBSCertificateGenerator;
+import knca.signer.kalkan.api.X509ExtensionsGenerator;
+import knca.signer.kalkan.api.X509V3CertificateGenerator;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.DynamicType;
+import net.bytebuddy.implementation.FieldAccessor;
 import net.bytebuddy.implementation.InvocationHandlerAdapter;
+import net.bytebuddy.implementation.MethodCall;
+import net.bytebuddy.jar.asm.Opcodes;
 import net.bytebuddy.matcher.ElementMatchers;
 
+import java.io.Writer;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.util.Date;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 public class KalkanRegistry {
 
     private static final ByteBuddy buddy = new ByteBuddy();
+    public static final AtomicReference<ClassLoader> CLASS_LOADER = new AtomicReference<>(KalkanRegistry.class.getClassLoader());
 
     public static Object wrapValue(Object result) {
         if (result == null) return null;
@@ -29,8 +39,13 @@ public class KalkanRegistry {
                     .subclass(Object.class)
                     .implement(KalkanProxy.class)
                     .implement(clazz.getInterfaces())
+                    .defineField("_instance", Object.class, Opcodes.ACC_PRIVATE)
+                    .defineConstructor(Opcodes.ACC_PUBLIC)
+                    .withParameters(Object.class)
+                    .intercept(MethodCall.invoke(Object.class.getConstructor())
+                            .andThen(FieldAccessor.ofField("_instance").setsArgumentAt(0)))
                     .method(ElementMatchers.named("getRealObject"))
-                    .intercept(InvocationHandlerAdapter.of((p, m, a) -> instance))
+                    .intercept(FieldAccessor.ofField("_instance"))
                     .method(ElementMatchers.named("equals"))
                     .intercept(InvocationHandlerAdapter.of((p, m, a) ->
                             ((KalkanProxy) p).getRealObject().equals(ReflectionHelper.unwrapValue(a[0]))))
@@ -45,9 +60,8 @@ public class KalkanRegistry {
                             .and(ElementMatchers.not(ElementMatchers.named("hashCode"))).and(ElementMatchers.not(ElementMatchers.named("toString"))))
                     .intercept(InvocationHandlerAdapter.of(new TransparentProxyHandler(instance)))
                     .make();
-
-            Class<?> proxyClass = unloaded.load(KalkanRegistry.class.getClassLoader()).getLoaded();
-            return (KalkanProxy) proxyClass.getDeclaredConstructor().newInstance();
+            Class<?> proxyClass = unloaded.load(CLASS_LOADER.get()).getLoaded();
+            return (KalkanProxy) proxyClass.getConstructor(Object.class).newInstance(instance);
         } catch (Exception e) {
             throw new KalkanException("Failed to create proxy for " + clazz.getName(), e);
         }
@@ -188,20 +202,36 @@ public class KalkanRegistry {
         }
     }
 
-    public static KalkanProxy createV3TBSCertificateGenerator() {
-        return create("kz.gov.pki.kalkan.asn1.x509.V3TBSCertificateGenerator", null, null);
+    /**
+     * Create a V3TBSCertificateGenerator interface wrapper
+     */
+    public static V3TBSCertificateGenerator createV3TBSCertificateGenerator() {
+        KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.asn1.x509.V3TBSCertificateGenerator", null, null);
+        return () -> kalkanProxy;
     }
 
-    public static KalkanProxy createX509ExtensionsGenerator() {
-        return create("kz.gov.pki.kalkan.asn1.x509.X509ExtensionsGenerator", null, null);
+    /**
+     * Create a X509ExtensionsGenerator interface wrapper
+     */
+    public static X509ExtensionsGenerator createX509ExtensionsGenerator() {
+        KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.asn1.x509.X509ExtensionsGenerator", null, null);
+        return () -> kalkanProxy;
     }
 
-    public static KalkanProxy createX509V3CertificateGenerator() {
-        return create("kz.gov.pki.kalkan.x509.X509V3CertificateGenerator", null, null);
+    /**
+     * Create a X509V3CertificateGenerator interface wrapper
+     */
+    public static X509V3CertificateGenerator createX509V3CertificateGenerator() {
+        KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.x509.X509V3CertificateGenerator", null, null);
+        return () -> kalkanProxy;
     }
 
-    public static KalkanProxy createPEMWriter(java.io.Writer writer) {
-        return create("kz.gov.pki.kalkan.openssl.PEMWriter", new Class[]{java.io.Writer.class}, new Object[]{writer});
+    /**
+     * Create a PEMWriter interface wrapper
+     */
+    public static PEMWriter createPEMWriter(java.io.Writer writer) {
+        KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.openssl.PEMWriter", new Class[]{Writer.class}, new Object[]{writer});
+        return () -> kalkanProxy;
     }
 
     @SneakyThrows
@@ -240,7 +270,9 @@ public class KalkanRegistry {
             try {
                 log.trace("Invoking method '{}' on {} with {} args", method.getName(), target.getClass().getSimpleName(), args != null ? args.length : 0);
                 Object result = method.invoke(target, args);
-                log.trace("Method '{}' returned successfully", method.getName());
+                if (log.isTraceEnabled()) {
+                    log.trace("Method '{}' returned {}", method.getName(), result);
+                }
                 return wrapValue(result);
             } catch (Throwable e) {
                 log.trace("Method '{}' threw exception: {}", method.getName(), e.getMessage());

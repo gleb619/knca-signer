@@ -1,6 +1,10 @@
 package knca.signer.kalkan;
 
 import knca.signer.kalkan.KalkanProxy.ProxyArg;
+import knca.signer.kalkan.api.PEMWriter;
+import knca.signer.kalkan.api.V3TBSCertificateGenerator;
+import knca.signer.kalkan.api.X509ExtensionsGenerator;
+import knca.signer.kalkan.api.X509V3CertificateGenerator;
 import knca.signer.service.CertificateDataGenerator;
 import lombok.extern.slf4j.Slf4j;
 
@@ -77,125 +81,137 @@ public class KalkanAdapter {
         return KalkanRegistry.createSubjectPublicKeyInfo(seq);
     }
 
-    public static KalkanProxy createV3TBSCertificateGenerator() {
+    public static V3TBSCertificateGenerator createV3TBSCertificateGenerator() {
         return KalkanRegistry.createV3TBSCertificateGenerator();
     }
 
-    public static KalkanProxy createX509ExtensionsGenerator() {
+    public static X509ExtensionsGenerator createX509ExtensionsGenerator() {
         return KalkanRegistry.createX509ExtensionsGenerator();
     }
 
-    public static KalkanProxy createX509V3CertificateGenerator() {
+    public static X509V3CertificateGenerator createX509V3CertificateGenerator() {
         return KalkanRegistry.createX509V3CertificateGenerator();
     }
 
-    public static KalkanProxy createPEMWriter(java.io.Writer writer) {
+    public static PEMWriter createPEMWriter(java.io.Writer writer) {
         return KalkanRegistry.createPEMWriter(writer);
     }
 
     // ========== Simplified Operation Methods ==========
 
-    public static void setSerialNumber(KalkanProxy tbsGen, byte[] serialNumber) {
+    public static void setSerialNumber(Object tbsGen, byte[] serialNumber) {
+        KalkanProxy proxy = resolveProxy(tbsGen);
         KalkanProxy derInteger = createDERInteger(serialNumber);
-        tbsGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("setSerialNumber")
                 .paramTypes(null)
                 .args(new Object[]{derInteger})
                 .build());
     }
 
-    public static void setSignature(KalkanProxy tbsGen, String signatureAlgorithm) {
+    public static void setSignature(Object tbsGen, String signatureAlgorithm) {
+        KalkanProxy proxy = resolveProxy(tbsGen);
         KalkanProxy algorithmIdentifier = createAlgorithmIdentifier(createDERObjectIdentifier(signatureAlgorithm), createDERNull());
-        tbsGen.invoke(KalkanProxy.ProxyArg.builder()
+        proxy.invoke(KalkanProxy.ProxyArg.builder()
                 .methodName("setSignature")
                 .paramTypes(null)
                 .args(new Object[]{algorithmIdentifier})
                 .build());
     }
 
-    public static void setIssuer(KalkanProxy tbsGen, String issuer) {
+    public static void setIssuer(Object tbsGen, String issuer) {
+        KalkanProxy proxy = resolveProxy(tbsGen);
         KalkanProxy x509Name = createX509Name(issuer);
-        tbsGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("setIssuer")
                 .paramTypes(null)
                 .args(new Object[]{x509Name})
                 .build());
     }
 
-    public static void setSubject(KalkanProxy tbsGen, String subject) {
+    public static void setSubject(Object tbsGen, String subject) {
+        KalkanProxy proxy = resolveProxy(tbsGen);
         KalkanProxy x509Name = createX509Name(subject);
-        tbsGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("setSubject")
                 .paramTypes(null)
                 .args(new Object[]{x509Name})
                 .build());
     }
 
-    public static void setSubjectPublicKeyInfo(KalkanProxy tbsGen, PublicKey userPublicKey) throws Exception {
+    public static void setSubjectPublicKeyInfo(Object tbsGen, PublicKey userPublicKey) throws Exception {
+        KalkanProxy proxy = resolveProxy(tbsGen);
         KalkanProxy subjPubKeyInfo = KalkanAdapter.createSubjectPublicKeyInfo(userPublicKey);
-        tbsGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("setSubjectPublicKeyInfo")
                 .paramTypes(null)
                 .args(new Object[]{subjPubKeyInfo})
                 .build());
     }
 
-    public static void addExtension(KalkanProxy extGen, String oid, boolean critical, Object value) {
+    public static void addExtension(Object extGen, String oid, boolean critical, Object value) {
+        KalkanProxy proxy = resolveProxy(extGen);
         KalkanProxy derOid = createDERObjectIdentifier(oid);
-        extGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("addExtension")
                 .paramTypes(null)
                 .args(new Object[]{derOid, critical, value})
                 .build());
     }
 
-    public static void addExtension(KalkanProxy extGen, String oid, boolean critical, boolean booleanValue) {
+    public static void addExtension(Object extGen, String oid, boolean critical, boolean booleanValue) {
+        KalkanProxy proxy = resolveProxy(extGen);
         KalkanProxy derOid = createDERObjectIdentifier(oid);
         KalkanProxy basicConstraints = createBasicConstraints(booleanValue);
-        extGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("addExtension")
                 .paramTypes(null)
                 .args(new Object[]{derOid, critical, basicConstraints})
                 .build());
     }
 
-    public static void addExtension(KalkanProxy extGen, String oid, boolean critical, int keyUsage) {
+    public static void addExtension(Object extGen, String oid, boolean critical, int keyUsage) {
+        KalkanProxy proxy = resolveProxy(extGen);
         KalkanProxy derOid = createDERObjectIdentifier(oid);
         KalkanProxy keyUsageObj = createKeyUsage(keyUsage);
-        extGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("addExtension")
                 .paramTypes(null)
                 .args(new Object[]{derOid, critical, keyUsageObj})
                 .build());
     }
 
-    public static void addExtension(KalkanProxy extGen, String oid, boolean critical, KalkanProxy extensionValue) {
+    public static void addExtension(Object extGen, String oid, boolean critical, KalkanProxy extensionValue) {
+        KalkanProxy proxy = resolveProxy(extGen);
         KalkanProxy derOid = createDERObjectIdentifier(oid);
-        extGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("addExtension")
                 .paramTypes(null)
                 .args(new Object[]{derOid, critical, extensionValue})
                 .build());
     }
 
-    public static void setExtensions(KalkanProxy tbsGen, Object extensions) {
-        tbsGen.invoke(ProxyArg.builder()
+    public static void setExtensions(Object tbsGen, Object extensions) {
+        KalkanProxy proxy = resolveProxy(tbsGen);
+        proxy.invoke(ProxyArg.builder()
                 .methodName("setExtensions")
                 .paramTypes(null)
                 .args(new Object[]{extensions})
                 .build());
     }
 
-    public static KalkanProxy generateExtensions(KalkanProxy extGen) {
-        return extGen.invoke(ProxyArg.builder()
+    public static KalkanProxy generateExtensions(Object extGen) {
+        KalkanProxy proxy = resolveProxy(extGen);
+        return proxy.invoke(ProxyArg.builder()
                 .methodName("generate")
                 .paramTypes(null)
                 .args(null)
                 .build());
     }
 
-    public static KalkanProxy generateTBSCertificate(KalkanProxy tbsGen) {
-        return tbsGen.invoke(ProxyArg.builder()
+    public static KalkanProxy generateTBSCertificate(Object tbsGen) {
+        KalkanProxy proxy = resolveProxy(tbsGen);
+        return proxy.invoke(ProxyArg.builder()
                 .methodName("generateTBSCertificate")
                 .paramTypes(null)
                 .args(null)
@@ -212,32 +228,36 @@ public class KalkanAdapter {
                 .build());
     }
 
-    public static void setSignatureAlgorithm(KalkanProxy certGen, String signatureAlgorithm) {
-        certGen.invoke(ProxyArg.builder()
+    public static void setSignatureAlgorithm(Object certGen, String signatureAlgorithm) {
+        KalkanProxy proxy = resolveProxy(certGen);
+        proxy.invoke(ProxyArg.builder()
                 .methodName("setSignatureAlgorithm")
                 .paramTypes(null)
                 .args(new Object[]{signatureAlgorithm})
                 .build());
     }
 
-    public static KalkanProxy generateCertificate(KalkanProxy certGen, Object tbsCert, Object signature) {
-        return certGen.invoke(ProxyArg.builder()
+    public static KalkanProxy generateCertificate(Object certGen, Object tbsCert, Object signature) {
+        KalkanProxy proxy = resolveProxy(certGen);
+        return proxy.invoke(ProxyArg.builder()
                 .methodName("generate")
                 .paramTypes(null)
                 .args(new Object[]{tbsCert, signature})
                 .build());
     }
 
-    public static void writeObject(KalkanProxy pemWriter, Object obj) {
-        pemWriter.invoke(ProxyArg.builder()
+    public static void writeObject(Object pemWriter, Object obj) {
+        KalkanProxy proxy = resolveProxy(pemWriter);
+        proxy.invoke(ProxyArg.builder()
                 .methodName("writeObject")
                 .paramTypes(null)
                 .args(new Object[]{obj})
                 .build());
     }
 
-    public static void flush(KalkanProxy pemWriter) {
-        pemWriter.invoke(ProxyArg.builder()
+    public static void flush(Object pemWriter) {
+        KalkanProxy proxy = resolveProxy(pemWriter);
+        proxy.invoke(ProxyArg.builder()
                 .methodName("flush")
                 .paramTypes(null)
                 .args(null)
@@ -266,33 +286,48 @@ public class KalkanAdapter {
         addToVector(vector, generalName);
     }
 
-    public static void setStartDate(KalkanProxy tbsGen, java.util.Date startDate) {
+    public static void setStartDate(Object tbsGen, java.util.Date startDate) {
+        KalkanProxy proxy = resolveProxy(tbsGen);
         KalkanProxy time = createTime(startDate);
-        tbsGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("setStartDate")
                 .paramTypes(null)
                 .args(new Object[]{time})
                 .build());
     }
 
-    public static void setEndDate(KalkanProxy tbsGen, java.util.Date endDate) {
+    public static void setEndDate(Object tbsGen, java.util.Date endDate) {
+        KalkanProxy proxy = resolveProxy(tbsGen);
         KalkanProxy time = createTime(endDate);
-        tbsGen.invoke(ProxyArg.builder()
+        proxy.invoke(ProxyArg.builder()
                 .methodName("setEndDate")
                 .paramTypes(null)
                 .args(new Object[]{time})
                 .build());
     }
 
-    public static void addExtendedKeyUsageEmailProtection(KalkanProxy extGen) {
+    public static void addExtendedKeyUsageEmailProtection(Object extGen) {
         KalkanProxy eku = createDERSequence(createDERObjectIdentifier(KalkanConstants.KeyPurposeId.id_kp_emailProtection));
         addExtension(extGen, KalkanConstants.X509Extensions.ExtendedKeyUsage, false, eku);
     }
 
-    public static void addSubjectAlternativeName(KalkanProxy extGen, KalkanProxy sanVector) {
+    public static void addSubjectAlternativeName(Object extGen, KalkanProxy sanVector) {
         KalkanProxy sanSequence = createDERSequence(sanVector);
         KalkanProxy sanGeneralNames = createGeneralNames(sanSequence);
         addExtension(extGen, KalkanConstants.X509Extensions.SubjectAlternativeName, false, sanGeneralNames);
+    }
+
+    // ========== Helper Methods ==========
+
+    private static KalkanProxy resolveProxy(Object obj) {
+        return switch (obj) {
+            case KalkanProxy p -> p;
+            case X509ExtensionsGenerator x -> x.getProxy();
+            case V3TBSCertificateGenerator v -> v.getProxy();
+            case X509V3CertificateGenerator c -> c.getProxy();
+            case PEMWriter w -> w.getProxy();
+            default -> throw new IllegalArgumentException("Unsupported proxy type: " + obj.getClass());
+        };
     }
 
     // ========== TBS Certificate Utility Methods ==========
