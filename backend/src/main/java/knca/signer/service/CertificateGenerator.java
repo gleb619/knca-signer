@@ -1,6 +1,5 @@
 package knca.signer.service;
 
-
 import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanAdapter;
 import knca.signer.kalkan.KalkanConstants;
@@ -41,7 +40,7 @@ public class CertificateGenerator {
 
     private final java.security.Provider provider;
     private final ApplicationConfig.CertificateConfig config;
-    private final CertificateStorageService registry;
+    private final CertificateStorage registry;
 
 
     /**
@@ -174,7 +173,7 @@ public class CertificateGenerator {
      * Initialize the certificate generation service by loading or generating certificates.
      */
     @SneakyThrows
-    public void initialize() {
+    public void init() {
         // Load or generate CA certificates
         loadOrGenerateCACertificates();
 
@@ -579,6 +578,5 @@ public class CertificateGenerator {
         Files.createDirectories(path.getParent());
         Files.write(path, pem.getBytes(), StandardOpenOption.CREATE);
     }
-
 
 }

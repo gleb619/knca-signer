@@ -55,7 +55,7 @@ public class MainTest {
         assertNotNull(realProvider, "KalkanProvider should be loaded");
 
         // Create registry service
-        var storage = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+        var storage = new CertificateStorage(new CertificateStorage.Storage());
 
         // 1. Generate certificates (CA, User, Legal)
         CertificateGenerator generator = new CertificateGenerator(realProvider, tempConfig, storage);

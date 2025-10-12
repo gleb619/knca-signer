@@ -3,7 +3,7 @@ package knca.signer.example;
 import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
-import knca.signer.service.CertificateStorageService;
+import knca.signer.service.CertificateStorage;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -33,7 +33,7 @@ public class Generator {
             );
 
             // Create registry service
-            var registryService = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+            var registryService = new CertificateStorage(new CertificateStorage.Storage());
 
             // Create and run certificate generator
             CertificateGenerator generator = new CertificateGenerator(realProvider, config, registryService);

@@ -6,7 +6,7 @@ import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;
 import knca.signer.service.CertificateService;
-import knca.signer.service.CertificateStorageService;
+import knca.signer.service.CertificateStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,7 +18,7 @@ import java.util.Map;
 public class WebSocketHandler implements Handler<ServerWebSocket> {
 
     private final CertificateService certificateService;
-    private final CertificateStorageService storage;
+    private final CertificateStorage storage;
     private final Map<String, ServerWebSocket> connectedClients;
     private final Vertx vertx;
     private final EventBus eventBus;

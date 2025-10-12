@@ -23,8 +23,10 @@ import kncaApp from './scripts/app.js';
 import xmlSignerTab from './scripts/xml-signer-tab.js';
 import certificatorTab from './scripts/certificator-tab.js';
 import xmlVerifierTab from './scripts/xml-verifier-tab.js';
+import appStoreTab from './scripts/app-store.js';
 
 // Register Alpine components immediately
+Alpine.store('certificateStore', appStoreTab)
 Alpine.data('kncaApp', kncaApp);
 Alpine.data('xmlSignerTab', xmlSignerTab);
 Alpine.data('certificatorTab', certificatorTab);
@@ -39,7 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
         //htmx.config.globalViewTransitions = true;
 
         let intervalId;
-        
+        let retryCount = 0;
+        const MAX_RETRIES = 3;
+
         // Add HTMX event listener to reinitialize Alpine components after swaps
         document.addEventListener('htmx:afterSwap', (evt) => {
             // Re-initialize Alpine on HTMX content swaps with improved timing and validation
@@ -47,29 +51,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Wait longer for data to settle, with multiple attempts
 
                 setTimeout(() => {
-                    window.Alpine.initTree(evt.detail.target);
-                    htmx.process(evt.detail.target);
+//                    window.Alpine.initTree(evt.detail.target);
+//                    htmx.process(evt.detail.target);
 
-                    console.info("evt.detail.target: ", evt.detail.target);
-
-                    // Clear previous timeout if exists
+                    // Clear previous interval if exists
                     if (intervalId) {
                         clearInterval(intervalId);
+                        retryCount = 0; // Reset retry count for a new swap
                     }
 
                     // Execute only once
                     intervalId = setInterval(() => {
-                        document.querySelectorAll('[hx-get]').forEach(el => {
-                            htmx.process(el)
-                            htmx.trigger(el, 'lateLoad')
-                        });
-                    }, 1000);
+                        if (retryCount < MAX_RETRIES) {
+                            document.querySelectorAll('[hx-get]').forEach(el => {
+                                htmx.process(el);
+                                htmx.trigger(el, 'lateLoad');
+                            });
+                            retryCount++;
+                        } else {
+                            clearInterval(intervalId); // Stop the interval after MAX_RETRIES
+                            intervalId = null; // Clear the intervalId
+                            console.warn('Htmx lateLoad interval stopped after maximum retries.');
+                        }
+                    }, 300);
 
                 }, 100);
             }
 
         });
     }
+
+    // Initialize certificate store on page load
+    setTimeout(() => {
+        // Load saved certificate selection if it exists
+        Alpine.store('certificateStore').loadFromStorage();
+    }, 500);
 });
 
 Alpine.plugin(morph);

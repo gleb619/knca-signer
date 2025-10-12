@@ -4,7 +4,9 @@ export default () => ({
 
     // Form data properties for two-way binding
     allowedStorages: ["JKS", "PKCS12"],
-    isSigning: false,
+    loaders: {
+        isSigning: false,
+    },
     webSocket: null,
     response: null,
     callback: null,
@@ -48,6 +50,49 @@ export default () => ({
         });
     },
 
+    async handleCertificateSelection(detail) {
+        const { userCert, caCert } = detail;
+
+        if (userCert) {
+            // Auto-populate signer parameters
+            this.iin = userCert.iin || this.iin;
+            this.serialNumber = userCert.serialNumber || this.serialNumber;
+            this.bin = '';
+        }
+
+        // Try to get and set CA certificate if buildChain is enabled
+        if (caCert) {
+            const pemText = await this.$store.certificateStore.fetchCaCert();
+            if(pemText) {
+                this.caCerts = pemText;
+                this.buildChain = true;
+            }
+        }
+
+        if(userCert || caCert) {
+            this.successMessage = 'Certificate parameters loaded automatically';
+            setTimeout(() => this.successMessage = '', 3000);
+        }
+    },
+
+    findCaAliasFromIssuer(issuer) {
+        // Try to find CA alias from certificates data
+        if (window.Alpine && this.$root) {
+            const certificatorTab = this.$root.querySelector('[x-data*="certificatorTab"]');
+            if (certificatorTab && certificatorTab._x_dataStack) {
+                const certData = certificatorTab._x_dataStack.find(data => data.certificates);
+                if (certData && certData.certificates) {
+                    for (const ca of certData.certificates) {
+                        if (ca.ca && (ca.ca.subject === issuer || ca.ca.issuer === issuer)) {
+                            return ca.alias;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    },
+
     connect(shouldOpenDialog = true) {
         if (this.webSocket && this.webSocket.readyState < 2) {
             console.log(`reusing the socket connection [state = ${this.webSocket.readyState}]: ${this.webSocket.url}`);
@@ -58,7 +103,7 @@ export default () => ({
             try {
                 this.webSocket = new WebSocket(SOCKET_URL);
             } catch (error) {
-                this.isSigning = false;
+                this.loaders.isSigning = false;
                 console.error('Failed to create WebSocket connection:', error);
                 this.errorMessage = 'Failed to establish connection. Please check your network.';
                 reject(error);
@@ -78,7 +123,7 @@ export default () => ({
             };
 
             this.webSocket.onerror = (err) => {
-                this.isSigning = false;
+                this.loaders.isSigning = false;
                 console.error('socket connection error : ', err);
                 this.errorMessage = 'Connection failed. Please ensure NCALayer is running and try again.';
                 reject(err);
@@ -100,7 +145,7 @@ export default () => ({
             setTimeout(() => {
                 if (this.webSocket.readyState === WebSocket.CONNECTING) {
                     this.webSocket.close();
-                    this.isSigning = false;
+                    this.loaders.isSigning = false;
                     this.errorMessage = 'Connection timeout. Please check if NCALayer is running.';
                     reject(new Error('Connection timeout'));
                 }
@@ -109,7 +154,7 @@ export default () => ({
     },
 
     async request() {
-        this.isSigning = true;
+        this.loaders.isSigning = true;
         this.errorMessage = '';
         this.successMessage = '';
 
@@ -136,7 +181,7 @@ export default () => ({
             caCerts = null;
         }
 
-        const localeRadio = localStorage.getItem('locale');
+        const localeRadio = this.isKK ? 'kk' : 'ru';
 
         let tsaProfile = null;
         if (this.tsaProfile) {
@@ -192,7 +237,7 @@ export default () => ({
                 this.signingResolve = resolve;
             });
         }).catch((err) => {
-            this.isSigning = false;
+            this.loaders.isSigning = false;
             console.error('Signing request failed:', err);
             this.errorMessage = 'An error occurred during signing. Please check the console for details.';
         });
@@ -227,7 +272,7 @@ export default () => ({
 
     resetForm() {
         this.allowedStorages = ["JKS", "PKCS12"];
-        this.isSigning = false;
+        this.loaders.isSigning = false;
         this.errorMessage = '';
         this.successMessage = '';
         this.activeSubTab = 'xml';
@@ -299,9 +344,7 @@ export default () => ({
     },
 
     init() {
-        this.$watch('activeSubTab', (value) => {
-            this.signatureType = value;
-        });
+
     },
 
     startHeartbeat() {
@@ -309,7 +352,8 @@ export default () => ({
         this.heartbeatInterval = setInterval(() => {
             if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
                 this.lastHeartbeat = Date.now();
-                this.webSocket.send(JSON.stringify({ type: 'ping' }));
+                this.webSocket.send('--heartbeat--');
+
                 this.logMessage('sent', { type: 'ping' });
             }
         }, 30000); // Ping every 30 seconds
@@ -345,7 +389,7 @@ export default () => ({
             if (parsed.status === true) {
                 const responseBody = parsed.body;
                 if (responseBody != null) {
-                    this.isSigning = false;
+                    this.loaders.isSigning = false;
                     if (responseBody.hasOwnProperty('result')) {
                         const result = responseBody.result;
                         if (result.hasOwnProperty('signatures')) {
@@ -359,7 +403,7 @@ export default () => ({
                     }
                 }
             } else if (parsed.status === false) {
-                this.isSigning = false;
+                this.loaders.isSigning = false;
                 const responseCode = parsed.code;
                 this.errorMessage = `Signing failed: ${responseCode}`;
             }

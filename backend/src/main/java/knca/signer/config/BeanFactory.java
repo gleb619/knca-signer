@@ -13,7 +13,7 @@ import knca.signer.controller.WebSocketHandler;
 import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService;
-import knca.signer.service.CertificateStorageService;
+import knca.signer.service.CertificateStorage;
 import knca.signer.service.CertificateValidator;
 import lombok.RequiredArgsConstructor;
 
@@ -29,7 +29,7 @@ public class BeanFactory {
     private final ApplicationConfig config;
 
     // Singleton instances
-    private CertificateStorageService certificateStorageService;
+    private CertificateStorage certificateStorage;
     private CertificateService certificateService;
     private WebSocketHandler webSocketHandler;
     private CertificatorHandler certificateHandler;
@@ -49,12 +49,12 @@ public class BeanFactory {
         return this;
     }
 
-    public CertificateStorageService getCertificateStorageService() {
-        if (certificateStorageService == null) {
-            certificateStorageService = createStorage();
+    public CertificateStorage getCertificateStorage() {
+        if (certificateStorage == null) {
+            certificateStorage = createStorage();
         }
 
-        return certificateStorageService;
+        return certificateStorage;
     }
 
     public CertificateService getCertificateService() {
@@ -63,7 +63,7 @@ public class BeanFactory {
                 var provider = KalkanRegistry.loadRealKalkanProvider();
                 var certConfig = config.getCertificate();
 
-                var storage = getCertificateStorageService();
+                var storage = getCertificateStorage();
                 // Create individual services
                 var generationService = createGenerationService(provider, storage, certConfig);
                 var validationService = createValidationService(provider, storage);
@@ -72,30 +72,30 @@ public class BeanFactory {
                 certificateService = new CertificateService(provider, certConfig, storage, generationService, validationService);
 
             } catch (Exception e) {
-                throw new RuntimeException("Failed to initialize CertificateService", e);
+                throw new RuntimeException("Failed to init CertificateService", e);
             }
         }
         return certificateService;
     }
 
-    private CertificateStorageService createStorage() {
-        return new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+    private CertificateStorage createStorage() {
+        return new CertificateStorage(new CertificateStorage.Storage());
     }
 
     private CertificateGenerator createGenerationService(java.security.Provider provider,
-                                                         CertificateStorageService registry,
+                                                         CertificateStorage registry,
                                                          CertificateConfig config) {
         return new CertificateGenerator(provider, config, registry);
     }
 
-    private CertificateValidator createValidationService(java.security.Provider provider, CertificateStorageService registry) {
+    private CertificateValidator createValidationService(java.security.Provider provider, CertificateStorage registry) {
         return new CertificateValidator(provider, registry);
     }
 
     public WebSocketHandler getWebSocketHandler() {
         if (webSocketHandler == null) {
             var service = getCertificateService();
-            var storage = getCertificateStorageService();
+            var storage = getCertificateStorage();
 
             webSocketHandler = new WebSocketHandler(service, storage, new ConcurrentHashMap<>(), vertx, vertx.eventBus());
         }
@@ -104,7 +104,7 @@ public class BeanFactory {
 
     public CertificatorHandler getCertificateHandler() {
         if (certificateHandler == null) {
-            certificateHandler = new CertificatorHandler(getCertificateService(), getCertificateStorageService());
+            certificateHandler = new CertificatorHandler(getCertificateService(), getCertificateStorage());
         }
         return certificateHandler;
     }

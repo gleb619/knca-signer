@@ -32,7 +32,7 @@ import java.util.*;
 public class CertificateValidator {
 
     private final java.security.Provider provider;
-    private final CertificateStorageService registry;
+    private final CertificateStorage registry;
 
     /**
      * Validate XML signature.
@@ -387,6 +387,7 @@ public class CertificateValidator {
         /**
          * Check if Kalkan provider is being used in the signature.
          */
+        //TODO fix bug with check(right now it doesn't work)
         public boolean checkKalkanProvider(String xmlContent) throws Exception {
             // Simple check: look for Kalkan-specific algorithm or provider identifiers
             // In real implementation, this would check the certificate's signature algorithm

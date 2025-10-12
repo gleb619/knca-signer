@@ -32,6 +32,7 @@ public class KalkanConstants {
     public static class KeyPurposeId {
 
         public static final String id_kp_emailProtection = "1.3.6.1.5.5.7.3.4";
+        public static final String id_kp_clientAuthentication = "1.3.6.1.5.5.7.3.2";
 
     }
 

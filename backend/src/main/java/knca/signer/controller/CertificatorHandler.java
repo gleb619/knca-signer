@@ -5,7 +5,7 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import knca.signer.service.CertificateService;
-import knca.signer.service.CertificateStorageService;
+import knca.signer.service.CertificateStorage;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,7 +21,7 @@ import java.util.Map;
 public class CertificatorHandler {
 
     private final CertificateService certificateService;
-    private final CertificateStorageService storageService;
+    private final CertificateStorage storageService;
 
     /**
      * Handles requests to retrieve CA certificate information.

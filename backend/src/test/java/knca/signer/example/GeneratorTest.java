@@ -5,7 +5,7 @@ import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateDataGenerator;
 import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService.CertificateResult;
-import knca.signer.service.CertificateStorageService;
+import knca.signer.service.CertificateStorage;
 import knca.signer.service.KeyStoreManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -88,7 +88,7 @@ public class GeneratorTest {
 
     @Test
     public void testCertificateGeneratorCreation() {
-        var registryService = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+        var registryService = new CertificateStorage(new CertificateStorage.Storage());
         CertificateGenerator generator = new CertificateGenerator(provider, config, registryService);
         assertNotNull(generator, "Generator should be created");
     }
@@ -108,7 +108,7 @@ public class GeneratorTest {
     public void testCertificateGeneratorCACertificate() {
         try {
             // Use real provider for actual generation, like Generator.main does
-            var registryService = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+            var registryService = new CertificateStorage(new CertificateStorage.Storage());
             CertificateGenerator generator = new CertificateGenerator(realProvider, config, registryService);
             CertificateResult result = generator.generateCACertificate();
 

@@ -154,5 +154,10 @@
   "ACCOUNTANT": "Бухгалтер",
   "LEGAL_ADVISOR": "Юридический консультант",
   "INTERN": "Стажёр",
-  "downloadFormats": "Форматы для скачивания"
+  "downloadFormats": "Форматы для скачивания",
+  "selectedCertificates": "Выбранные сертификаты",
+  "userCertificate": "Пользовательский сертификат",
+  "caCertificate": "Корневой сертификат",
+  "selected": "Выбран",
+  "useForSigning": "Использовать для подписи"
 }

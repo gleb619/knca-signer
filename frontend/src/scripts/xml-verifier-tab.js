@@ -37,8 +37,8 @@ export default () => ({
     // Validation configuration
     validationConfig: {
         checkKalkanProvider: false,
-        checkData: false,
-        checkTime: false,
+        checkData: true,
+        checkTime: true,
         checkIinInCert: false,
         checkIinInSign: false,
         checkBinInCert: false,
@@ -169,8 +169,8 @@ export default () => ({
     resetValidation() {
         this.xmlContent = '';
         this.validationConfig.checkKalkanProvider = false;
-        this.validationConfig.checkData = false;
-        this.validationConfig.checkTime = false;
+        this.validationConfig.checkData = true;
+        this.validationConfig.checkTime = true;
         this.validationConfig.checkIinInCert = false;
         this.validationConfig.checkIinInSign = false;
         this.validationConfig.checkBinInCert = false;
@@ -201,15 +201,7 @@ export default () => ({
         if (!this.validationResult) return;
 
         // Create a formatted string with validation details
-        let resultText = `${this.translate('validationResult')}: ${this.validationResult.valid ? this.translate('valid') : this.translate('invalid')}\n`;
-        resultText += `${this.translate('validationDetails')}: ${this.validationResult.message}\n`;
-
-        if (this.validationResult.details) {
-            resultText += `\n${this.translate('validationDetails')}:\n`;
-            for (const [key, value] of Object.entries(this.validationResult.details)) {
-                resultText += `${key}: ${value}\n`;
-            }
-        }
+        let resultText = JSON.stringify(this.validationResult, null, 2);
 
         // Try modern clipboard API first
         if (navigator.clipboard) {
@@ -243,5 +235,9 @@ export default () => ({
         document.body.removeChild(textArea);
     },
 
+    handleSignatureVerify(detail) {
+        console.info("detail: ", detail);
+        this.xmlContent = detail?.signature;
+    }
 
 });

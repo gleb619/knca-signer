@@ -153,5 +153,11 @@
   "CUSTOMER_SUPPORT_SPECIALIST": "Қолдау көрсету маманы",
   "ACCOUNTANT": "Бухгалтер",
   "LEGAL_ADVISOR": "Заңгер кеңесші",
-  "INTERN": "Тәжірибеші"
+  "INTERN": "Тәжірибеші",
+  "downloadFormats": "Пішімдерді жүктеп алу",
+  "selectedCertificates": "Таңдалған сертификаттар",
+  "userCertificate": "Пайдаланушы сертификаты",
+  "caCertificate": "CA сертификаты",
+  "selected": "Таңдалған",
+  "useForSigning": "Қол қою үшін пайдалану"
 }

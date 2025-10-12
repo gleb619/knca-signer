@@ -11,10 +11,6 @@ export default () => ({
     generatingUser: false,
     generatingLegal: false,
 
-    // Messages
-    errorMessage: '',
-    successMessage: '',
-
     // Form data
     newCAAlias: '',
 
@@ -39,4 +35,19 @@ export default () => ({
             setTimeout(() => this.errorMessage = '', 5000);
         }
     },
+
+    selectUserCertificate(cert) {
+        const req = {...cert};
+        req.initials = this.generateInitials(cert);
+        req.fullName = this.getFullName(cert) || cert.alias;
+        req.notAfterDate = this.formatDate(cert.notAfter);
+        this.$store.certificateStore.selectUserCertificate(req);
+    },
+
+    selectCaCertificate(cert) {
+        const req = {...cert};
+        req.notAfterDate = this.formatDate(cert.notAfter);
+        this.$store.certificateStore.selectCaCertificate(req);
+    },
+
 });

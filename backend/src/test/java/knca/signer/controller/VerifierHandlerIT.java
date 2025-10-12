@@ -10,7 +10,7 @@ import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService;
-import knca.signer.service.CertificateStorageService;
+import knca.signer.service.CertificateStorage;
 import knca.signer.service.CertificateValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +55,7 @@ public class VerifierHandlerIT {
         );
 
         // Create real CertificateService - no mocking
-        var registryService = new CertificateStorageService(new CertificateStorageService.CertificateStorage());
+        var registryService = new CertificateStorage(new CertificateStorage.Storage());
         var generationService = new CertificateGenerator(realProvider, config, registryService);
         var validationService = new CertificateValidator(realProvider, registryService);
         certificateService = new CertificateService(realProvider, config, registryService, generationService, validationService).init();

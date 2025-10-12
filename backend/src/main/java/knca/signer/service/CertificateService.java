@@ -20,15 +20,15 @@ public class CertificateService {
 
     private final java.security.Provider provider;
     private final ApplicationConfig.CertificateConfig config;
-    private final CertificateStorageService storage;
+    private final CertificateStorage storage;
     private final CertificateGenerator generationService;
     private final CertificateValidator validationService;
 
     public CertificateService init() {
         try {
-            generationService.initialize();
+            generationService.init();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize CertificateService", e);
+            throw new RuntimeException("Failed to init CertificateService", e);
         }
         return this;
     }

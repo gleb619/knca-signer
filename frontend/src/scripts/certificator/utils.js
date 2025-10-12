@@ -5,6 +5,11 @@ export function generateInitials(cert) {
     const details = getCertificateDetails(cert);
 
     // First try from parsed subject data
+    if (details.commonName) {
+        return details.commonName.split(" ").map(it => it[0].toUpperCase()).join("");
+    }
+
+    // Second try from parsed subject data
     if (details.givenName && details.surname) {
         return (details.givenName[0] + details.surname[0]).toUpperCase();
     }
