@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache-dependency-path: 'frontend/yarn.lock'
 
       - name: Cache Yarn
@@ -107,7 +107,7 @@ jobs:
       - name: Setup Node.js for Changelog
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache-dependency-path: 'frontend/yarn.lock'
 
       - name: Install dependencies for Changelog
