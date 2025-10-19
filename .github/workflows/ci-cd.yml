@@ -196,6 +196,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Create GitHub release
+        working-directory: backend
         run: ./gradlew :backend:githubRelease
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
