@@ -195,8 +195,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Cache Gradle Wrapper (Release)
+        uses: actions/cache@v4
+        with:
+          path: backend/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('**/gradle-wrapper.properties') }}
+
+      - name: Cache Gradle Dependencies (Release)
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Create GitHub release
         working-directory: backend
-        run: ./gradlew :backend:githubRelease
+        run: ./gradlew --quiet githubRelease --no-daemon
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
