@@ -4,7 +4,7 @@
     <div class="flex items-center space-x-2 mb-3">
         <div :class="isConnected ? 'bg-green-500' : 'bg-red-500'" class="w-3 h-3 rounded-full"></div>
         <span class="text-sm text-blue-700"
-              x-text="`NCALayer: ${ isConnected ? 'Connected' : 'Disconnected' }`"></span>
+              x-text="translate('ncalayerLabel') + ': ' + (isConnected ? translate('connected') : translate('disconnected'))"></span>
     </div>
 
     <!-- Collapsible Logs -->

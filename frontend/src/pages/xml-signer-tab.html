@@ -25,16 +25,10 @@
 
                 <!-- Help Section -->
                 <div class="mt-4 p-3 bg-blue-50 rounded-lg">
-                    <h5 class="text-sm font-medium text-blue-700 mb-2">How it works</h5>
-                    <p class="text-xs text-blue-600" id="signXmlHelp" x-show="activeSubTab === 'xml'">
-                        XML signing in NCALayer allows you to add a digital signature to XML documents - think of XML as
-                        structured data files commonly used for invoices, contracts, or official forms. This process
-                        embeds the signature directly into the document, creating a tamper-proof version that proves the
-                        document's authenticity and integrity. NCALayer supports advanced standards like XAdES-BES,
-                        which includes timestamping and legal qualifiers, ensuring your signed documents are legally
-                        valid and verifiable by third parties. You can customize signature placement, choose from
-                        multiple encryption algorithms (RSA with SHA-256/384/512), and add additional security
-                        properties for enhanced trust.
+                    <h5 class="text-sm font-medium text-blue-700 mb-2" x-text="translate('howItWorks')">How it
+                        works</h5>
+                    <p class="text-xs text-blue-600" id="signXmlHelp" x-show="activeSubTab === 'xml'"
+                       x-text="translate('signXmlHelp')">
                     </p>
                     <p class="text-xs text-blue-600" id="signCmsHelp" x-show="activeSubTab === 'cms'">
                         CMS (Cryptographic Message Syntax) signing creates digital signatures for any type of data or

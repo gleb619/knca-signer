@@ -7,15 +7,18 @@
     "serve": "vite --debug",
     "start": "vite --debug",
     "dev": "vite --debug",
-    "build": "vite build --mode production && cp -r src/pages dist/src/pages && cp -r src/i18n dist/src",
+    "build": "vite build --mode production && mkdir -p dist/src && cp -r src/pages dist/src/pages && cp -r src/i18n dist/src",
     "build:copy": "rm -rf ../backend/src/main/resources/static && mkdir -p ../backend/src/main/resources/static && cp -r dist/* ../backend/src/main/resources/static/",
+    "changelog": "auto-changelog --prepend --output CHANGELOG.md",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@alpinejs/morph": "^3.15.0",
     "alpinejs": "^3.15.0",
+    "auto-changelog": "^2.4.0",
     "autoprefixer": "^10.4.16",
+    "jsdom": "^14.1.0",
     "postcss": "^8.4.32",
     "sass": "^1.69.5",
     "tailwindcss": "^3.4.0",

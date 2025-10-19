@@ -10,11 +10,13 @@ import knca.signer.service.CertificateValidator;
 import knca.signer.service.CertificateValidator.XmlValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 import java.security.cert.X509Certificate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@EnabledIfSystemProperty(named = "kalkanAllowed", matches = "true")
 public class ValidatorTest {
 
     String testXmlContent = """

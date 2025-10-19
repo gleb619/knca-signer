@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    image: ghcr.io/gleb619/knca-signer:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount certificate directories
+      - ./certs:/app/certs:ro
+      - ./backend/lib:/app/lib:ro
+    environment:
+      - JAVA_OPTS=-Xmx512m -Djava.security.egd=file:/dev/urandom
+      - VERTX_CONFIG_PATH=/app/resources/application.yaml
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

@@ -15,6 +15,7 @@ import knca.signer.service.CertificateValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.nio.file.Files;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Integration tests for VerifierHandler HTTP endpoints
  */
 @ExtendWith(VertxExtension.class)
+@EnabledIfSystemProperty(named = "kalkanAllowed", matches = "true")
 public class VerifierHandlerIT {
 
     private CertificateService certificateService;

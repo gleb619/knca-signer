@@ -5,6 +5,7 @@ import knca.signer.service.CertificateReader;
 import knca.signer.service.CertificateReader.CertificateInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@EnabledIfSystemProperty(named = "kalkanAllowed", matches = "true")
 class ReaderTest {
 
     private static final Logger log = LoggerFactory.getLogger(ReaderTest.class);

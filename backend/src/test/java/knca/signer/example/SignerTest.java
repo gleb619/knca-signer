@@ -3,7 +3,9 @@ package knca.signer.example;
 import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanRegistry;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
+@EnabledIfSystemProperty(named = "kalkanAllowed", matches = "true")
 class SignerTest {
 
     private java.security.Provider provider;

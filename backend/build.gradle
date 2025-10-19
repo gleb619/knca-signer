@@ -2,6 +2,8 @@ plugins {
     id 'java'
     id 'application'
     id 'com.adarshr.test-logger' version '4.0.0'
+    id 'com.github.breadmoirai.github-release' version '2.5.2'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = 'knca'
@@ -64,6 +66,14 @@ application {
     mainClass = 'knca.signer.App'
 }
 
+jar {
+    manifest {
+        attributes(
+                'Main-Class': application.mainClass
+        )
+    }
+}
+
 task runGenerator(type: JavaExec) {
     mainClass = 'knca.signer.example.Generator'
     classpath = sourceSets.main.runtimeClasspath
@@ -81,6 +91,16 @@ task runValidator(type: JavaExec) {
 
 tasks.named('test') {
     useJUnitPlatform()
+    systemProperties['kalkanAllowed'] = 'true'
+}
+
+/**
+ * CI test - run tests with stubs/mock in CI due license restrictions
+ */
+task citest(type: Test, group: 'verification') {
+    useJUnitPlatform()
+    description = 'Run tests in CI mode without Kalkan libs, excluding tests that require real Kalkan provider'
+    systemProperties['kalkanAllowed'] = 'false'
 }
 
 task copyStatic(type: Copy) {
@@ -92,4 +112,16 @@ clean {
     doLast {
         delete 'src/main/resources/static'
     }
+}
+
+githubRelease {
+    token = System.getenv('GITHUB_TOKEN') ?: findProperty('githubToken') ?: 'dummy'
+    owner = 'gleb619'
+    repo = 'knca-signer'
+    tagName = "v${project.version}"
+    releaseName = "v${project.version}"
+    body = file('../CHANGELOG.md').exists() ? file('../CHANGELOG.md').text : 'Placeholder changelog'
+    targetCommitish = 'main'
+    draft = false
+    overwrite = true
 }
