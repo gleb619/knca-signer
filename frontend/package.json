@@ -27,7 +27,6 @@
   "author": "https://github.com/gleb619",
   "license": "MIT",
   "dependencies": {
-    "@conventional-changelog/git-client": "^2.0.0",
     "@owja/i18n": "^1.0.0-alpha.9",
     "conventional-changelog-cli": "^5.0.0",
     "htmx-ext-alpine-morph": "^2.0.1",

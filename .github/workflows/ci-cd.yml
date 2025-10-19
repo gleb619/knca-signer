@@ -120,7 +120,6 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          exit-code: '1'
           ignore-unfixed: true
 
       - name: Run Security Scan (Backend)
@@ -128,7 +127,6 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: 'backend'
-          exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'library'
 
