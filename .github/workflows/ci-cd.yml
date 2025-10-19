@@ -41,7 +41,15 @@ jobs:
         run: yarn build
 
       - name: Generate changelog
-        run: yarn --cwd frontend changelog
+        run: |
+          git fetch --prune --unshallow
+          yarn --cwd frontend changelog
+
+      - name: Upload Changelog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: frontend/CHANGELOG.md
 
       - name: Cache frontend build
         uses: actions/cache@v4
@@ -193,22 +201,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Cache Gradle Wrapper (Release)
-        uses: actions/cache@v4
-        with:
-          path: backend/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('**/gradle-wrapper.properties') }}
+      - name: Build backend for tagging
+        working-directory: backend
+        run: ./gradlew --quiet clean shadowJar --no-daemon
 
-      - name: Cache Gradle Dependencies (Release)
-        uses: actions/cache@v4
+      - name: Download changelog
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          name: changelog
+          path: .
 
       - name: Create GitHub release
-        working-directory: backend
-        run: ./gradlew --quiet githubRelease --no-daemon
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: "CHANGELOG.md"
+          files: backend/build/libs/*.jar

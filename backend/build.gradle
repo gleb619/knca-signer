@@ -2,12 +2,11 @@ plugins {
     id 'java'
     id 'application'
     id 'com.adarshr.test-logger' version '4.0.0'
-    id 'com.github.breadmoirai.github-release' version '2.5.2'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = 'knca'
-version = '1.0.0'
+version = '1.0.1'
 description = 'An application for creating a test CA, signing XML using NCALayer and test user certificate, verifying xml signatures using Kalkan.'
 
 java {
@@ -54,7 +53,7 @@ dependencies {
     testImplementation 'io.vertx:vertx-junit5:4.4.6'
 
     // Optional Kalkan dependencies - runtime only, dynamically included if jars are present
-    if (fileTree('lib').include('*.jar').files.size() > 0) {
+    if (fileTree('lib').include('*.jar').size() > 0) {
         compileOnly fileTree(dir: 'lib', include: '*.jar')
         runtimeOnly fileTree(dir: 'lib', include: '*.jar')
 
@@ -114,14 +113,3 @@ clean {
     }
 }
 
-githubRelease {
-    token = System.getenv('GITHUB_TOKEN') ?: findProperty('githubToken') ?: 'dummy'
-    owner = 'gleb619'
-    repo = 'knca-signer'
-    tagName = "v${project.version}"
-    releaseName = "v${project.version}"
-    body = file('../CHANGELOG.md').exists() ? file('../CHANGELOG.md').text : 'Placeholder changelog'
-    targetCommitish = 'main'
-    draft = false
-    overwrite = true
-}
