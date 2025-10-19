@@ -104,19 +104,15 @@ export default () => ({
     },
 
     async validateXml() {
-        // Clear previous messages
-        this.errorMessage = '';
-        this.successMessage = '';
-
         // Validation
         if (!this.xmlContent || !this.xmlContent.trim()) {
-            this.errorMessage = this.translate('xmlValidationRequired');
+            this.addNotification('error', 'xmlValidationRequired');
             return;
         }
 
         // Check if public key file is required but not provided
         if (this.validationConfig.checkPublicKey && (!this.validationConfig.publicKey || !this.validationConfig.publicKey.trim())) {
-            this.errorMessage = this.translate('publicKeyRequired');
+            this.addNotification('error', 'publicKeyRequired');
             return;
         }
 
@@ -153,14 +149,14 @@ export default () => ({
             this.validationResult = result;
 
             if (result.valid) {
-                this.successMessage = result.message || this.translate('xmlVerificationPassed');
+                this.addNotification('success', result.message || 'xmlVerificationPassed');
             } else {
-                this.errorMessage = result.message || this.translate('xmlVerificationFailed');
+                this.addNotification('error', result.message || 'xmlVerificationFailed');
             }
 
         } catch (error) {
             console.error('XML validation error:', error);
-            this.errorMessage = error.message || this.translate('xmlVerificationFailedGeneral');
+            this.addNotification('error', error.message || 'xmlVerificationFailedGeneral');
         } finally {
             this.isValidating = false;
         }
@@ -193,8 +189,6 @@ export default () => ({
         const caPemFileInput = document.getElementById('caPemFile');
         if (caPemFileInput) caPemFileInput.value = '';
         this.validationResult = null;
-        this.errorMessage = '';
-        this.successMessage = '';
     },
 
     copyValidationResult() {
@@ -206,8 +200,7 @@ export default () => ({
         // Try modern clipboard API first
         if (navigator.clipboard) {
             navigator.clipboard.writeText(resultText).then(() => {
-                this.successMessage = this.translate('copySuccess');
-                setTimeout(() => this.successMessage = '', 3000);
+                this.addNotification('success', 'copySuccess');
             }).catch(() => {
                 this.fallbackCopyValidationResult(resultText);
             });
@@ -227,10 +220,9 @@ export default () => ({
         textArea.select();
         try {
             document.execCommand('copy');
-            this.successMessage = this.translate('copySuccess');
-            setTimeout(() => this.successMessage = '', 3000);
+            this.addNotification('success', 'copySuccess');
         } catch (err) {
-            this.errorMessage = this.translate('copyFailed');
+            this.addNotification('error', 'copyFailed');
         }
         document.body.removeChild(textArea);
     },

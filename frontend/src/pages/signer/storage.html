@@ -1,0 +1,78 @@
+<!-- Storage Options Section -->
+<details class="bg-white rounded-lg shadow-sm">
+    <summary
+            class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors">
+        <div class="flex items-center space-x-3">
+            <div class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                <svg class="w-3 h-3 text-blue-500" fill="none" stroke="currentColor"
+                     viewBox="0 0 24 24">
+                    <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                          stroke-linecap="round" stroke-linejoin="round"
+                          stroke-width="2"></path>
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-base font-semibold text-gray-700"
+                    x-text="translate('allowedStorages')"></h4>
+                <p class="text-sm text-gray-600" x-text="translate('allowedStoragesDesc')"></p>
+            </div>
+        </div>
+        <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200" fill="none"
+             stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"
+                  stroke-width="2"></path>
+        </svg>
+    </summary>
+    <div class="px-4 pb-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                <input class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                       id="AKKaztokenStore" name="storage-check" type="checkbox"
+                       value="AKKaztokenStore" x-model="allowedStorages">
+                <span class="text-sm text-gray-700">AKKaztokenStore</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                <input class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                       id="AKKZIDCardStore" name="storage-check" type="checkbox"
+                       value="AKKZIDCardStore" x-model="allowedStorages">
+                <span class="text-sm text-gray-700">AKKZIDCardStore</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                <input class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                       id="AKEToken72KStore" name="storage-check" type="checkbox"
+                       value="AKEToken72KStore" x-model="allowedStorages">
+                <span class="text-sm text-gray-700">AKEToken72KStore</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                <input class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                       id="AKEToken5110Store" name="storage-check" type="checkbox"
+                       value="AKEToken5110Store" x-model="allowedStorages">
+                <span class="text-sm text-gray-700">AKEToken5110Store</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                <input class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                       id="AKJaCartaStore" name="storage-check" type="checkbox"
+                       value="AKJaCartaStore" x-model="allowedStorages">
+                <span class="text-sm text-gray-700">AKJaCartaStore</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                <input class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                       id="PKCS12" name="storage-check" type="checkbox" value="PKCS12"
+                       x-model="allowedStorages">
+                <span class="text-sm text-gray-700">PKCS12</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                <input class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                       id="JKS" name="storage-check" type="checkbox" value="JKS"
+                       x-model="allowedStorages">
+                <span class="text-sm text-gray-700">JKS</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                <input class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                       id="AKAKEYStore" name="storage-check" type="checkbox" value="AKAKEYStore"
+                       x-model="allowedStorages">
+                <span class="text-sm text-gray-700">AKAKEYStore</span>
+            </label>
+        </div>
+    </div>
+</details>

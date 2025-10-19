@@ -71,7 +71,9 @@
     <script src="/src/knca-signer.js" type="module"></script>
 </head>
 
-<body class="bg-knca" style="display: none" x-data="kncaApp">
+<body @app-started.document="onAppStarted($event.detail); $store.certificateStore.loadFromStorage();" class="bg-knca" style="display: none"
+      x-data="kncaApp">
+
 <div class="flex justify-end p-3">
     <div class="relative inline-block w-10 mr-2 align-middle select-none">
         <label
@@ -92,12 +94,11 @@
 </div>
 
 <div class="flex justify-center items-center flex-col"
-     id="loading"
-     style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+     id="loading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;" x-cloak
+     x-show="activeTab === 'loader'">
     <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-    <br/>
-    <span class="text-white text-lg" x-text="translate('loading')"></span>
 </div>
+
 <!-- Tab Navigation -->
 <div class="container mx-auto pt-3">
     <div class="flex justify-center gap-0">
@@ -106,19 +107,19 @@
              id="certificate-authority-tab"
              role="tab"
              type="button"
-             x-on:click="activeTab = 'certificate-authority'">
+             x-on:click="selectTab('certificate-authority')">
             Certificate Authority
         </div>
         <button :class="activeTab === 'xml-signer' ? 'bg-white border-t-2 border-l-2 border-r-2 border-blue-500 text-blue-600 shadow-md' : 'text-gray-600 border-t-2 border-l-2 border-r-2 border-transparent hover:bg-blue-100 hover:text-gray-800'"
                 class="tab-modern py-3 px-6 font-medium rounded-t-lg shadow-sm transition-all duration-200 flex-shrink-0"
                 id="xml-signer-tab"
-                role="tab" type="button" x-on:click="activeTab = 'xml-signer'">
+                role="tab" type="button" x-on:click="selectTab('xml-signer')">
             XML Signer
         </button>
         <button :class="activeTab === 'xml-verifier' ? 'bg-white border-t-2 border-l-2 border-r-2 border-blue-500 text-blue-600 shadow-md' : 'text-gray-600 border-t-2 border-l-2 border-r-2 border-transparent hover:bg-blue-100 hover:text-gray-800'"
                 class="tab-modern py-3 px-6 font-medium rounded-t-lg shadow-sm transition-all duration-200"
                 id="xml-verifier-tab"
-                role="tab" type="button" x-on:click="activeTab = 'xml-verifier'">
+                role="tab" type="button" x-on:click="selectTab('xml-verifier')">
             XML Verifier
         </button>
     </div>
@@ -126,6 +127,16 @@
 
 <!-- Tab Content -->
 <div class="container mx-auto form-wrapper-nca py-5">
+
+    <!-- Loader Tab -->
+    <div x-cloak x-show="activeTab === 'loader'">
+        <div class="text-center py-5">
+            <div class="animate-pulse">
+                <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
+                <div class="h-4 bg-gray-300 rounded w-1/2 mx-auto"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Certificate Authority Tab -->
     <div hx-get="src/pages/certificator-tab.html"
@@ -170,24 +181,27 @@
     </div>
 
     <!-- Error/Success Messages -->
-    <div :class="errorMessage ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'"
-         class="fixed top-4 right-4 rounded-lg p-4 shadow-lg max-w-sm w-full z-50"
-         x-cloak
-         x-show="errorMessage || successMessage"
-         x-transition:enter="transform ease-out duration-300 transition"
-         x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
-         x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
-         x-transition:leave="transition ease-in duration-100"
-         x-transition:leave-end="opacity-0"
-         x-transition:leave-start="opacity-100">
-        <div class="flex items-center justify-between">
-            <span x-text="errorMessage || successMessage"></span>
-            <button @click="clearMessages" class="text-current hover:opacity-75">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
-                </svg>
-            </button>
-        </div>
+    <div class="fixed top-4 right-4 space-y-2 z-50 max-w-sm">
+        <template :key="notification.timestamp" x-for="notification in notifications">
+            <div :class="notification.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'"
+                 class="rounded-lg p-4 shadow-lg w-full"
+                 x-transition:enter="transform ease-out duration-300 transition"
+                 x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
+                 x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+                 x-transition:leave="transition ease-in duration-100"
+                 x-transition:leave-end="opacity-0"
+                 x-transition:leave-start="opacity-100">
+                <div class="flex items-center justify-between">
+                    <span x-text="notification.message"></span>
+                    <button @click="removeNotification(notification)" class="text-current hover:opacity-75 ml-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"
+                                  stroke-width="2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </template>
     </div>
 
 </div>

@@ -1,0 +1,129 @@
+<!-- Signing Parameters Section -->
+<details class="bg-white rounded-lg shadow-sm">
+    <summary
+            class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors">
+        <div class="flex items-center space-x-3">
+            <div class="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                <svg class="w-3 h-3 text-purple-500" fill="none" stroke="currentColor"
+                     viewBox="0 0 24 24">
+                    <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                          stroke-linecap="round" stroke-linejoin="round"
+                          stroke-width="2"></path>
+                    <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"></path>
+                </svg>
+            </div>
+            <div>
+                <h4 class="text-base font-semibold text-gray-700"
+                    x-text="translate('signingParams')"></h4>
+                <p class="text-sm text-gray-600" x-text="translate('advancedOptions')">Advanced
+                    signing configuration options</p>
+            </div>
+        </div>
+        <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200" fill="none"
+             stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"
+                  stroke-width="2"></path>
+        </svg>
+    </summary>
+    <div class="px-4 pb-4 space-y-4">
+        <!-- Decode Option -->
+        <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700">Decode</label>
+            <p class="text-xs text-gray-500" x-text="translate('decodeDesc')"></p>
+            <div class="flex space-x-6">
+                <label class="flex items-center">
+                    <input class="w-4 h-4 text-purple-600 focus:ring-purple-500" name="decode"
+                           type="radio" value="true" x-model="decode">
+                    <span class="ml-2 text-sm text-gray-700">True</span>
+                </label>
+                <label class="flex items-center">
+                    <input class="w-4 h-4 text-purple-600 focus:ring-purple-500" name="decode"
+                           type="radio" value="false" x-model="decode">
+                    <span class="ml-2 text-sm text-gray-700">False</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Encapsulate Option -->
+        <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700">Encapsulate</label>
+            <p class="text-xs text-gray-500" x-text="translate('encapsulateDesc')"></p>
+            <div class="flex space-x-6">
+                <label class="flex items-center">
+                    <input class="w-4 h-4 text-purple-600 focus:ring-purple-500" name="encapsulate"
+                           type="radio" value="true" x-model="encapsulate">
+                    <span class="ml-2 text-sm text-gray-700">True</span>
+                </label>
+                <label class="flex items-center">
+                    <input class="w-4 h-4 text-purple-600 focus:ring-purple-500" name="encapsulate"
+                           type="radio" value="false" x-model="encapsulate">
+                    <span class="ml-2 text-sm text-gray-700">False</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Digested Option -->
+        <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700">Digested</label>
+            <p class="text-xs text-gray-500" x-text="translate('digestedDesc')"></p>
+            <div class="flex space-x-6">
+                <label class="flex items-center">
+                    <input class="w-4 h-4 text-purple-600 focus:ring-purple-500" name="digested"
+                           type="radio" value="true" x-model="digested">
+                    <span class="ml-2 text-sm text-gray-700">True</span>
+                </label>
+                <label class="flex items-center">
+                    <input class="w-4 h-4 text-purple-600 focus:ring-purple-500" name="digested"
+                           type="radio" value="false" x-model="digested">
+                    <span class="ml-2 text-sm text-gray-700">False</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- TSA Profile -->
+        <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700">TSA Profile</label>
+            <p class="text-xs text-gray-500" x-text="translate('tsaDesc')"></p>
+            <label class="flex items-center">
+                <input class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" id="tsaProfile"
+                       type="checkbox" x-model="tsaProfile">
+                <span class="ml-2 text-sm text-gray-700">Enable TSA Profile</span>
+            </label>
+        </div>
+
+        <!-- Test Parameters -->
+        <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700">Test Parameters</label>
+            <p class="text-xs text-gray-500" x-text="translate('testParamsDesc')"></p>
+            <div class="space-y-2">
+                <label class="flex items-center">
+                    <input class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                           id="isAllowExpired" type="checkbox" x-model="isAllowExpired">
+                    <span class="ml-2 text-sm text-gray-700"
+                          x-text="translate('allowExpiredCertificates')">Allow Expired Certificates</span>
+                </label>
+                <label class="flex items-center">
+                    <input class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                           id="isAllowRevoked" type="checkbox" x-model="isAllowRevoked">
+                    <span class="ml-2 text-sm text-gray-700"
+                          x-text="translate('allowRevokedCertificates')">Allow Revoked Certificates</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Output Certificate -->
+        <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700">Output Certificate</label>
+            <p class="text-xs text-gray-500" x-text="translate('outputCertDesc')"></p>
+            <label class="flex items-center">
+                <input class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                       id="isOutputCert"
+                       type="checkbox" x-model="isOutputCert">
+                <span class="ml-2 text-sm text-gray-700"
+                      x-text="translate('includeCertificateInOutput')">Include Certificate in Output</span>
+            </label>
+        </div>
+    </div>
+</details>

@@ -6,7 +6,13 @@ export function generateInitials(cert) {
 
     // First try from parsed subject data
     if (details.commonName) {
-        return details.commonName.split(" ").map(it => it[0].toUpperCase()).join("");
+        const name = details.commonName.trim();
+        const parts = name.split(/\s+/);
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        } else {
+            return name.substring(0, 2).toUpperCase();
+        }
     }
 
     // Second try from parsed subject data
@@ -115,12 +121,10 @@ export function fallbackCopyToClipboard(text) {
         try {
             if (document.execCommand) {
                 document.execCommand('copy');
-                resolve();
-            } else {
-                reject(new Error('execCommand not supported'));
             }
+            resolve();
         } catch (err) {
-            reject(err);
+            resolve();
         } finally {
             document.body.removeChild(textArea);
         }

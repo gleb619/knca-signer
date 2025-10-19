@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize certificate store on page load
     setTimeout(() => {
         // Load saved certificate selection if it exists
-        Alpine.store('certificateStore').loadFromStorage();
+        document.dispatchEvent(new CustomEvent('app-started'));
     }, 500);
 });
 

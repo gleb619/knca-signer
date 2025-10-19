@@ -19,8 +19,6 @@ test('initializes with empty certificates', () => {
     expect(component.certificates).toEqual([]);
     expect(component.newCAAlias).toBe('');
     expect(component.activeSubTab).toBe('create');
-    expect(component.errorMessage).toBe('');
-    expect(component.successMessage).toBe('');
 });
 
 test('loads certificates from API', async () => {
@@ -72,10 +70,11 @@ test('handles API errors gracefully', async () => {
     global.fetch.mockImplementation(() => Promise.reject(new Error('Network error')));
 
     const component = certificatorTab();
+    component.addNotification = vi.fn();
 
-    // The method catches errors internally and sets errorMessage, doesn't throw
+    // The method catches errors internally and calls addNotification, doesn't throw
     await component.loadCertificates();
-    expect(component.errorMessage).toBe('Failed to load certificates');
+    expect(component.addNotification).toHaveBeenCalledWith('error', 'Failed to load certificates');
 });
 
 test('shows loading states during generation', async () => {
@@ -89,6 +88,7 @@ test('shows loading states during generation', async () => {
     ]);
 
     const component = certificatorTab();
+    component.addNotification = vi.fn();
 
     // Initially not generating
     expect(component.generatingCA).toBe(false);

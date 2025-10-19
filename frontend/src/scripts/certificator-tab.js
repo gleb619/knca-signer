@@ -24,15 +24,21 @@ export default () => ({
     ...api,
     ...utils,
 
+    async generateUser(caId) {
+        return this.generateCertificate('user', '/api/certificates/generate/user', { caId });
+    },
+
+    async generateLegal(caId) {
+        return this.generateCertificate('legal', '/api/certificates/generate/legal', { caId });
+    },
+
     // Enhanced action methods for Alpine.js component context
     async copyToClipboardHandler(text) {
         try {
             await this.copyToClipboard(text);
-            this.successMessage = 'Copied to clipboard!';
-            setTimeout(() => this.successMessage = '', 3000);
+            this.addNotification('success', 'Copied to clipboard!');
         } catch (err) {
-            this.errorMessage = 'Failed to copy to clipboard';
-            setTimeout(() => this.errorMessage = '', 5000);
+            this.addNotification('error', 'Failed to copy to clipboard');
         }
     },
 
@@ -42,6 +48,15 @@ export default () => ({
         req.fullName = this.getFullName(cert) || cert.alias;
         req.notAfterDate = this.formatDate(cert.notAfter);
         this.$store.certificateStore.selectUserCertificate(req);
+    },
+
+    selectLegalCertificate(cert) {
+        const req = {...cert};
+        req.initials = this.generateInitials(cert);
+        req.fullName = this.getFullName(cert) || cert.alias;
+        req.organization = this.getCertificateDetails(cert).organization || cert.alias;
+        req.notAfterDate = this.formatDate(cert.notAfter);
+        this.$store.certificateStore.selectLegalCertificate(req);
     },
 
     selectCaCertificate(cert) {

@@ -44,15 +44,13 @@ export async function loadCertificates() {
         }
 
     } catch (error) {
-        console.error('Failed to load certificates:', error);
-        this.errorMessage = 'Failed to load certificates';
+        this.certificates = [];
+        this.addNotification('error', 'Failed to load certificates');
     }
 }
 
 export async function generateCA() {
     this.generatingCA = true;
-    this.errorMessage = '';
-    this.successMessage = '';
 
     try {
         // Build URL with optional alias parameter
@@ -77,26 +75,14 @@ export async function generateCA() {
         // Switch to the newly created CA view
         this.activeSubTab = result.alias;
 
-        this.successMessage = `CA certificate generated successfully: ${result.alias}`;
+        this.addNotification('success', `CA certificate generated successfully: ${result.alias}`);
 
         // Clear the input field
         this.newCAAlias = '';
 
-        // Auto-clear success message after 5 seconds
-        setTimeout(() => {
-            if (this.successMessage === `CA certificate generated successfully: ${result.alias}`) {
-                this.successMessage = '';
-            }
-        }, 5000);
-
     } catch (error) {
         console.error('Failed to generate CA:', error);
-        this.errorMessage = 'Failed to generate CA certificate';
-
-        // Auto-clear error message after 8 seconds
-        setTimeout(() => {
-            this.errorMessage = '';
-        }, 8000);
+        this.addNotification('error', 'Failed to generate CA certificate');
     } finally {
         this.generatingCA = false;
     }
@@ -107,8 +93,6 @@ export async function generateCertificate(type, url, body = null) {
     const loadingFlag = `generating${type.charAt(0).toUpperCase() + type.slice(1)}`;
 
     this[loadingFlag] = true;
-    this.errorMessage = '';
-    this.successMessage = '';
 
     try {
         const response = await fetch(url, {
@@ -126,26 +110,13 @@ export async function generateCertificate(type, url, body = null) {
         // Refresh certificates
         await this.loadCertificates();
 
-        this.successMessage = `${type === 'CA' ? 'CA' : type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()} certificate generated successfully: ${result.alias}`;
-
-        // Auto-clear success message after 5 seconds
-        const successMsg = this.successMessage;
-        setTimeout(() => {
-            if (this.successMessage === successMsg) {
-                this.successMessage = '';
-            }
-        }, 5000);
+        this.addNotification('success', `${type === 'CA' ? 'CA' : type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()} certificate generated successfully: ${result.alias}`);
 
         return result;
 
     } catch (error) {
         console.error(`Failed to generate ${type.toLowerCase()} certificate:`, error);
-        this.errorMessage = `Failed to generate ${type.toLowerCase()} certificate`;
-
-        // Auto-clear error message after 8 seconds
-        setTimeout(() => {
-            this.errorMessage = '';
-        }, 8000);
+        this.addNotification('error', `Failed to generate ${type.toLowerCase()} certificate`);
 
         throw error;
     } finally {
@@ -153,18 +124,8 @@ export async function generateCertificate(type, url, body = null) {
     }
 }
 
-export async function generateUser(caId) {
-    return this.generateCertificate('user', '/api/certificates/generate/user', { caId });
-}
-
-export async function generateLegal(caId) {
-    return this.generateCertificate('legal', '/api/certificates/generate/legal', { caId });
-}
-
 export async function downloadCertificate(alias, format) {
     try {
-        this.errorMessage = '';
-
         const url = `/api/certificates/download/${encodeURIComponent(alias)}/${encodeURIComponent(format)}`;
         const response = await fetch(url);
 
@@ -200,18 +161,10 @@ export async function downloadCertificate(alias, format) {
         // Clean up the URL
         window.URL.revokeObjectURL(downloadUrl);
 
-        this.successMessage = `Certificate downloaded successfully: ${filename}`;
-        setTimeout(() => {
-            if (this.successMessage === `Certificate downloaded successfully: ${filename}`) {
-                this.successMessage = '';
-            }
-        }, 3000);
+        this.addNotification('success', `Certificate downloaded successfully: ${filename}`);
 
     } catch (error) {
         console.error('Download failed:', error);
-        this.errorMessage = `Download failed: ${error.message}`;
-        setTimeout(() => {
-            this.errorMessage = '';
-        }, 5000);
+        this.addNotification('error', `Download failed: ${error.message}`);
     }
 }

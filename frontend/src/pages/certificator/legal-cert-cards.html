@@ -1,21 +1,19 @@
-<!-- User Certificates Cards -->
-<div>
+<!-- Legal Certificates Cards -->
+<div class="mt-4">
     <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-            <path clip-rule="evenodd"
-                  d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                  fill-rule="evenodd"/>
+        <svg class="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 13 13">
+            <path d="m 10.103631,5.49525 0,3.23936 -0.700485,0 0,-1.85077 -0.549612,1.85077 -0.765932,0 -0.547456,-1.84978 0,1.84978 -0.700486,0 0,-3.19578 0,-0.0436 0.04357,0 0.984961,0 0.60533,2.01926 0.599301,-2.01926 1.030806,0 z m -6.207291,0 0,0.66443 0.935359,0 0,2.5749 0.745631,0 0,-2.5749 0.911155,0 0,-0.66443 -2.592145,0 z m 6.522495,-1.91408 c 1.889388,1.88935 1.889767,4.94793 0,6.83764 -1.889476,1.88947 -4.947903,1.88976 -6.837641,0 -1.889446,-1.88942 -1.889796,-4.94788 -2.9e-5,-6.83764 1.889418,-1.88939 4.947932,-1.88977 6.83767,0 z M 7,1 C 3.686282,1 1,3.68628 1,7 c 0,3.31369 2.686282,6 6,6 3.313718,0 6,-2.68631 6,-6 C 13,3.68628 10.313718,1 7,1 Z"/>
         </svg>
-        <span x-text="translate('userCertificatesLabel') + ' (' + caStructure.userCertificates.length + ')'"></span>
+        <span x-text="translate('legalCertificatesLabel') + ' (' + caStructure.legalCertificates.length + ')'"></span>
     </h3>
 
     <div class="text-gray-600 text-sm italic mb-4" x-cloak
-         x-show="caStructure.userCertificates.length === 0"
-         x-text="translate('noUserCertsYet')"></div>
+         x-show="caStructure.legalCertificates.length === 0"
+         x-text="translate('noLegalCertsYet')"></div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" x-cloak
-         x-show="caStructure.userCertificates.length > 0">
-        <template :key="cert.alias" x-for="(cert, certIdx) in caStructure.userCertificates">
+         x-show="caStructure.legalCertificates.length > 0">
+        <template :key="cert.alias" x-for="cert in caStructure.legalCertificates">
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
                 <!-- Header with avatar and main info -->
                 <div class="flex items-start gap-4 mb-4">
@@ -24,10 +22,12 @@
                         <span x-text="generateInitials(cert)"></span>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <h4 class="font-semibold text-gray-900 truncate mb-1"
-                            x-text="`User Certificate #${certIdx + 1}`"></h4>
-                        <p :title="getFullName(cert)" class="text-sm text-gray-600 truncate"
-                           x-text="getFullName(cert)"></p>
+                        <h4 :title="getCertificateDetails(cert).organization || cert.alias"
+                            class="font-semibold text-gray-900 truncate mb-1"
+                            x-text="getCertificateDetails(cert).organization || cert.alias"></h4>
+                        <p :title="getFullName(cert) || translate('legalCertificateType')"
+                           class="text-sm text-gray-600 truncate"
+                           x-text="getFullName(cert) || translate('legalCertificateType')"></p>
                         <p class="text-xs text-gray-500 mt-1" x-text="cert.alias"></p>
                     </div>
                     <button :title="translate('copyJson')"
@@ -70,16 +70,43 @@
                     </div>
                 </div>
 
+                <!-- Organization Details -->
+                <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
+                    <div>
+                        <span class="text-gray-500 text-xs uppercase font-medium" x-text="translate('binLabel')"></span>
+                        <div class="flex items-center gap-1">
+                            <span class="text-gray-900 font-mono"
+                                  x-text="getCertificateDetails(cert).bin || cert.bin || 'N/A'"></span>
+                            <button @click="copyToClipboardHandler(getCertificateDetails(cert).bin || cert.bin)"
+                                    class="text-gray-400 hover:text-gray-600" x-cloak
+                                    x-show="getCertificateDetails(cert).bin || cert.bin">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor"
+                                     viewBox="0 0 24 24">
+                                    <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                          stroke-linecap="round" stroke-linejoin="round"
+                                          stroke-width="2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div x-cloak x-show="getCertificateDetails(cert).businessCategory">
+                        <span class="text-gray-500 text-xs uppercase font-medium"
+                              x-text="translate('categoryLabel')"></span>
+                        <p class="text-gray-900 truncate text-sm"
+                           x-text="getCertificateDetails(cert).businessCategory"></p>
+                    </div>
+                </div>
+
                 <!-- Action Buttons -->
                 <div class="flex gap-2 mb-3">
-                    <button :class="$store.certificateStore?.selectedUserCert?.alias === cert.alias ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'"
-                            @click="selectCaCertificate(caStructure.ca); selectUserCertificate(cert);"
+                    <button :class="$store.certificateStore?.selectedLegalCert?.alias === cert.alias ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'"
+                            @click="selectCaCertificate(caStructure.ca); selectLegalCertificate(cert); selectTab('xml-signer');"
                             class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
                                   stroke-linejoin="round" stroke-width="2"/>
                         </svg>
-                        <span x-text="$store.certificateStore?.selectedUserCert?.alias === cert.alias ? translate('selected') : translate('useForSigning')"></span>
+                        <span x-text="$store.certificateStore?.selectedLegalCert?.alias === cert.alias ? translate('selected') : translate('useForSigning')"></span>
                     </button>
                 </div>
 
@@ -121,10 +148,16 @@
                             <p class="text-gray-900 text-sm" x-text="formatKeyInfo(cert)"></p>
                         </div>
 
-                        <div class="mt-2" x-show="cert.issuer">
+                        <div class="mt-2" x-show="getCertificateDetails(cert).position">
+                            <span class="text-gray-500 text-xs uppercase font-medium">Position</span>
+                            <p class="text-gray-700 text-sm truncate"
+                               x-text="translate(getCertificateDetails(cert).position) || getCertificateDetails(cert).position"></p>
+                        </div>
+
+                        <div x-show="cert.issuer">
                             <span class="text-gray-500 text-xs uppercase font-medium">Issuer</span>
                             <p :title="cert.issuer" class="text-gray-700 text-sm truncate"
-                               x-text="cert.issuer"></p>
+                               title="cert.issuer" x-text="cert.issuer"></p>
                         </div>
 
                         <!-- Download Section -->

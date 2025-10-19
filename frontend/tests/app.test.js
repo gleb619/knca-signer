@@ -5,7 +5,8 @@ test('kncaApp initializes with default values', () => {
   const instance = kncaApp();
 
   expect(instance.isKK).toBe(true);
-  expect(instance.activeTab).toBe('xml-verifier');
+  expect(instance.activeTab).toBe('loader');
+  expect(instance.notifications).toEqual([]);
 });
 
 test('switchTab changes activeTab', () => {

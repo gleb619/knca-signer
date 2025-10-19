@@ -47,7 +47,7 @@ npm install
 npm run serve
 ```
 
-Сервер бэкенда запускается на `http://localhost:8080`, фронтенд - на `http://localhost:3001`.
+Бэкенд запускается на `http://localhost:8080`, фронтенд - на `http://localhost:3000`.
 
 ## Подробная документация
 

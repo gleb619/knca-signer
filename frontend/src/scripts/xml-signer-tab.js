@@ -1,15 +1,12 @@
-import { SOCKET_URL, SAMPLE_LOGO } from './constants.js';
+import { SAMPLE_LOGO } from './constants.js';
+import wsApi from './signer/websocket.js';
 
 export default () => ({
+    ...wsApi,
 
     // Form data properties for two-way binding
     allowedStorages: ["JKS", "PKCS12"],
-    loaders: {
-        isSigning: false,
-    },
-    webSocket: null,
-    response: null,
-    callback: null,
+    isSigning: false,
     activeSubTab: 'xml',
     signatureType: 'xml',
     isArray: false,
@@ -34,29 +31,22 @@ export default () => ({
     caCerts: '',
     signature: '',
 
-    // WebSocket heartbeat and logging
-    isConnected: false,
-    heartbeatInterval: null,
-    lastHeartbeat: null,
-    logs: [],
-    maxLogs: 100,
-    signingResolve: null,
-
     initXmlSigner() {
-        this.connect(false).then((webSocket) => {
-            console.info("Connected to websocket");
-        }).catch((err) => {
-            console.error('Can\'t connect to websocket', err);
-        });
+        this.initWebSocket();
     },
 
     async handleCertificateSelection(detail) {
-        const { userCert, caCert } = detail;
+        const { userCert, legalCert, caCert } = detail;
+        const cert = { ...userCert, ...legalCert };
 
-        if (userCert) {
+        if (cert) {
             // Auto-populate signer parameters
-            this.iin = userCert.iin || this.iin;
-            this.serialNumber = userCert.serialNumber || this.serialNumber;
+            this.iin = cert.iin || this.iin;
+            this.bin = cert.bin || this.bin;
+            this.serialNumber = cert.serialNumber || this.serialNumber;
+        }
+
+        if(userCert) {
             this.bin = '';
         }
 
@@ -70,93 +60,12 @@ export default () => ({
         }
 
         if(userCert || caCert) {
-            this.successMessage = 'Certificate parameters loaded automatically';
-            setTimeout(() => this.successMessage = '', 3000);
+            this.addNotification('success', 'Certificate parameters loaded automatically');
         }
-    },
-
-    findCaAliasFromIssuer(issuer) {
-        // Try to find CA alias from certificates data
-        if (window.Alpine && this.$root) {
-            const certificatorTab = this.$root.querySelector('[x-data*="certificatorTab"]');
-            if (certificatorTab && certificatorTab._x_dataStack) {
-                const certData = certificatorTab._x_dataStack.find(data => data.certificates);
-                if (certData && certData.certificates) {
-                    for (const ca of certData.certificates) {
-                        if (ca.ca && (ca.ca.subject === issuer || ca.ca.issuer === issuer)) {
-                            return ca.alias;
-                        }
-                    }
-                }
-            }
-        }
-        return null;
-    },
-
-    connect(shouldOpenDialog = true) {
-        if (this.webSocket && this.webSocket.readyState < 2) {
-            console.log(`reusing the socket connection [state = ${this.webSocket.readyState}]: ${this.webSocket.url}`);
-            return Promise.resolve(this.webSocket);
-        }
-
-        return new Promise((resolve, reject) => {
-            try {
-                this.webSocket = new WebSocket(SOCKET_URL);
-            } catch (error) {
-                this.loaders.isSigning = false;
-                console.error('Failed to create WebSocket connection:', error);
-                this.errorMessage = 'Failed to establish connection. Please check your network.';
-                reject(error);
-                return;
-            }
-
-            this.webSocket.onopen = () => {
-                console.log(`socket connection is opened [state = ${this.webSocket.readyState}]: ${this.webSocket.url}`);
-                this.isConnected = true;
-                // Send initial handshake
-                const initialMessage = { module: "nca", version: "2.3" };
-                this.webSocket.send(JSON.stringify(initialMessage));
-                this.logMessage('sent', initialMessage);
-                this.webSocket.onmessage = this.handleMessage.bind(this);
-                this.startHeartbeat();
-                resolve(this.webSocket);
-            };
-
-            this.webSocket.onerror = (err) => {
-                this.loaders.isSigning = false;
-                console.error('socket connection error : ', err);
-                this.errorMessage = 'Connection failed. Please ensure NCALayer is running and try again.';
-                reject(err);
-            };
-
-            this.webSocket.onclose = (event) => {
-                console.log(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`);
-                this.isConnected = false;
-                this.stopHeartbeat();
-                if (!event.wasClean && event.code !== 1000) {
-                    this.errorMessage = 'WebSocket connection lost unexpectedly. Please try again.';
-                    if(shouldOpenDialog) {
-                        this.openDialog();
-                    }
-                }
-            };
-
-            // Add timeout for connection
-            setTimeout(() => {
-                if (this.webSocket.readyState === WebSocket.CONNECTING) {
-                    this.webSocket.close();
-                    this.loaders.isSigning = false;
-                    this.errorMessage = 'Connection timeout. Please check if NCALayer is running.';
-                    reject(new Error('Connection timeout'));
-                }
-            }, 10000); // 10 second timeout
-        });
     },
 
     async request() {
-        this.loaders.isSigning = true;
-        this.errorMessage = '';
-        this.successMessage = '';
+        this.isSigning = true;
 
         const selectedStorages = this.allowedStorages.filter(storage => storage); // Filter out empty values
         const signatureType = this.signatureType;
@@ -237,33 +146,21 @@ export default () => ({
                 this.signingResolve = resolve;
             });
         }).catch((err) => {
-            this.loaders.isSigning = false;
+            this.isSigning = false;
             console.error('Signing request failed:', err);
-            this.errorMessage = 'An error occurred during signing. Please check the console for details.';
+            this.addNotification('error', 'An error occurred during signing. Please check the console for details.');
         });
     },
 
     async sign() {
-        // Clear previous messages
-        this.errorMessage = '';
-        this.successMessage = '';
-
         // Validation
-//        if (!this.iin || this.iin.length !== 12) {
-//            this.errorMessage = 'IIN must be exactly 12 digits';
-//            return;
-//        }
-//        if (!this.bin || this.bin.length !== 12) {
-//            this.errorMessage = 'BIN must be exactly 12 digits';
-//            return;
-//        }
         if (!this.dataToSign.trim()) {
-            this.errorMessage = 'Data to sign cannot be empty';
+            this.addNotification('error', 'Data to sign cannot be empty');
             return;
         }
         const selectedStorages = this.allowedStorages.filter(storage => storage);
         if (selectedStorages.length === 0) {
-            this.errorMessage = 'At least one storage must be selected';
+            this.addNotification('error', 'At least one storage must be selected');
             return;
         }
 
@@ -272,9 +169,7 @@ export default () => ({
 
     resetForm() {
         this.allowedStorages = ["JKS", "PKCS12"];
-        this.loaders.isSigning = false;
-        this.errorMessage = '';
-        this.successMessage = '';
+        this.isSigning = false;
         this.activeSubTab = 'xml';
         this.signatureType = 'xml';
         this.isArray = false;
@@ -298,8 +193,7 @@ export default () => ({
     copyToClipboard(text) {
         if (navigator.clipboard && window.isSecureContext) {
             navigator.clipboard.writeText(text).then(() => {
-                this.successMessage = 'Signature copied to clipboard!';
-                setTimeout(() => this.successMessage = '', 3000);
+                this.addNotification('success', 'Signature copied to clipboard!');
             }).catch(() => {
                 this.fallbackCopyToClipboard(text);
             });
@@ -319,10 +213,9 @@ export default () => ({
         textArea.select();
         try {
             document.execCommand('copy');
-            this.successMessage = 'Signature copied to clipboard!';
-            setTimeout(() => this.successMessage = '', 3000);
+            this.addNotification('success', 'Signature copied to clipboard!');
         } catch (err) {
-            this.errorMessage = 'Failed to copy signature to clipboard';
+            this.addNotification('error', 'Failed to copy signature to clipboard');
         }
         document.body.removeChild(textArea);
     },
@@ -345,74 +238,6 @@ export default () => ({
 
     init() {
 
-    },
-
-    startHeartbeat() {
-        this.stopHeartbeat(); // Clear any existing interval
-        this.heartbeatInterval = setInterval(() => {
-            if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-                this.lastHeartbeat = Date.now();
-                this.webSocket.send('--heartbeat--');
-
-                this.logMessage('sent', { type: 'ping' });
-            }
-        }, 30000); // Ping every 30 seconds
-    },
-
-    stopHeartbeat() {
-        if (this.heartbeatInterval) {
-            clearInterval(this.heartbeatInterval);
-            this.heartbeatInterval = null;
-        }
-    },
-
-    logMessage(direction, message) {
-        const timestamp = new Date().toLocaleTimeString();
-        const logEntry = {
-            timestamp,
-            direction, // 'sent' or 'received'
-            message: typeof message === 'string' ? JSON.stringify(JSON.parse(message), null, 2) : JSON.stringify(message, null, 2)
-        };
-        this.logs.unshift(logEntry); // Add to beginning for latest first
-        if (this.logs.length > this.maxLogs) {
-            this.logs = this.logs.slice(0, this.maxLogs);
-        }
-    },
-
-    handleMessage(event) {
-        const data = event.data;
-        this.logMessage('received', data);
-        const parsed = JSON.parse(data);
-        if (parsed.status !== undefined) {
-            // This is a signing response
-            this.response = parsed;
-            if (parsed.status === true) {
-                const responseBody = parsed.body;
-                if (responseBody != null) {
-                    this.loaders.isSigning = false;
-                    if (responseBody.hasOwnProperty('result')) {
-                        const result = responseBody.result;
-                        if (result.hasOwnProperty('signatures')) {
-                            const signatures = result.signatures;
-                            const certificate = result.certificate;
-                            this.signature = `${signatures}\n${certificate}`;
-                        } else {
-                            this.signature = result;
-                        }
-                        this.successMessage = 'Signature generated successfully!';
-                    }
-                }
-            } else if (parsed.status === false) {
-                this.loaders.isSigning = false;
-                const responseCode = parsed.code;
-                this.errorMessage = `Signing failed: ${responseCode}`;
-            }
-            if (this.signingResolve) {
-                this.signingResolve(parsed);
-                this.signingResolve = null;
-            }
-        }
-        // Other messages (initial response, pong) are just logged
     },
 
 });

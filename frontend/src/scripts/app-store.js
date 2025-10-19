@@ -2,19 +2,21 @@ const STORAGE_KEY = 'knca_selected_certificates';
 
 export default {
     selectedUserCert: null,
+    selectedLegalCert: null,
     selectedCaCert: null,
     certCache: {},
 
     saveToStorage() {
         const data = {
             selectedUserCert: this.selectedUserCert,
+            selectedLegalCert: this.selectedLegalCert,
             selectedCaCert: this.selectedCaCert,
             timestamp: Date.now()
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     },
 
-    loadFromStorage() {
+    async loadFromStorage() {
         console.info("Loading state from storage");
 
         try {
@@ -22,13 +24,13 @@ export default {
             if (stored) {
                 const data = JSON.parse(stored);
                 this.selectedUserCert = data.selectedUserCert;
+                this.selectedLegalCert = data.selectedLegalCert;
                 this.selectedCaCert = data.selectedCaCert;
                 // Emit event to restore state
-                if (this.selectedUserCert || this.selectedCaCert) {
+                if (this.selectedUserCert || this.selectedLegalCert || this.selectedCaCert) {
                     this.emitEvent('certificate-selected');
                 }
-                this.fetchCaCert();
-
+                await this.fetchCaCert();
                 return true;
             }
         } catch (e) {
@@ -39,6 +41,14 @@ export default {
 
     selectUserCertificate(cert) {
         this.selectedUserCert = {...cert};
+        this.selectedLegalCert = null;
+        this.saveToStorage();
+        this.emitEvent('certificate-selected');
+    },
+
+    selectLegalCertificate(cert) {
+        this.selectedLegalCert = {...cert};
+        this.selectedUserCert = null;
         this.saveToStorage();
         this.emitEvent('certificate-selected');
     },
@@ -55,8 +65,15 @@ export default {
         this.emitEvent('certificate:cleared');
     },
 
+    clearLegalSelection() {
+        this.selectedLegalCert = null;
+        this.saveToStorage();
+        this.emitEvent('certificate:cleared');
+    },
+
     clearSelection() {
         this.selectedUserCert = null;
+        this.selectedLegalCert = null;
         this.selectedCaCert = null;
         localStorage.removeItem(STORAGE_KEY);
         this.emitEvent('certificate:cleared');
@@ -66,6 +83,7 @@ export default {
         window.dispatchEvent(new CustomEvent(eventType, {
            detail: {
                userCert: this.selectedUserCert,
+               legalCert: this.selectedLegalCert,
                caCert: this.selectedCaCert
            }
         }));

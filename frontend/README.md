@@ -40,7 +40,7 @@ signing operations.
    npm run serve
    ```
 
-2. Open your browser and navigate to `http://localhost:3001` (or the port shown in the terminal).
+2. Open your browser and navigate to `http://localhost:3000` (or the port shown in the terminal).
 
 3. Configure the signing parameters in the form:
     - Select allowed storage types

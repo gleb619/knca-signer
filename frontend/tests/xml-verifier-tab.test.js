@@ -16,8 +16,8 @@ test('xmlVerifierTab initializes with default values', () => {
   expect(instance.isValidating).toBe(false);
   expect(instance.validationResult).toBe(null);
   expect(instance.validationConfig.checkKalkanProvider).toBe(false);
-  expect(instance.validationConfig.checkData).toBe(false);
-  expect(instance.validationConfig.checkTime).toBe(false);
+  expect(instance.validationConfig.checkData).toBe(true);
+  expect(instance.validationConfig.checkTime).toBe(true);
   expect(instance.validationConfig.checkIinInCert).toBe(false);
   expect(instance.validationConfig.checkIinInSign).toBe(false);
   expect(instance.validationConfig.checkBinInCert).toBe(false);
@@ -26,6 +26,7 @@ test('xmlVerifierTab initializes with default values', () => {
   expect(instance.validationConfig.checkPublicKey).toBe(false);
   expect(instance.validationConfig.expectedIin).toBe('');
   expect(instance.validationConfig.expectedBin).toBe('');
+  expect(instance.validationConfig.publicKey).toBe(undefined);
   expect(instance.validationConfig.caPem).toBe(undefined);
   expect(instance.xmlContentSample).toContain('<?xml version="1.0"');
   expect(instance.publicKeyFile).toBe(null);
@@ -61,16 +62,15 @@ test('resetValidation clears all fields', () => {
   instance.caPemFileName = 'ca.pem';
   instance.validationConfig.caPem = 'caBase64Content';
   instance.validationResult = { valid: true, message: 'test' };
-  instance.errorMessage = 'test error';
-  instance.successMessage = 'test success';
 
   // Reset
   instance.resetValidation();
 
-  // Check all cleared
+  // Check all cleared/reset correctly
   expect(instance.xmlContent).toBe('');
   expect(instance.validationConfig.checkKalkanProvider).toBe(false);
-  expect(instance.validationConfig.checkData).toBe(false);
+  expect(instance.validationConfig.checkData).toBe(true); // resets to true
+  expect(instance.validationConfig.checkTime).toBe(true); // resets to true
   expect(instance.validationConfig.checkPublicKey).toBe(false);
   expect(instance.validationConfig.checkBinInCert).toBe(false);
   expect(instance.validationConfig.checkBinInSign).toBe(false);
@@ -83,12 +83,11 @@ test('resetValidation clears all fields', () => {
   expect(instance.caPemFileName).toBe('');
   expect(instance.validationConfig.caPem).toBe('');
   expect(instance.validationResult).toBe(null);
-  expect(instance.errorMessage).toBe('');
-  expect(instance.successMessage).toBe('');
 });
 
 test('validateXml validates public key requirement', () => {
   const instance = xmlVerifierTab();
+  instance.addNotification = vi.fn();
 
   instance.xmlContent = '<xml>test</xml>';
   instance.validationConfig.checkPublicKey = true;
@@ -96,12 +95,14 @@ test('validateXml validates public key requirement', () => {
   // Should error when public key is required but not provided
   instance.validateXml();
 
-  expect(instance.errorMessage).toBe('publicKeyRequired');
+  expect(instance.addNotification).toHaveBeenCalledWith('error', 'publicKeyRequired');
+  expect(instance.isValidating).toBe(false);
   expect(instance.validationResult).toBe(null);
 });
 
 test('copyValidationResult with validation result', () => {
   const instance = xmlVerifierTab();
+  instance.addNotification = vi.fn();
 
   // Mock validation result
   instance.validationResult = {
@@ -125,12 +126,13 @@ test('copyValidationResult with validation result', () => {
   instance.copyValidationResult();
 
   expect(mockClipboard.writeText).toHaveBeenCalledWith(
-    'validationResult: valid\nvalidationDetails: Validation passed\n\nvalidationDetails:\nsignatureValid: true\nkalkanProviderUsed: false\n'
+    JSON.stringify(instance.validationResult, null, 2)
   );
 });
 
 test('copyValidationResult fallback exists', () => {
   const instance = xmlVerifierTab();
+  instance.addNotification = vi.fn();
 
   // Mock validation result
   instance.validationResult = {
@@ -145,6 +147,20 @@ test('copyValidationResult fallback exists', () => {
     writable: true
   });
 
+  // Mock document for fallback
+  global.document = {
+    createElement: vi.fn().mockReturnValue({
+      style: {},
+      focus: vi.fn(),
+      select: vi.fn()
+    }),
+    body: {
+      appendChild: vi.fn(),
+      removeChild: vi.fn()
+    },
+    execCommand: vi.fn().mockReturnValue(true)
+  };
+
   // Just check that the fallback code exists and runs without throwing
   expect(() => instance.copyValidationResult()).not.toThrow();
 
@@ -153,6 +169,9 @@ test('copyValidationResult fallback exists', () => {
     value: originalClipboard,
     writable: true
   });
+
+  // Restore document if needed
+  global.document = undefined;
 });
 
 test('validation flags are boolean', () => {
