@@ -21,6 +21,18 @@ public class KalkanAdapter {
 
     // ========== Creation Methods (mirroring KalkanRegistry) ==========
 
+    // Check for Kalkan availability
+    public static boolean isKalkanAvailable() {
+        try {
+            Class.forName("kz.gov.pki.kalkan.jce.provider.KalkanProvider");
+            return true;
+        } catch (ClassNotFoundException e) {
+            log.warn("Kalkan JARs not found at runtime, cryptographic operations will fail. Mount JARs to /app/lib if needed");
+        }
+
+        return false;
+    }
+
     public static KalkanProxy createAlgorithmIdentifier(Object objectId, Object parameters) {
         return KalkanRegistry.createAlgorithmIdentifier(objectId, parameters);
     }

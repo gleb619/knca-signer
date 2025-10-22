@@ -22,6 +22,9 @@ public class Generator {
 
             // Create configuration (simulating what would be loaded from YAML)
             ApplicationConfig.CertificateConfig config = new ApplicationConfig.CertificateConfig(
+                    "file",
+                    1,
+                    1,
                     "certs/",
                     "certs/ca.crt",
                     2048,
@@ -35,9 +38,14 @@ public class Generator {
             // Create registry service
             var registryService = new CertificateStorage(new CertificateStorage.Storage());
 
-            // Create and run certificate generator
-            CertificateGenerator generator = new CertificateGenerator(realProvider, config, registryService);
-            generator.generateAllCertificates();
+            // Create services like in BeanFactory
+            var generationService = new CertificateGenerator(realProvider, config, registryService);
+            var validationService = new knca.signer.service.CertificateValidator(realProvider, registryService);
+            var certificateService = new knca.signer.service.CertificateService(realProvider, config, registryService, generationService, validationService);
+
+            // Initialize to generate/load certificates based on mode
+            certificateService.init();
+            log.info("CertificateService.init() completed, checking storage...");
 
         } catch (Exception e) {
             log.error("Certificate generation failed: %s".formatted(e.getMessage()), e);

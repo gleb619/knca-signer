@@ -51,6 +51,9 @@ public class CertificatorHandlerIT {
         // Create config for CertificateService
         java.security.Provider realProvider = knca.signer.kalkan.KalkanRegistry.loadRealKalkanProvider();
         knca.signer.config.ApplicationConfig.CertificateConfig config = new knca.signer.config.ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 "certs/",
                 "certs/ca.crt",
                 2048,
@@ -86,7 +89,7 @@ public class CertificatorHandlerIT {
         router.get("/certificates/ca").handler(certificateHandler.handleGetCACertificate());
         router.get("/certificates/user").handler(certificateHandler.handleGetUserCertificate());
         router.get("/certificates/legal").handler(certificateHandler.handleGetLegalCertificate());
-        router.get("/certificates/filesystem").handler(certificateHandler.handleGetFilesystemCertificates());
+        // router.get("/certificates/filesystem").handler(certificateHandler.handleGetFilesystemCertificates()); // endpoint removed
         router.post("/certificates/generate/ca").handler(certificateHandler.handleGenerateCACertificate());
         router.post("/certificates/generate/user").handler(certificateHandler.handleGenerateUserCertificate());
         router.post("/certificates/generate/legal").handler(certificateHandler.handleGenerateLegalCertificate());
@@ -147,7 +150,7 @@ public class CertificatorHandlerIT {
                             assertNotNull(json.getString("iin"));
                             assertNotNull(json.getString("subject"));
                             assertTrue(json.getBoolean("generated"));
-                            assertEquals("default", json.getString("caId"));
+                            assertEquals("ca", json.getString("caId"));
                         });
                         testContext.completeNow();
                     }));
@@ -177,7 +180,7 @@ public class CertificatorHandlerIT {
                             assertNotNull(json.getString("bin"));
                             assertNotNull(json.getString("subject"));
                             assertTrue(json.getBoolean("generated"));
-                            assertEquals("default", json.getString("caId"));
+                            assertEquals("ca", json.getString("caId"));
                         });
                         testContext.completeNow();
                     }));
@@ -249,7 +252,7 @@ public class CertificatorHandlerIT {
 
         // Generate legal certificate for default CA
         client.request(HttpMethod.POST, serverPort, "localhost", "/certificates/generate/legal")
-                .compose(req -> req.putHeader("content-type", "application/json").send(new JsonObject().put("caId", "default").encode()))
+                .compose(req -> req.putHeader("content-type", "application/json").send(new JsonObject().put("caId", "ca").encode()))
                 .onComplete(testContext.succeeding(response -> {
                     testContext.verify(() -> {
                         assertEquals(200, response.statusCode());
@@ -259,7 +262,7 @@ public class CertificatorHandlerIT {
                         testContext.verify(() -> {
                             JsonObject json = new JsonObject(buffer.toString());
                             assertEquals("legal", json.getString("type"));
-                            assertEquals("default", json.getString("caId"));
+                            assertEquals("ca", json.getString("caId"));
                             assertTrue(json.getBoolean("generated"));
                         });
                         testContext.completeNow();
@@ -271,7 +274,7 @@ public class CertificatorHandlerIT {
     void testGetCertificatesForCA(Vertx vertx, VertxTestContext testContext) throws Exception {
         HttpClient client = vertx.createHttpClient();
 
-        client.request(HttpMethod.GET, serverPort, "localhost", "/certificates/user?caId=default")
+        client.request(HttpMethod.GET, serverPort, "localhost", "/certificates/user?caId=ca")
                 .compose(HttpClientRequest::send)
                 .onComplete(testContext.succeeding(response -> {
                     testContext.verify(() -> {
@@ -291,41 +294,41 @@ public class CertificatorHandlerIT {
                 }));
     }
 
-    @Test
-    void testGetFilesystemCertificates(Vertx vertx, VertxTestContext testContext) throws Exception {
-        HttpClient client = vertx.createHttpClient();
+    // @Test
+    // void testGetFilesystemCertificates(Vertx vertx, VertxTestContext testContext) throws Exception {
+    //     HttpClient client = vertx.createHttpClient();
 
-        client.request(HttpMethod.GET, serverPort, "localhost", "/certificates/filesystem")
-                .compose(HttpClientRequest::send)
-                .onComplete(testContext.succeeding(response -> {
-                    testContext.verify(() -> {
-                        assertEquals(200, response.statusCode());
-                    });
+    //     client.request(HttpMethod.GET, serverPort, "localhost", "/certificates/filesystem")
+    //             .compose(HttpClientRequest::send)
+    //             .onComplete(testContext.succeeding(response -> {
+    //                 testContext.verify(() -> {
+    //                     assertEquals(200, response.statusCode());
+    //                 });
 
-                    response.body().onComplete(testContext.succeeding(buffer -> {
-                        testContext.verify(() -> {
-                            JsonObject json = new JsonObject(buffer.toString());
-                            // Should contain certificates array from filesystem
-                            assertNotNull(json);
-                            assertTrue(json.containsKey("certificates"));
-                            JsonArray certificates = json.getJsonArray("certificates");
-                            assertNotNull(certificates);
-                            assertInstanceOf(JsonArray.class, certificates);
+    //                 response.body().onComplete(testContext.succeeding(buffer -> {
+    //                     testContext.verify(() -> {
+    //                         JsonObject json = new JsonObject(buffer.toString());
+    //                         // Should contain certificates array from filesystem
+    //                         assertNotNull(json);
+    //                         assertTrue(json.containsKey("certificates"));
+    //                         JsonArray certificates = json.getJsonArray("certificates");
+    //                         assertNotNull(certificates);
+    //                         assertInstanceOf(JsonArray.class, certificates);
 
-                            // Verify at least one certificate exists (generated during service initialization)
-                            assertTrue(certificates.size() >= 1, "Should have at least one certificate");
+    //                         // Verify at least one certificate exists (generated during service initialization)
+    //                         assertTrue(certificates.size() >= 1, "Should have at least one certificate");
 
-                            // Check first certificate structure
-                            JsonObject firstCert = certificates.getJsonObject(0);
-                            assertNotNull(firstCert.getString("type"));
-                            assertNotNull(firstCert.getString("filename"));
-                            assertNotNull(firstCert.getString("serialNumber"));
-                            assertNotNull(firstCert.getString("issuer"));
-                            assertNotNull(firstCert.getString("subject"));
-                        });
-                        testContext.completeNow();
-                    }));
-                }));
-    }
+    //                         // Check first certificate structure
+    //                         JsonObject firstCert = certificates.getJsonObject(0);
+    //                         assertNotNull(firstCert.getString("type"));
+    //                         assertNotNull(firstCert.getString("filename"));
+    //                         assertNotNull(firstCert.getString("serialNumber"));
+    //                         assertNotNull(firstCert.getString("issuer"));
+    //                         assertNotNull(firstCert.getString("subject"));
+    //                     });
+    //                     testContext.completeNow();
+    //                 }));
+    //             }));
+    // }
 
 }

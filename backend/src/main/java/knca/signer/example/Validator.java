@@ -30,6 +30,9 @@ public class Validator {
             Class<?> providerClass = Class.forName("knca.signer.KalkanProvider");
             Object provider = providerClass.getDeclaredConstructor().newInstance();
             ApplicationConfig.CertificateConfig config = new ApplicationConfig.CertificateConfig(
+                    "file",
+                    1,
+                    1,
                     "certs/",
                     "certs/ca.crt",
                     2048,

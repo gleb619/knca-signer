@@ -19,6 +19,9 @@ class SignerTest {
 
         provider = (java.security.Provider) KalkanRegistry.createKalkanProvider().getRealObject();
         config = new ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 "certs/",
                 "certs/ca.crt",
                 2048,

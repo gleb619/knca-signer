@@ -46,6 +46,9 @@ public class VerifierHandlerIT {
         // Create config for CertificateService
         java.security.Provider realProvider = knca.signer.kalkan.KalkanRegistry.loadRealKalkanProvider();
         knca.signer.config.ApplicationConfig.CertificateConfig config = new knca.signer.config.ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 "certs/",
                 "certs/ca.crt",
                 2048,
@@ -64,8 +67,8 @@ public class VerifierHandlerIT {
         System.out.println("Using real CertificateService for integration tests");
 
         // Ensure user and legal certificates are generated
-        certificateService.generateUserCertificate("default");
-        certificateService.generateLegalEntityCertificate("default");
+        certificateService.generateUserCertificate("ca");
+        certificateService.generateLegalEntityCertificate("ca");
 
         signingHandler = new VerifierHandler(certificateService);
 

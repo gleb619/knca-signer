@@ -29,6 +29,9 @@ public class GeneratorTest {
 
         provider = (java.security.Provider) KalkanRegistry.createKalkanProvider().getRealObject();
         config = new ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 "certs/",
                 "certs/ca.crt",
                 2048,
@@ -43,6 +46,9 @@ public class GeneratorTest {
     @Test
     public void testCertificateConfigCreation() {
         ApplicationConfig.CertificateConfig config = new ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 "certs/",
                 "certs/ca.crt",
                 2048,

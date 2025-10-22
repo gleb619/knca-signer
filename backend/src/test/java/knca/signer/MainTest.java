@@ -22,6 +22,9 @@ public class MainTest {
     @BeforeEach
     void setUp() throws Exception {
         config = new ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 "certs/",
                 "certs/ca.crt",
                 2048,
@@ -42,6 +45,9 @@ public class MainTest {
     public void testCertificateGenerationReadingAndValidationIntegration(@TempDir Path tempDir) throws Exception {
         // Create temp configuration using the temp directory
         ApplicationConfig.CertificateConfig tempConfig = new ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 tempDir.toString() + "/",
                 tempDir + "/ca.crt",
                 2048,

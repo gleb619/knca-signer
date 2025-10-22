@@ -110,15 +110,27 @@ public class VerifierHandler {
         private String xml;
         private String publicKey; // Optional base64 encoded public key
         private String caPem; // Optional base64 encoded CA certificate PEM
+        @Builder.Default
         private boolean checkKalkanProvider = false;
+        @Builder.Default
         private boolean checkData = false;
+        @Builder.Default
         private boolean checkTime = false;
+        @Builder.Default
         private boolean checkIinInCert = false;
+        @Builder.Default
         private boolean checkIinInSign = false;
+        @Builder.Default
         private boolean checkBinInCert = false;
+        @Builder.Default
         private boolean checkBinInSign = false;
+        @Builder.Default
         private boolean checkCertificateChain = false;
+        @Builder.Default
         private boolean checkPublicKey = false;
+        @Builder.Default
+        private boolean checkExtendedKeyUsage = false;
+        private String extendedKeyUsageOids; // Comma-separated list of OIDs to check in certificate's ExtendedKeyUsage
         private String expectedIin; // Optional expected IIN
         private String expectedBin; // Optional expected BIN for legal certificates
 

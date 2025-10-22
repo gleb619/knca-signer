@@ -15,6 +15,8 @@ import java.util.List;
 @Slf4j
 public class Reader {
 
+    private static final int TABLE_WIDTH = 98;
+
     public static void main(String[] args) {
         try {
             // Load and register the KalkanProvider
@@ -24,6 +26,9 @@ public class Reader {
 
             // Create configuration (simulating what would be loaded from YAML)
             ApplicationConfig.CertificateConfig config = new ApplicationConfig.CertificateConfig(
+                    "file",
+                    1,
+                    1,
                     "certs/",
                     "certs/ca.crt",
                     2048,
@@ -65,11 +70,11 @@ public class Reader {
                 output.append("╔══════════════════════════════════════════════════════════════════════════╗\n");
                 output.append("║                          CERTIFICATE SUMMARY                             ║\n");
                 output.append("╠══════════════════════════════════════════════════════════════════════════╣\n");
-                output.append(String.format("║ CA Certificates:        %-55d ║\n", caCount));
-                output.append(String.format("║ User Certificates:      %-55d ║\n", userCount));
-                output.append(String.format("║ Legal Entity Certificates: %-51d ║\n", legalCount));
+                output.append(formatTableRow("CA Certificates:", String.valueOf(caCount), 74));
+                output.append(formatTableRow("User Certificates:", String.valueOf(userCount), 74));
+                output.append(formatTableRow("Legal Entity Certificates:", String.valueOf(legalCount), 74));
                 output.append("╠══════════════════════════════════════════════════════════════════════════╣\n");
-                output.append(String.format("║ Total Certificates:     %-55d ║\n", certificates.size()));
+                output.append(formatTableRow("Total Certificates:", String.valueOf(certificates.size()), 74));
                 output.append("╚══════════════════════════════════════════════════════════════════════════╝\n");
             }
 
@@ -89,33 +94,33 @@ public class Reader {
 
         certOutput.append("\n");
         certOutput.append("╔══════════════════════════════════════════════════════════════════════════════════════════════════╗\n");
-        certOutput.append(String.format("║                                 CERTIFICATE #%d                                               ║\n", index));
+        certOutput.append(formatTableRow("CERTIFICATE #" + index, "", TABLE_WIDTH, true));
         certOutput.append("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣\n");
-        certOutput.append(String.format("║ File:         %-75s ║\n", certInfo.getFilename()));
-        certOutput.append(String.format("║ Type:         %-75s ║\n", getTypeWithIcon(certInfo.getType())));
-        certOutput.append(String.format("║ Serial:       %-75s ║\n", certInfo.getSerialNumber()));
-        certOutput.append("╠═══════════════════════════════════════════════ ═══════════════════════════════════════════╣\n");
+        certOutput.append(formatTableRow("File:", certInfo.getFilename(), TABLE_WIDTH));
+        certOutput.append(formatTableRow("Type:", getTypeWithIcon(certInfo.getType()), TABLE_WIDTH));
+        certOutput.append(formatTableRow("Serial:", certInfo.getSerialNumber(), TABLE_WIDTH));
+        certOutput.append("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣\n");
 
         // Subject information (formatted)
         String[] subjectLines = reader.formatDN(certInfo.getSubject()).split("\n");
-        certOutput.append("║ Subject:                                                                                  ║\n");
+        certOutput.append(formatTableRow("Subject:", "", TABLE_WIDTH));
         for (String line : subjectLines) {
-            certOutput.append(String.format("║    %-83s ║\n", line.trim()));
+            certOutput.append(formatTableRow("   " + line.trim(), "", TABLE_WIDTH));
         }
 
         // Issuer information (formatted)
         String[] issuerLines = reader.formatDN(certInfo.getIssuer()).split("\n");
-        certOutput.append("║ Issuer:                                                                                   ║\n");
+        certOutput.append(formatTableRow("Issuer:", "", TABLE_WIDTH));
         for (String line : issuerLines) {
-            certOutput.append(String.format("║    %-83s ║\n", line.trim()));
+            certOutput.append(formatTableRow("   " + line.trim(), "", TABLE_WIDTH));
         }
 
-        certOutput.append("╠═══════════════════════════════════════════════ ═══════════════════════════════════════════╣\n");
-        certOutput.append(String.format("║ Valid From:   %-75s ║\n", certInfo.getNotBefore()));
-        certOutput.append(String.format("║ Valid Until:  %-75s ║\n", certInfo.getNotAfter()));
-        certOutput.append(String.format("║ Status:       %-75s ║\n", getValidityStatus(certInfo)));
-        certOutput.append("╠═══════════════════════════════════════════════ ═══════════════════════════════════════════╣\n");
-        certOutput.append(String.format("║ Algorithm:    %-18s Key Size: %54s ║\n", certInfo.getPublicKeyAlgorithm(), certInfo.getKeySize() + " bits"));
+        certOutput.append("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣\n");
+        certOutput.append(formatTableRow("Valid From:", certInfo.getNotBefore().toString(), TABLE_WIDTH));
+        certOutput.append(formatTableRow("Valid Until:", certInfo.getNotAfter().toString(), TABLE_WIDTH));
+        certOutput.append(formatTableRow("Status:", getValidityStatus(certInfo), TABLE_WIDTH));
+        certOutput.append("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣\n");
+        certOutput.append(formatTableRowTwoColumns("Algorithm:", certInfo.getPublicKeyAlgorithm(), "Key Size:", certInfo.getKeySize() + " bits", TABLE_WIDTH));
 
         // Additional information if available
         boolean hasAdditionalInfo = (!"N/A".equals(certInfo.getEmail()) && certInfo.getEmail() != null) ||
@@ -123,24 +128,24 @@ public class Reader {
                 (!"N/A".equals(certInfo.getBin()) && certInfo.getBin() != null);
 
         if (hasAdditionalInfo) {
-            certOutput.append("╠═══════════════════════════════════════════════ ═══════════════════════════════════════════╣\n");
-            certOutput.append("║ Additional Information:                                                                   ║\n");
+            certOutput.append("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣\n");
+            certOutput.append(formatTableRow("Additional Information:", "", TABLE_WIDTH));
 
             if (!"N/A".equals(certInfo.getEmail()) && certInfo.getEmail() != null) {
-                certOutput.append(String.format("║    Email:          %-65s ║\n", certInfo.getEmail()));
+                certOutput.append(formatTableRow("   Email:", certInfo.getEmail(), TABLE_WIDTH));
             }
             if (!"N/A".equals(certInfo.getIin()) && certInfo.getIin() != null) {
-                certOutput.append(String.format("║    IIN (Individual): %-61s ║\n", certInfo.getIin()));
+                certOutput.append(formatTableRow("   IIN (Individual):", certInfo.getIin(), TABLE_WIDTH));
             }
             if (!"N/A".equals(certInfo.getBin()) && certInfo.getBin() != null) {
-                certOutput.append(String.format("║    BIN (Business):  %-61s ║\n", certInfo.getBin()));
+                certOutput.append(formatTableRow("   BIN (Business):", certInfo.getBin(), TABLE_WIDTH));
             }
         }
 
         // Certificate fingerprint-like information
-        certOutput.append("╠═══════════════════════════════════════════════ ═══════════════════════════════════════════╣\n");
-        certOutput.append(String.format("║ Fingerprint (SHA-1): %-68s ║\n", generateMockFingerprint(certInfo)));
-        certOutput.append(String.format("║ Version:       %-75s ║\n", "X.509 v3"));
+        certOutput.append("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣\n");
+        certOutput.append(formatTableRow("Fingerprint (SHA-1):", generateMockFingerprint(certInfo), TABLE_WIDTH));
+        certOutput.append(formatTableRow("Version:", "X.509 v3", TABLE_WIDTH));
         certOutput.append("╚══════════════════════════════════════════════════════════════════════════════════════════════════╝\n");
         certOutput.append("\n");
 
@@ -156,6 +161,69 @@ public class Reader {
         certOutput.append("\n");
 
         return certOutput.toString();
+    }
+
+    /**
+     * Formats a table row with proper alignment and width calculation considering UTF-8 characters.
+     */
+    private static String formatTableRow(String label, String value, int totalWidth) {
+        return formatTableRow(label, value, totalWidth, false);
+    }
+
+    /**
+     * Formats a table row with proper alignment and width calculation considering UTF-8 characters.
+     */
+    private static String formatTableRow(String label, String value, int totalWidth, boolean centered) {
+        String content = value.isEmpty() ? label : label + " " + value;
+        int visualWidth = calculateVisualWidth(content);
+        int padding = totalWidth - 4 - visualWidth;
+
+        if (centered) {
+            int leftPad = padding / 2;
+            int rightPad = padding - leftPad;
+            return String.format("║%s%s%s║\n", " ".repeat(leftPad + 2), content, " ".repeat(rightPad + 2));
+        } else {
+            return String.format("║ %s%s ║\n", content, " ".repeat(Math.max(0, padding)));
+        }
+    }
+
+    /**
+     * Formats a table row with two columns.
+     */
+    private static String formatTableRowTwoColumns(String label1, String value1, String label2, String value2, int totalWidth) {
+        String leftContent = label1 + " " + value1;
+        String rightContent = label2 + " " + value2;
+
+        int leftVisualWidth = calculateVisualWidth(leftContent);
+        int rightVisualWidth = calculateVisualWidth(rightContent);
+        int totalContentWidth = leftVisualWidth + rightVisualWidth;
+        int padding = totalWidth - 4 - totalContentWidth;
+
+        return String.format("║ %s%s%s ║\n", leftContent, " ".repeat(Math.max(1, padding)), rightContent);
+    }
+
+    /**
+     * Calculates visual width of string considering UTF-8 multi-byte characters.
+     * Cyrillic and other non-ASCII characters typically take more visual space.
+     */
+    private static int calculateVisualWidth(String text) {
+        int width = 0;
+        for (char c : text.toCharArray()) {
+            if (c >= 0x0400 && c <= 0x04FF) {
+                // Cyrillic characters
+                width += 2;
+            } else if (c >= 0x1F300 && c <= 0x1F9FF) {
+                // Emoji range
+                width += 2;
+            } else if (c > 0x007F) {
+                // Other non-ASCII
+                width += 2;
+            } else {
+                // ASCII characters
+                width += 1;
+            }
+        }
+        return width;
     }
 
     /**
@@ -195,6 +263,10 @@ public class Reader {
             String hex = String.format("%08X", hash).toLowerCase();
             // Format as colon-separated groups like real SHA-1 fingerprint
             return String.format("%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s",
+                    hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6), hex.substring(6, 8),
+                    hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6), hex.substring(6, 8),
+                    hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6), hex.substring(6, 8),
+                    hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6), hex.substring(6, 8),
                     hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6), hex.substring(6, 8));
         } catch (Exception e) {
             return "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:11:22:33:44";

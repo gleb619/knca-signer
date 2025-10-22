@@ -39,7 +39,7 @@ public class CertificateReader {
             return certificates;
         }
 
-        log.info("Reading certificates from directory: {}", config.getCertsPath());
+        log.info("Reading certificates from directory: {}", certsDir.toAbsolutePath());
 
         // Read CA certificates
         certificates.addAll(readCACertificates(certsDir));

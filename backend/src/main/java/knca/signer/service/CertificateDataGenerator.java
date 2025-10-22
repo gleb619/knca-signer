@@ -143,6 +143,23 @@ public class CertificateDataGenerator {
     }
 
     /**
+     * Generate subject DN for a legal entity certificate with specified company and BIN.
+     */
+    @Deprecated(forRemoval = true)
+    public static String generateLegalEntitySubjectDN(String company, String bin) {
+        String surname = KAZAKH_SURNAMES[random.nextInt(KAZAKH_SURNAMES.length)];
+        String givenName = KAZAKH_GIVEN_NAMES[random.nextInt(KAZAKH_GIVEN_NAMES.length)];
+        String patronymic = KAZAKH_PATRONYMICS[random.nextInt(KAZAKH_PATRONYMICS.length)];
+        String fullName = givenName + " " + surname;
+        String iin = generateIIN();
+        String email = generateEmail();
+        String businessCategory = BUSINESS_CATEGORY[random.nextInt(BUSINESS_CATEGORY.length)];
+        String dc = COMPANY_ROLES[random.nextInt(COMPANY_ROLES.length)];
+        return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, O=%s, OU=BIN%s, BusinessCategory=%s, G=%s, DC=%s, emailAddress=%s".formatted(
+                fullName, surname, iin, company, bin, businessCategory, patronymic, dc, email);
+    }
+
+    /**
      * Extract BIN from subject DN.
      */
     public static String extractBIN(String dn) {

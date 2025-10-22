@@ -191,15 +191,26 @@ public class CertificateValidator {
                     // If custom CA PEM is provided, parse and use it
                     if (request.getCaPem() != null && !request.getCaPem().trim().isEmpty()) {
                         try {
-                            String pemContent = new String(Base64.getDecoder().decode(request.getCaPem()));
+                            String pemContent = request.getCaPem().trim();
+                            // Check if it's base64 encoded (for backward compatibility) or plain PEM text
+                            String cleanedContent;
+                            try {
+                                // Try to decode as base64 first
+                                byte[] decodedBytes = Base64.getDecoder().decode(pemContent);
+                                cleanedContent = new String(decodedBytes).trim();
+                            } catch (Exception base64Exception) {
+                                // If base64 decode fails, treat as plain PEM text
+                                cleanedContent = pemContent;
+                            }
+
                             // Remove PEM headers/footers and clean up
-                            pemContent = pemContent.replaceAll("-----BEGIN CERTIFICATE-----", "")
+                            cleanedContent = cleanedContent.replaceAll("-----BEGIN CERTIFICATE-----", "")
                                     .replaceAll("-----END CERTIFICATE-----", "")
                                     .replaceAll("-----BEGIN PUBLIC KEY-----", "")
                                     .replaceAll("-----END PUBLIC KEY-----", "")
                                     .replaceAll("\\s", "");
 
-                            byte[] certBytes = Base64.getDecoder().decode(pemContent);
+                            byte[] certBytes = Base64.getDecoder().decode(cleanedContent);
                             CertificateFactory cf = CertificateFactory.getInstance("X.509");
                             caCertToUse = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes));
                             log.info("Using custom CA certificate for chain validation");
@@ -238,6 +249,22 @@ public class CertificateValidator {
                     details.put("publicKeyCheckError", e.getMessage());
                     result.setValid(false);
                     result.setMessage("Public key validation error: " + e.getMessage());
+                }
+            }
+
+            // Check extended key usage if requested
+            if (request.isCheckExtendedKeyUsage()) {
+                try {
+                    boolean extendedKeyUsageValid = validator.checkExtendedKeyUsage(request.getXml(), request.getExtendedKeyUsageOids());
+                    details.put("extendedKeyUsageValid", String.valueOf(extendedKeyUsageValid));
+                    if (!extendedKeyUsageValid) {
+                        result.setValid(false);
+                        result.setMessage("Extended key usage validation failed - certificate EKU does not match required OIDs");
+                    }
+                } catch (Exception e) {
+                    details.put("extendedKeyUsageCheckError", e.getMessage());
+                    result.setValid(false);
+                    result.setMessage("Extended key usage validation error: " + e.getMessage());
                 }
             }
 
@@ -554,14 +581,22 @@ public class CertificateValidator {
         /**
          * Validate that the public key from PEM matches the certificate's public key in the signature.
          */
-        public boolean validatePublicKey(String xmlContent, String base64PemPublicKey) throws Exception {
-            if (base64PemPublicKey == null || base64PemPublicKey.trim().isEmpty()) {
+        public boolean validatePublicKey(String xmlContent, String pemPublicKey) throws Exception {
+            if (pemPublicKey == null || pemPublicKey.trim().isEmpty()) {
                 return false;
             }
 
             try {
-                // Decode base64 and extract PEM content
-                String pemContent = new String(Base64.getDecoder().decode(base64PemPublicKey));
+                String pemContent = pemPublicKey.trim();
+                // Check if it's base64 encoded plain PEM text
+                try {
+                    // Try to decode as base64 first (backward compatibility)
+                    byte[] decodedBytes = Base64.getDecoder().decode(pemContent);
+                    pemContent = new String(decodedBytes).trim();
+                } catch (Exception base64Exception) {
+                    // If base64 decode fails, treat as plain PEM text
+                    pemContent = pemPublicKey.trim();
+                }
 
                 // Remove PEM headers/footers and clean up
                 pemContent = pemContent.replaceAll("-----BEGIN PUBLIC KEY-----", "")
@@ -612,6 +647,55 @@ public class CertificateValidator {
                 return false;
             } catch (Exception e) {
                 log.error("Error validating public key: {}", e.getMessage());
+                return false;
+            }
+        }
+
+        /**
+         * Check that the certificate's Extended Key Usage contains the specified OIDs.
+         */
+        public boolean checkExtendedKeyUsage(String xmlContent, String oids) throws Exception {
+            if (oids == null || oids.trim().isEmpty()) {
+                return false;
+            }
+
+            try {
+                // Extract certificate from XML signature
+                Document doc = parseXmlDocument(xmlContent);
+                NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "X509Certificate");
+                if (nl.getLength() > 0) {
+                    String certData = nl.item(0).getTextContent();
+                    byte[] certBytes = Base64.getDecoder().decode(certData);
+                    CertificateFactory cf = CertificateFactory.getInstance("X.509");
+                    X509Certificate cert = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes));
+
+                    // Get Extended Key Usage from certificate
+                    List<String> extendedKeyUsage = cert.getExtendedKeyUsage();
+
+                    if (extendedKeyUsage == null || extendedKeyUsage.isEmpty()) {
+                        log.info("Certificate has no extended key usage extension");
+                        return false;
+                    }
+
+                    // Split the comma-separated OIDs and check if all are present
+                    String[] requiredOids = oids.split(",");
+                    Set<String> certEkus = new HashSet<>(extendedKeyUsage);
+
+                    for (String oid : requiredOids) {
+                        String trimmedOid = oid.trim();
+                        if (!trimmedOid.isEmpty() && !certEkus.contains(trimmedOid)) {
+                            log.info("Required OID '{}' not found in certificate's extended key usage", trimmedOid);
+                            return false;
+                        }
+                    }
+
+                    log.info("Extended key usage validation successful - all required OIDs found");
+                    return true;
+                }
+
+                return false;
+            } catch (Exception e) {
+                log.error("Error validating extended key usage: {}", e.getMessage());
                 return false;
             }
         }

@@ -36,7 +36,11 @@ import static knca.signer.kalkan.KalkanConstants.ROOT_SUBJECT_DN;
 @RequiredArgsConstructor
 public class CertificateGenerator {
 
-    private static final String DEFAULT_CA_ALIAS = "default";
+    private static final String DEFAULT_CA_ALIAS = "ca";
+    @Deprecated(forRemoval = true)
+    private static final String SHARED_LEGAL_COMPANY = "ҚАЗАҚСТАН ЖОЛ СЕРВИСІ";
+    @Deprecated(forRemoval = true)
+    private static final String SHARED_LEGAL_BIN = "123456789012";
 
     private final java.security.Provider provider;
     private final ApplicationConfig.CertificateConfig config;
@@ -72,13 +76,32 @@ public class CertificateGenerator {
      * Generate CA certificate.
      */
     public CertificateResult generateCACertificate() throws Exception {
-        log.info("Generating Root CA...");
+        return generateCACertificateInternal(DEFAULT_CA_ALIAS);
+    }
+
+    /**
+     * Generate CA certificate with alias.
+     */
+    public Map.Entry<String, CertificateResult> generateCACertificate(String alias) throws Exception {
+        CertificateResult result = generateCACertificateInternal(alias);
+        registry.storeCACertificate(alias, result);
+        return Map.entry(alias, result);
+    }
+
+    /**
+     * Generate CA certificate with alias (internal helper).
+     */
+    private CertificateResult generateCACertificateInternal(String alias) throws Exception {
+        if (alias == null || alias.trim().isEmpty()) {
+            alias = DEFAULT_CA_ALIAS;
+        }
+        log.info("Generating Root CA for alias: {}", alias);
         KeyPair caKeyPair = generateKeyPair();
         X509Certificate rootCert = generateRootCA(caKeyPair);
 
-        // Save CA certificate
-        saveCertificate(rootCert, config.getCertsPath() + "ca.crt");
-        saveCertificate(rootCert, config.getCertsPath() + "ca.pem");
+        // Always save CA certificate files
+        saveCertificate(rootCert, config.getCertsPath() + alias + ".crt");
+        saveCertificate(rootCert, config.getCertsPath() + alias + ".pem");
 
         return new CertificateResult(caKeyPair, rootCert);
     }
@@ -174,6 +197,7 @@ public class CertificateGenerator {
      */
     @SneakyThrows
     public void init() {
+        log.info("CertificateGenerator.init() started, mode: {}", config.getStorageMode());
         // Load or generate CA certificates
         loadOrGenerateCACertificates();
 
@@ -206,6 +230,9 @@ public class CertificateGenerator {
                 caResult.getCertificate(), userSubjectDN, email, iin, bin);
         CertificateData data = new CertificateData(email, iin, bin, caId, userCert);
         registry.storeUserCertificate(alias, data, keyPair);
+        if ("file".equals(config.getStorageMode())) {
+            saveCertificateKeyStore(userCert, keyPair.getPrivate(), caResult.getKeyPair().getPrivate(), caResult.getCertificate(), alias);
+        }
         return Map.entry(alias, data);
     }
 
@@ -232,25 +259,59 @@ public class CertificateGenerator {
     }
 
     /**
-     * Generate a new CA certificate.
+     * Generate a new legal entity certificate with shared company name and BIN.
      */
     @SneakyThrows
-    public Map.Entry<String, CertificateResult> generateCACertificate(String alias) {
+    public Map.Entry<String, CertificateData> generateLegalEntityCertificateWithShared(String caId) {
+        CertificateResult caResult = registry.getCACertificate(caId).orElseThrow(() ->
+                new IllegalArgumentException("Unknown CA: " + caId));
+
+        String alias = "legal-" + UUID.randomUUID().toString().substring(0, 8);
+        String legalEntitySubjectDN = CertificateDataGenerator.generateLegalEntitySubjectDN(SHARED_LEGAL_COMPANY, SHARED_LEGAL_BIN);
+        String email = CertificateDataGenerator.extractEmail(legalEntitySubjectDN);
+        String iin = CertificateDataGenerator.extractIIN(legalEntitySubjectDN);
+        String bin = CertificateDataGenerator.extractBIN(legalEntitySubjectDN);
+
+        KeyPair keyPair = generateKeyPair();
+        X509Certificate legalCert = generateUserCertificate(keyPair.getPublic(), caResult.getKeyPair().getPrivate(),
+                caResult.getCertificate(), legalEntitySubjectDN, email, iin, bin);
+        CertificateData data = new CertificateData(email, iin, bin, caId, legalCert);
+        registry.storeLegalCertificate(alias, data, keyPair);
+        if ("file".equals(config.getStorageMode())) {
+            saveCertificateKeyStore(legalCert, keyPair.getPrivate(), caResult.getKeyPair().getPrivate(), caResult.getCertificate(), alias);
+        }
+        return Map.entry(alias, data);
+    }
+
+    /**
+     * Generate a new CA certificate with uniqueness check.
+     */
+    @SneakyThrows
+    public Map.Entry<String, CertificateResult> generateAndStoreCACertificate(String alias) {
         if (alias == null || alias.trim().isEmpty()) {
             alias = DEFAULT_CA_ALIAS; // Use default alias if null/empty
         }
         if (registry.hasCACertificate(alias)) {
             throw new IllegalArgumentException("CA alias already exists: " + alias);
         }
-        CertificateResult result = generateCACertificate();
+        CertificateResult result = generateCACertificateInternal(alias);
         registry.storeCACertificate(alias, result);
         return Map.entry(alias, result);
     }
 
     @SneakyThrows
-    private CertificateResult generateNewCACertificate() {
+    private CertificateResult generateNewCACertificate(String alias) {
+        if (alias == null || alias.trim().isEmpty()) {
+            alias = DEFAULT_CA_ALIAS;
+        }
+        log.info("Generating new CA certificate with alias: {}", alias);
         KeyPair caKeyPair = generateKeyPair();
         X509Certificate rootCert = generateRootCA(caKeyPair);
+
+        // Always save CA certificate files
+        saveCertificate(rootCert, config.getCertsPath() + alias + ".crt");
+        saveCertificate(rootCert, config.getCertsPath() + alias + ".pem");
+
         return new CertificateResult(caKeyPair, rootCert);
     }
 
@@ -258,14 +319,14 @@ public class CertificateGenerator {
         Map<String, CertificateResult> loadedCAs = loadCACertificates();
         if (loadedCAs.isEmpty()) {
             // Generate default CA if no CAs are found
-            CertificateResult ca = generateNewCACertificate();
+            CertificateResult ca = generateCACertificateInternal(DEFAULT_CA_ALIAS);
             registry.storeCACertificate(DEFAULT_CA_ALIAS, ca);
         } else {
             // Add loaded CAs
             loadedCAs.forEach(registry::storeCACertificate);
             // Ensure there's always a default CA
             if (!registry.hasCACertificate(DEFAULT_CA_ALIAS)) {
-                CertificateResult ca = generateNewCACertificate();
+                CertificateResult ca = generateCACertificateInternal(DEFAULT_CA_ALIAS);
                 registry.storeCACertificate(DEFAULT_CA_ALIAS, ca);
             }
         }
@@ -276,7 +337,9 @@ public class CertificateGenerator {
         for (String caAlias : registry.getCACertificateAliases()) {
             Map<CertificateDataWithKey, String> loadedUsers = loadUserCertificates(caAlias);
             if (loadedUsers.isEmpty()) {
-                generateUserCertificate(caAlias);
+                for (int i = 0; i < config.getInitialUserCertificates(); i++) {
+                    generateUserCertificate(caAlias);
+                }
             } else {
                 loadedUsers.forEach((dataWithKey, alias) -> registry.addUserCertificate(alias, dataWithKey.getData(), dataWithKey.getKeyPair()));
             }
@@ -288,7 +351,9 @@ public class CertificateGenerator {
         for (String caAlias : registry.getCACertificateAliases()) {
             Map<CertificateDataWithKey, String> loadedLegal = loadLegalCertificates(caAlias);
             if (loadedLegal.isEmpty()) {
-                generateLegalEntityCertificate(caAlias);
+                for (int i = 0; i < config.getInitialLegalCertificates(); i++) {
+                    generateLegalEntityCertificateWithShared(caAlias);
+                }
             } else {
                 loadedLegal.forEach((dataWithKey, alias) -> registry.addLegalCertificate(alias, dataWithKey.getData(), dataWithKey.getKeyPair()));
             }
@@ -384,35 +449,57 @@ public class CertificateGenerator {
     private Map<CertificateDataWithKey, String> loadCertificates(String caAlias, CertificateType type) {
         Map<CertificateDataWithKey, String> loadedCerts = new HashMap<>();
         try {
-            // Try to load from ca-specific keystore first, then fallback to generic user.p12
-            Path p12Path = getCertificateFilePath(caAlias, type);
+            Path certsDir = Paths.get(config.getCertsPath());
+            if (!Files.exists(certsDir)) {
+                return loadedCerts;
+            }
+            String prefix = type.name().toLowerCase() + "-";
+            try (Stream<Path> paths = Files.walk(certsDir, 1)) {
+                paths.filter(path -> {
+                    String name = path.getFileName().toString();
+                    return name.startsWith(prefix) && name.endsWith(".p12");
+                }).forEach(p12Path -> {
+                    try {
+                        String alias = p12Path.getFileName().toString().replace(".p12", "");
+                        // Load from PKCS12 keystore
+                        X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
+                                p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
+                        PrivateKey privateKey = KeyStoreManager.loadPrivateKeyFromPKCS12(
+                                p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
 
-            if (!Files.exists(p12Path)) {
-                // Fallback to generic user.p12 for default CA only
-                if (DEFAULT_CA_ALIAS.equals(caAlias)) {
-                    p12Path = Paths.get(config.getCertsPath(), type.name().toLowerCase() + ".p12");
-                }
-                if (!Files.exists(p12Path)) {
-                    return loadedCerts;
+                        CertificateMetadata metadata = extractCertificateMetadata(cert);
+                        CertificateData data = new CertificateData(metadata.email, metadata.iin, metadata.bin, caAlias, cert);
+
+                        KeyPair keyPair = new KeyPair(cert.getPublicKey(), privateKey);
+                        CertificateDataWithKey dataWithKey = new CertificateDataWithKey(data, keyPair);
+                        loadedCerts.put(dataWithKey, alias);
+                    } catch (Exception e) {
+                        log.error("Error loading cert from {}", p12Path, e);
+                    }
+                });
+            }
+            // If no prefixed files, try the generic for backward compatibility
+            if (DEFAULT_CA_ALIAS.equals(caAlias) && loadedCerts.isEmpty()) {
+                Path p12Path = Paths.get(config.getCertsPath(), type.name().toLowerCase() + ".p12");
+                if (Files.exists(p12Path)) {
+                    try {
+                        String alias = type.name().toLowerCase();
+                        X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
+                                p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
+                        PrivateKey privateKey = KeyStoreManager.loadPrivateKeyFromPKCS12(
+                                p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
+
+                        CertificateMetadata metadata = extractCertificateMetadata(cert);
+                        CertificateData data = new CertificateData(metadata.email, metadata.iin, metadata.bin, caAlias, cert);
+
+                        KeyPair keyPair = new KeyPair(cert.getPublicKey(), privateKey);
+                        CertificateDataWithKey dataWithKey = new CertificateDataWithKey(data, keyPair);
+                        loadedCerts.put(dataWithKey, alias);
+                    } catch (Exception e) {
+                        log.error("Error loading cert from {}", p12Path, e);
+                    }
                 }
             }
-
-            // Load from PKCS12 keystore
-            X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
-                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
-            PrivateKey privateKey = KeyStoreManager.loadPrivateKeyFromPKCS12(
-                    p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
-
-            // Extract metadata from certificate
-            CertificateMetadata metadata = extractCertificateMetadata(cert);
-            CertificateData data = new CertificateData(
-                    metadata.email, metadata.iin, metadata.bin, caAlias, cert);
-
-            String alias = type.name().toLowerCase() + "-" + UUID.randomUUID().toString().substring(0, 8);
-            KeyPair keyPair = new KeyPair(cert.getPublicKey(), privateKey);
-            CertificateDataWithKey dataWithKey = new CertificateDataWithKey(data, keyPair);
-            loadedCerts.put(dataWithKey, alias);
-
         } catch (Exception e) {
             log.error("CERT_ERROR: ", e);
         }
@@ -436,6 +523,13 @@ public class CertificateGenerator {
         String bin = reader.extractBIN(cert);
 
         return new CertificateMetadata(email, iin, bin);
+    }
+
+    private void saveCertificateKeyStore(X509Certificate cert, PrivateKey privateKey, PrivateKey caPrivateKey, X509Certificate caCert, String baseName) throws Exception {
+        saveCertificate(cert, config.getCertsPath() + baseName + ".crt");
+        saveCertificate(cert, config.getCertsPath() + baseName + ".pem");
+        KeyStoreManager.createPKCS12Keystore(privateKey, cert, caCert, config.getCertsPath() + baseName + ".p12", config.getKeystorePassword(), provider.getName());
+        KeyStoreManager.createJKSKeystore(privateKey, cert, caCert, config.getCertsPath() + baseName + ".jks", config.getKeystorePassword(), provider.getName());
     }
 
     private KeyPair generateKeyPair() throws NoSuchAlgorithmException, NoSuchProviderException {

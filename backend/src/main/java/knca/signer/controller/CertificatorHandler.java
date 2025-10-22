@@ -292,11 +292,11 @@ public class CertificatorHandler {
 
     private String extractCaId(RoutingContext ctx) {
         var body = ctx.body().asJsonObject();
-        return body != null && body.containsKey("caId") ? body.getString("caId", "default") : "default";
+        return body != null && body.containsKey("caId") ? body.getString("caId", "ca") : "ca";
     }
 
     private String extractCaIdFromQuery(RoutingContext ctx) {
-        return ctx.queryParam("caId").stream().findFirst().orElse("default");
+        return ctx.queryParam("caId").stream().findFirst().orElse("ca");
     }
 
     private void sendJsonResponse(RoutingContext ctx, JsonObject json) {

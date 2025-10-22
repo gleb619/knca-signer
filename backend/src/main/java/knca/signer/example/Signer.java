@@ -19,6 +19,9 @@ public class Signer {
 
             // Create configuration (simulating what would be loaded from YAML)
             ApplicationConfig.CertificateConfig config = new ApplicationConfig.CertificateConfig(
+                    "file",
+                    1,
+                    1,
                     "certs/",
                     "certs/ca.crt",
                     2048,

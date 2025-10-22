@@ -79,6 +79,9 @@ public class ValidatorTest {
     void setUp() throws Exception {
         realProvider = KalkanRegistry.loadRealKalkanProvider();
         config = new ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 "certs/",
                 "certs/ca.crt",
                 2048,
@@ -181,6 +184,9 @@ public class ValidatorTest {
     @Test
     public void testCertificateConfigInValidator() {
         ApplicationConfig.CertificateConfig config = new ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 "certs/",
                 "certs/ca.crt",
                 2048,

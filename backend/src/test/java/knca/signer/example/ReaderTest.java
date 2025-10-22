@@ -28,6 +28,9 @@ class ReaderTest {
     @BeforeEach
     void setUp() throws Exception {
         config = new ApplicationConfig.CertificateConfig(
+                "in-memory",
+                3,
+                2,
                 tempDir.toString() + "/",
                 tempDir + "/ca.crt",
                 2048,
@@ -64,6 +67,9 @@ class ReaderTest {
         // It should handle the empty directory gracefully
         try {
             ApplicationConfig.CertificateConfig emptyConfig = new ApplicationConfig.CertificateConfig(
+                    "in-memory",
+                    3,
+                    2,
                     tempDir.toString() + "/",
                     tempDir + "/ca.crt",
                     2048,
@@ -149,6 +155,9 @@ class ReaderTest {
                 log.info("Using certificates from: {}", certsDir.toAbsolutePath());
 
                 ApplicationConfig.CertificateConfig realConfig = new ApplicationConfig.CertificateConfig(
+                        "in-memory",
+                        3,
+                        2,
                         certsPath,
                         certsPath + "ca.crt",
                         2048,
