@@ -95,3 +95,12 @@ const element = document.querySelector('[x-data="kncaApp"]');
 if(element) {
     element.style.removeProperty('display');
 }
+
+// Monthly class based on current month
+const monthClasses = [
+    '', 'month-1', 'month-2', 'month-3', 'month-4', 'month-5', 'month-6',
+    'month-7', 'month-8', 'month-9', 'month-10', 'month-11', 'month-12'
+];
+
+const currentMonth = new Date().getMonth() + 1; // JS months are 0-based
+document.body.classList.add(monthClasses[currentMonth]);

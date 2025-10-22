@@ -45,11 +45,13 @@ export default () => ({
         checkBinInSign: false,
         checkCertificateChain: false,
         checkPublicKey: false,
+        checkExtendedKeyUsage: false,
+        extendedKeyUsageOids: '',
         expectedIin: '',
         expectedBin: ''
     },
 
-    // Public key file handling
+    // File handling
     publicKeyFile: null,
     publicKeyFileName: '',
 
@@ -67,14 +69,12 @@ export default () => ({
             this.publicKeyFileName = file.name;
             this.publicKeyFile = file;
 
-            // Read file content as base64
+            // Read file content as text
             const reader = new FileReader();
             reader.onload = (e) => {
-                // Remove the data URL prefix (data:text/plain;base64,) and keep only base64 data
-                const base64Content = e.target.result.split(',')[1];
-                this.validationConfig.publicKey = base64Content;
+                this.validationConfig.publicKey = e.target.result;
             };
-            reader.readAsDataURL(file);
+            reader.readAsText(file);
         } else {
             this.publicKeyFileName = '';
             this.publicKeyFile = null;
@@ -88,20 +88,20 @@ export default () => ({
             this.caPemFileName = file.name;
             this.caPemFile = file;
 
-            // Read file content as base64
+            // Read file content as text
             const reader = new FileReader();
             reader.onload = (e) => {
-                // Remove the data URL prefix (data:text/plain;base64,) and keep only base64 data
-                const base64Content = e.target.result.split(',')[1];
-                this.validationConfig.caPem = base64Content;
+                this.validationConfig.caPem = e.target.result;
             };
-            reader.readAsDataURL(file);
+            reader.readAsText(file);
         } else {
             this.caPemFileName = '';
             this.caPemFile = null;
             this.validationConfig.caPem = '';
         }
     },
+
+
 
     async validateXml() {
         // Validation
@@ -131,6 +131,8 @@ export default () => ({
             if (!requestData.expectedBin.trim()) {
                 delete requestData.expectedBin;
             }
+
+            // Certificate content sent as plain text (backend will handle parsing)
 
             const response = await fetch('/api/verify', {
                 method: 'POST',
@@ -173,21 +175,23 @@ export default () => ({
         this.validationConfig.checkBinInSign = false;
         this.validationConfig.checkCertificateChain = false;
         this.validationConfig.checkPublicKey = false;
+        this.validationConfig.checkExtendedKeyUsage = false;
+        this.validationConfig.extendedKeyUsageOids = '';
         this.validationConfig.expectedIin = '';
         this.validationConfig.expectedBin = '';
-        // Reset public key file
-        this.publicKeyFile = null;
-        this.publicKeyFileName = '';
+        // Reset certificate content
         this.validationConfig.publicKey = '';
-        // Reset CA PEM file
-        this.caPemFile = null;
-        this.caPemFileName = '';
         this.validationConfig.caPem = '';
-        // Clear file inputs
+        // Reset file inputs
         const publicKeyFileInput = document.getElementById('publicKeyFile');
         if (publicKeyFileInput) publicKeyFileInput.value = '';
         const caPemFileInput = document.getElementById('caPemFile');
         if (caPemFileInput) caPemFileInput.value = '';
+        // Reset file properties
+        this.publicKeyFile = null;
+        this.publicKeyFileName = '';
+        this.caPemFile = null;
+        this.caPemFileName = '';
         this.validationResult = null;
     },
 
@@ -230,6 +234,39 @@ export default () => ({
     handleSignatureVerify(detail) {
         console.info("detail: ", detail);
         this.xmlContent = detail?.signature;
+    },
+
+    async handleCertificateSelection(detail) {
+        const { userCert, legalCert, caCert } = detail;
+        const cert = { ...userCert, ...legalCert };
+
+        // Pre-fill expected values from selected certificate
+        if (cert.iin != null && cert.iin !== '') {
+            this.validationConfig.expectedIin = cert.iin;
+            this.validationConfig.checkIinInCert = true;
+            this.validationConfig.checkIinInSign = true;
+        }
+        if (cert.bin != null && cert.bin !== '') {
+            this.validationConfig.expectedBin = cert.bin;
+            this.validationConfig.checkBinInCert = true;
+            this.validationConfig.checkBinInSign = true;
+        }
+
+        // Pre-fill CA certificate PEM for chain validation
+        if (caCert && typeof window !== 'undefined' && window.Alpine && window.Alpine.store) {
+            const certificateStore = window.Alpine.store('certificateStore');
+            if (certificateStore && certificateStore.fetchCaCert) {
+                try {
+                    const pem = await certificateStore.fetchCaCert();
+                    if (pem) {
+                        this.validationConfig.caPem = pem;
+                        this.validationConfig.checkCertificateChain = true;
+                    }
+                } catch (error) {
+                    console.warn('Failed to fetch CA certificate:', error);
+                }
+            }
+        }
     }
 
 });

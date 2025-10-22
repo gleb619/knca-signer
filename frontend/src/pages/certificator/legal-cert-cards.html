@@ -151,6 +151,7 @@
                         <div class="mt-2" x-show="getCertificateDetails(cert).position">
                             <span class="text-gray-500 text-xs uppercase font-medium">Position</span>
                             <p class="text-gray-700 text-sm truncate"
+                               :title="getCertificateDetails(cert).position"
                                x-text="translate(getCertificateDetails(cert).position) || getCertificateDetails(cert).position"></p>
                         </div>
 

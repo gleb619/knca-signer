@@ -6,7 +6,9 @@
      x-transition:leave="transition ease-in duration-200"
      x-transition:leave-end="opacity-0 transform -translate-x-4"
      x-transition:leave-start="opacity-100 transform translate-x-0">
-    <div @verify-signature.window="handleSignatureVerify($event.detail)" class="flex flex-col lg:flex-row gap-6" x-cloak
+    <div @certificate-selected.window="handleCertificateSelection($event.detail)"
+         @verify-signature.window="handleSignatureVerify($event.detail)"
+         class="flex flex-col lg:flex-row gap-6" x-cloak
          x-show="activeTab === 'xml-verifier'">
         <!-- Sidebar -->
         <div class="w-full lg:w-1/4">
@@ -84,6 +86,20 @@
                                   stroke-width="2"></path>
                         </svg>
                     </summary>
+
+                    <!-- Selected CA Certificate Mini Card -->
+                    <div hx-get="src/pages/signer/mini-cards.html"
+                         hx-target="this"
+                         hx-trigger="load lateLoad">
+                        <div class="text-center py-5">
+                            <div class="animate-pulse">
+                                <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
+                                <div class="h-4 bg-gray-300 rounded w-1/2 mx-auto"></div>
+                            </div>
+                            <p class="text-gray-600 mt-4">Loading cert cards...</p>
+                        </div>
+                    </div>
+
                     <div class="px-4 pb-4 space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-y-3 gap-x-6 space-y-4">
                             <div class="flex flex-col md:col-span-2">
@@ -168,40 +184,64 @@
                                 <p class="text-xs text-gray-300 mt-1"
                                    x-text="translate('checkCertificateChainHelp')"></p>
                             </div>
+                            <div class="flex flex-col">
+                                <label class="flex items-center space-x-2" for="checkExtendedKeyUsage">
+                                    <input class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                           id="checkExtendedKeyUsage"
+                                           type="checkbox"
+                                           x-model="validationConfig.checkExtendedKeyUsage">
+                                    <span class="text-sm text-gray-700"
+                                          x-text="translate('checkExtendedKeyUsage')"></span>
+                                </label>
+                                <p class="text-xs text-gray-300 mt-1"
+                                   x-text="translate('checkExtendedKeyUsageHelp')"></p>
+                            </div>
                         </div>
                         <div class="py-4" x-cloak x-show="validationConfig.checkPublicKey">
                             <label class="block text-sm font-medium text-gray-700 mb-2" for="publicKeyFile"
                                    x-text="translate('publicKeyPemFile')"></label>
+                            <textarea
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical font-mono text-sm mt-2"
+                                    id="publicKeyPemContent" rows="4"
+                                    x-bind:placeholder="translate('publicKeyPemContentPlaceholder')"
+                                    x-model="validationConfig.publicKey"></textarea>
+                            <p class="mt-1 text-xs text-gray-300" x-text="translate('pastePemContentDesc')"></p>
                             <input @change="handlePublicKeyFileChange($event)" accept=".pem" class="block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 transition-colors"
                                    id="publicKeyFile"
                                    type="file">
-                            <p class="mt-1 text-xs text-gray-300" x-text="translate('uploadPemFileDesc')"></p>
-                            <div class="mt-2 text-sm text-gray-600" x-show="publicKeyFileName">
-                                <span x-text="translate('selectedFile')"></span> <span class="font-medium"
-                                                                                       x-text="publicKeyFileName"></span>
-                            </div>
                         </div>
                         <div class="py-4" x-cloak x-show="validationConfig.checkCertificateChain">
                             <label class="block text-sm font-medium text-gray-700 mb-2" for="caPemFile"
                                    x-text="translate('caPemFile')"></label>
+                            <textarea
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical font-mono text-sm mt-2"
+                                    id="caPemContent"
+                                    rows="4"
+                                    x-bind:placeholder="translate('publicKeyPemContentPlaceholder')"
+                                    x-model="validationConfig.caPem"></textarea>
+                            <p class="mt-1 text-xs text-gray-300" x-text="translate('pastePemContentDesc')"></p>
                             <input @change="handleCaPemFileChange($event)" accept=".pem,.cer,.crt" class="block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 transition-colors"
                                    id="caPemFile"
                                    type="file">
-                            <p class="mt-1 text-xs text-gray-300" x-text="translate('uploadCaPemFileDesc')"></p>
-                            <div class="mt-2 text-sm text-gray-600" x-show="caPemFileName">
-                                <span x-text="translate('selectedFile')"></span> <span class="font-medium"
-                                                                                       x-text="caPemFileName"></span>
-                            </div>
+                        </div>
+                        <div class="py-4" x-cloak x-show="validationConfig.checkExtendedKeyUsage">
+                            <label class="block text-sm font-medium text-gray-700 mb-2" for="extendedKeyUsageOids"
+                                   x-text="translate('extendedKeyUsageOids')"></label>
+                            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                   id="extendedKeyUsageOids" type="text"
+                                   x-bind:placeholder="translate('extendedKeyUsageOidsPlaceholder')"
+                                   x-model="validationConfig.extendedKeyUsageOids">
+                            <p class="mt-1 text-xs text-gray-300" x-text="translate('extendedKeyUsageOidsDesc')"></p>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
+                            <div x-show="validationConfig.checkIinInCert || validationConfig.checkIinInSign">
                                 <label class="block text-sm font-medium text-gray-700 mb-1" for="expectedIin"
                                        x-text="translate('expectedIin')"></label>
                                 <input class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" id="expectedIin" type="text"
                                        x-bind:placeholder="translate('expectedIin')"
                                        x-model="validationConfig.expectedIin">
                             </div>
-                            <div>
+                            <div x-show="validationConfig.checkBinInCert || validationConfig.checkBinInSign">
                                 <label class="block text-sm font-medium text-gray-700 mb-1" for="expectedBin"
                                        x-text="translate('expectedBin')"></label>
                                 <input class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" id="expectedBin" type="text"
@@ -245,7 +285,7 @@
                                     x-text="translate('loadXMLExample')">
                             </button>
                             <button @click="xmlContent = xmlContentBase64; isArray = false; decode = true"
-                                    class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                                    class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors hidden"
                                     type="button"
                                     x-text="translate('loadBase64Example')">
                             </button>
@@ -314,7 +354,8 @@
                             Copy to Clipboard
                         </button>
                     </div>
-                    <div class="text-sm text-gray-500" x-show="!validationResult" x-text="translate('xmlContentDesc')">
+                    <div class="text-sm text-gray-500" x-show="!validationResult"
+                         x-text="translate('xmlVerificationDesc')">
                         The verification result will appear here after successful validation
                     </div>
                     <div x-show="validationResult" x-transition:enter="transition ease-out duration-300">

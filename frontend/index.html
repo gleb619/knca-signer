@@ -36,11 +36,11 @@
     <meta content="/src/assets/twitter-image.png" property="twitter:image">
 
     <!-- Favicon -->
-    <link href="/src/assets/favicon.ico" rel="icon" type="image/x-icon">
-    <link href="/src/assets/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180">
-    <link href="/src/assets/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png">
-    <link href="/src/assets/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png">
-    <link href="/src/assets/site.webmanifest" rel="manifest">
+    <link href="/favicon.ico" rel="icon" type="image/x-icon">
+    <link href="/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180">
+    <link href="/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png">
+    <link href="/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png">
+    <link href="/site.webmanifest" rel="manifest">
 
     <!-- Canonical URL -->
     <link href="https://pkigovkz.github.io/NCALayerJSExample/" rel="canonical">
@@ -48,6 +48,7 @@
     <!-- Theme Color -->
     <meta content="#2563eb" name="theme-color">
     <meta content="#2563eb" name="msapplication-TileColor">
+    <meta content="#2563eb" name="background-color">
 
     <!-- Preload critical resources -->
     <!--<link rel="preload" href="/src/knca-signer.js" as="script">-->
@@ -71,8 +72,9 @@
     <script src="/src/knca-signer.js" type="module"></script>
 </head>
 
-<body @app-started.document="onAppStarted($event.detail); $store.certificateStore.loadFromStorage();" class="bg-knca" style="display: none"
-      x-data="kncaApp">
+<body :class="{ 'active': loading, 'error-state': errorState} " @app-started.document="onAppStarted($event.detail); $store.certificateStore.loadFromStorage();"
+      class="app-bg"
+      style="display: none" x-data="kncaApp">
 
 <div class="flex justify-end p-3">
     <div class="relative inline-block w-10 mr-2 align-middle select-none">
@@ -205,6 +207,25 @@
     </div>
 
 </div>
+<footer class="text-center text-gray-500 text-sm py-4 mt-5" x-data="{ year: new Date().getFullYear() }">
+    <div class="flex flex-col items-center"
+         title="Permissive free software license that allows reuse within proprietary software provided all copies include the original license and copyright notice.">
+        <div class="text-xs mb-2">
+            KALKAN: <span x-text="health.kalkan"></span> |
+            VERSION: <span x-text="health.version"></span> |
+            BUILD: <span x-text="health.buildTimestamp"></span> |
+            COMMIT: <span x-text="health.buildCommit"></span> |
+            SOURCE: <span><a class="hover:text-gray-800" href="https://github.com/gleb619/knca-signer" target="_blank">github</a></span>
+            |
+            PASS: <span x-text="123456"></span>
+        </div>
+        <div class="text-xs">
+            © <span x-text="year"></span> <span class="font-semibold">KNCA Signer.</span> All rights reserved. <a
+                class="text-gray-500 hover:text-gray-700" href="https://github.com/gleb619/knca-signer/blob/main/LICENSE"
+                target="_blank">License</a>
+        </div>
+    </div>
+</footer>
 </body>
 
 </html>

@@ -100,7 +100,7 @@ export default {
     logMessage(direction, message_) {
         const timestamp = new Date().toLocaleTimeString();
         try {
-            const message = typeof message_ === 'string' ? JSON.parse(message_) : message_
+            const message = typeof message_ === 'string' ? (message_.startsWith('--') ? { type: 'ping' } : JSON.parse(message_)) : message_
             const logEntry = {
                 timestamp,
                 direction, // 'sent' or 'received'
@@ -120,7 +120,7 @@ export default {
     handleMessage(event) {
         const data = event.data;
         this.logMessage('received', data);
-        const parsed = JSON.parse(data);
+        const parsed = typeof data === 'string' ? (data.startsWith('--') ? { type: 'ping' } : JSON.parse(data)) : data
         if (parsed.status !== undefined) {
             // This is a signing response
             this.response = parsed;

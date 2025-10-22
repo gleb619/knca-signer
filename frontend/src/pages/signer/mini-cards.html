@@ -5,12 +5,12 @@
         x-text="translate('selectedCertificates')"></h4>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- Selected Certificate (User or Legal) Mini Card -->
-        <div :class="$store.certificateStore.selectedLegalCert ? 'bg-orange-50 border-l-4 border-orange-400' : 'bg-indigo-50 border-l-4 border-indigo-400'"
+        <div :class="$store.certificateStore.selectedLegalCert ? 'bg-orange-50 border-l-4 border-orange-400' : 'bg-green-50 border-l-4 border-green-400'"
              class="rounded-lg p-4" x-cloak
              x-show="$store.certificateStore.selectedUserCert || $store.certificateStore.selectedLegalCert">
             <div class="flex items-start justify-between">
                 <div class="flex items-start gap-3 flex-1">
-                    <div :class="$store.certificateStore.selectedLegalCert ? 'bg-gradient-to-br from-orange-400 to-orange-600' : 'bg-gradient-to-br from-indigo-400 to-indigo-600'"
+                    <div :class="$store.certificateStore.selectedLegalCert ? 'bg-gradient-to-br from-orange-400 to-orange-600' : 'bg-gradient-to-br from-green-400 to-green-600'"
                          class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm">
                         <span x-text="$store.certificateStore?.selectedUserCert?.initials || $store.certificateStore?.selectedLegalCert?.initials"></span>
                     </div>

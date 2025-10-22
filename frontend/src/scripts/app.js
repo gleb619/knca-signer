@@ -1,9 +1,15 @@
 export default () => ({
     isKK: true,
-
+    errorState: false,
+    health: {
+        kalkan: 'checking', // Kalkan library availability status
+        version: 'unknown', // Application version
+        buildTimestamp: 'unknown', // Build timestamp
+        buildCommit: 'unknown', // Build commit
+    },
     // Tab management
     activeTab: 'loader', // certificate-authority | xml-signer | xml-verifier | loader
-
+    loading: false,
     notifications: [],
 
     init() {
@@ -11,6 +17,11 @@ export default () => ({
         this.isKK = (localStorage.getItem('locale') || 'kk') == 'kk';
         console.log("[app] curr locale is: ", this.isKK);
         this.changeLocale(false);
+        this.checkHealth();
+        if(this.errorState) {
+            this.addNotification('error', 'Application will not work without KALKAN libraries');
+        }
+        setInterval(() => this.checkHealth(), 60000); // Check every minute
     },
 
     onAppStarted() {
@@ -71,6 +82,28 @@ export default () => ({
         const url = new URL(window.location);
         url.searchParams.set('tab', tab);
         window.history.pushState({}, '', url);
+
+        // Dispatch event for active animation
+        window.dispatchEvent(new CustomEvent('tabChange', { detail: { tab } }));
+    },
+
+    // Health check for error state
+    async checkHealth() {
+        try {
+            const response = await fetch('/health');
+            const data = await response.json();
+
+            // Update health data properties
+            this.health = {...data}
+
+            if (data.kalkan === 'not available') {
+                this.errorState = true;
+            } else {
+                this.errorState = false;
+            }
+        } catch (error) {
+            //ignore
+        }
     },
 
 });

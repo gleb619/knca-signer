@@ -213,13 +213,13 @@ test('expectedIin and expectedBin are string', () => {
   expect(instance.validationConfig.expectedBin).toBe('123456789012');
 });
 
-test('handlePublicKeyFileChange sets file and processes base64 content', () => {
+test('handlePublicKeyFileChange sets file and processes text content', () => {
   const instance = xmlVerifierTab();
 
   // Mock FileReader
   const mockReader = {
     onload: null,
-    readAsDataURL: vi.fn()
+    readAsText: vi.fn()
   };
   global.FileReader = vi.fn().mockImplementation(() => mockReader);
 
@@ -240,16 +240,17 @@ test('handlePublicKeyFileChange sets file and processes base64 content', () => {
   expect(instance.publicKeyFileName).toBe('test-public-key.pem');
   expect(instance.publicKeyFile).toBe(mockFile);
   expect(global.FileReader).toHaveBeenCalledTimes(1);
-  expect(mockReader.readAsDataURL).toHaveBeenCalledWith(mockFile);
+  expect(mockReader.readAsText).toHaveBeenCalledWith(mockFile);
 
-  // Simulate FileReader onload with base64 data
+  // Simulate FileReader onload with plain text data
+  const pemContent = '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n-----END PUBLIC KEY-----';
   mockReader.onload({
     target: {
-      result: 'data:text/plain;base64,dGVzdCBkYXRh'
+      result: pemContent
     }
   });
 
-  expect(instance.validationConfig.publicKey).toBe('dGVzdCBkYXRh');
+  expect(instance.validationConfig.publicKey).toBe(pemContent);
 });
 
 test('handlePublicKeyFileChange handles no file selected', () => {
@@ -275,13 +276,13 @@ test('handlePublicKeyFileChange handles no file selected', () => {
   expect(instance.validationConfig.publicKey).toBe('');
 });
 
-test('handleCaPemFileChange sets file and processes base64 content', () => {
+test('handleCaPemFileChange sets file and processes text content', () => {
   const instance = xmlVerifierTab();
 
   // Mock FileReader
   const mockReader = {
     onload: null,
-    readAsDataURL: vi.fn()
+    readAsText: vi.fn()
   };
   global.FileReader = vi.fn().mockImplementation(() => mockReader);
 
@@ -302,16 +303,17 @@ test('handleCaPemFileChange sets file and processes base64 content', () => {
   expect(instance.caPemFileName).toBe('test-ca.pem');
   expect(instance.caPemFile).toBe(mockFile);
   expect(global.FileReader).toHaveBeenCalledTimes(1);
-  expect(mockReader.readAsDataURL).toHaveBeenCalledWith(mockFile);
+  expect(mockReader.readAsText).toHaveBeenCalledWith(mockFile);
 
-  // Simulate FileReader onload with base64 data
+  // Simulate FileReader onload with plain text data
+  const pemContent = '-----BEGIN CERTIFICATE-----\nMIIDCjCCAfKgAwIBAgIJAJLKUYlFk0HSMA0GCSqGSIb3DQEBCwUAMFc...\n-----END CERTIFICATE-----';
   mockReader.onload({
     target: {
-      result: 'data:text/plain;base64,Y2EgZGF0YQ=='
+      result: pemContent
     }
   });
 
-  expect(instance.validationConfig.caPem).toBe('Y2EgZGF0YQ==');
+  expect(instance.validationConfig.caPem).toBe(pemContent);
 });
 
 test('handleCaPemFileChange handles no file selected', () => {
@@ -335,4 +337,179 @@ test('handleCaPemFileChange handles no file selected', () => {
   expect(instance.caPemFileName).toBe('');
   expect(instance.caPemFile).toBe(null);
   expect(instance.validationConfig.caPem).toBe('');
+});
+
+// Tests for handleCertificateSelection functionality
+test('handleCertificateSelection prefills expectedIin from userCert', async () => {
+  const instance = xmlVerifierTab();
+
+  const mockUserCert = {
+    iin: '123456789012'
+  };
+
+  const detail = {
+    userCert: mockUserCert,
+    legalCert: null,
+    caCert: null
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(instance.validationConfig.expectedIin).toBe('123456789012');
+  expect(instance.validationConfig.checkIinInCert).toBe(true);
+  expect(instance.validationConfig.checkIinInSign).toBe(true);
+  expect(instance.validationConfig.expectedBin).toBe(''); // unchanged
+});
+
+test('handleCertificateSelection prefills expectedBin from legalCert', async () => {
+  const instance = xmlVerifierTab();
+
+  const mockLegalCert = {
+    bin: '987654321098'
+  };
+
+  const detail = {
+    userCert: null,
+    legalCert: mockLegalCert,
+    caCert: null
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(instance.validationConfig.expectedBin).toBe('987654321098');
+  expect(instance.validationConfig.checkBinInCert).toBe(true);
+  expect(instance.validationConfig.checkBinInSign).toBe(true);
+  expect(instance.validationConfig.expectedIin).toBe(''); // unchanged
+});
+
+test('handleCertificateSelection prefills both iin and bin when both certs have values', async () => {
+  const instance = xmlVerifierTab();
+
+  const mockUserCert = {
+    iin: '123456789012'
+  };
+  const mockLegalCert = {
+    bin: '987654321098'
+  };
+
+  const detail = {
+    userCert: mockUserCert,
+    legalCert: mockLegalCert,
+    caCert: null
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(instance.validationConfig.expectedIin).toBe('123456789012');
+  expect(instance.validationConfig.checkIinInCert).toBe(true);
+  expect(instance.validationConfig.expectedBin).toBe('987654321098');
+  expect(instance.validationConfig.checkBinInCert).toBe(true);
+});
+
+test('handleCertificateSelection handles CA certificate and fetches PEM', async () => {
+  const instance = xmlVerifierTab();
+
+  const mockCaCert = {
+    alias: 'test-ca'
+  };
+
+  const mockPEM = '-----BEGIN CERTIFICATE-----\nMOCK_PEM\n-----END CERTIFICATE-----';
+
+  // Mock window.Alpine.store
+  global.window = {
+    ...global.window,
+    Alpine: {
+      store: vi.fn().mockReturnValue({
+        fetchCaCert: vi.fn().mockResolvedValue(mockPEM)
+      })
+    }
+  };
+
+  const detail = {
+    userCert: null,
+    legalCert: null,
+    caCert: mockCaCert
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(instance.validationConfig.caPem).toBe(mockPEM);
+  expect(instance.validationConfig.checkCertificateChain).toBe(true);
+
+  // Cleanup
+  delete global.window.Alpine;
+});
+
+test('handleCertificateSelection handles CA certificate fetch failure', async () => {
+  const instance = xmlVerifierTab();
+
+  const mockCaCert = {
+    alias: 'test-ca'
+  };
+
+  // Mock window.Alpine.store with failing fetch
+  global.window = {
+    ...global.window,
+    Alpine: {
+      store: vi.fn().mockReturnValue({
+        fetchCaCert: vi.fn().mockRejectedValue(new Error('Network error'))
+      })
+    }
+  };
+
+  // Spy on console.warn
+  const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+  const detail = {
+    userCert: null,
+    legalCert: null,
+    caCert: mockCaCert
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(consoleWarnSpy).toHaveBeenCalledWith('Failed to fetch CA certificate:', expect.any(Error));
+  expect(instance.validationConfig.caPem).toBeUndefined(); // Should remain undefined
+  expect(instance.validationConfig.checkCertificateChain).toBe(false); // Should remain false
+
+  consoleWarnSpy.mockRestore();
+  delete global.window.Alpine;
+});
+
+test('handleCertificateSelection ignores empty or null certificate values', async () => {
+  const instance = xmlVerifierTab();
+  instance.validationConfig.expectedIin = 'original';
+  instance.validationConfig.expectedBin = 'original';
+
+  const mockUserCert = {
+    iin: '' // empty string
+  };
+
+  const detail = {
+    userCert: mockUserCert,
+    legalCert: { bin: null },
+    caCert: null
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(instance.validationConfig.expectedIin).toBe('original'); // Should not change due to empty
+  expect(instance.validationConfig.expectedBin).toBe('original'); // Should not change due to null
+});
+
+test('handleCertificateSelection does nothing when no certificates selected', async () => {
+  const instance = xmlVerifierTab();
+
+  const detail = {
+    userCert: null,
+    legalCert: null,
+    caCert: null
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(instance.validationConfig.expectedIin).toBe('');
+  expect(instance.validationConfig.expectedBin).toBe('');
+  expect(instance.validationConfig.checkIinInCert).toBe(false);
+  expect(instance.validationConfig.checkBinInCert).toBe(false);
 });
