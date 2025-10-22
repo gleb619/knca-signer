@@ -107,9 +107,28 @@ task copyStatic(type: Copy) {
     into 'src/main/resources/static'
 }
 
-clean {
+task generateBuildInfo {
     doLast {
-        delete 'src/main/resources/static'
+        def buildInfoProps = new Properties()
+        buildInfoProps.setProperty('version', version)
+        buildInfoProps.setProperty('build.timestamp', new Date().format('yyyy-MM-dd HH:mm:ss Z'))
+        try {
+            def gitCommit = 'git rev-parse --short HEAD'.execute().text.trim()
+            buildInfoProps.setProperty('build.commit', gitCommit)
+        } catch (Exception e) {
+            buildInfoProps.setProperty('build.commit', 'unknown')
+        }
+        file('src/main/resources/build-info.properties').withWriter { writer ->
+            buildInfoProps.store(writer, 'Build Information')
+        }
     }
 }
 
+processResources.dependsOn generateBuildInfo
+
+clean {
+    doLast {
+        delete 'src/main/resources/static'
+        delete 'src/main/resources/build-info.properties'
+    }
+}

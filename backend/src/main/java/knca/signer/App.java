@@ -22,12 +22,22 @@ import knca.signer.controller.CertificatorHandler;
 import knca.signer.controller.VerifierHandler;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.InputStream;
+import java.util.Properties;
+
+import static knca.signer.kalkan.KalkanAdapter.isKalkanAvailable;
+import static knca.signer.util.Util.flattenEnvironmentVariables;
+
 @Slf4j
 public class App extends AbstractVerticle {
 
     private final ApplicationConfig config;
     private final BeanFactory beanFactory;
     private HttpServer httpServer;
+    private boolean kalkanAvailable;
+    private String appVersion = "unknown";
+    private String buildTimestamp = "unknown";
+    private String buildCommit = "unknown";
 
     public App(ApplicationConfig config, BeanFactory beanFactory) {
         this.config = config;
@@ -40,7 +50,10 @@ public class App extends AbstractVerticle {
                         .addStore(new ConfigStoreOptions()
                                 .setType("file")
                                 .setFormat("yaml")
-                                .setConfig(new JsonObject().put("path", "application.yaml"))))
+                                .setConfig(new JsonObject().put("path", "application.yaml")))
+                        .addStore(new ConfigStoreOptions()
+                                .setType("json")
+                                .setConfig(flattenEnvironmentVariables())))
                 .getConfig(ar -> {
                     if (ar.succeeded()) {
                         ApplicationConfig config = ar.result().mapTo(ApplicationConfig.class);
@@ -64,6 +77,8 @@ public class App extends AbstractVerticle {
         try {
             vertx.exceptionHandler(t -> log.error("Uncaught Vert.x exception: {}", t.getMessage(), t));
 
+            loadBuildInfo();
+            kalkanAvailable = isKalkanAvailable();
             httpServer = vertx.createHttpServer(new HttpServerOptions()
                     .setPort(config.getHttp().getPort())
                     .setHost(config.getHttp().getHost()));
@@ -109,6 +124,23 @@ public class App extends AbstractVerticle {
         });
     }
 
+    private void loadBuildInfo() {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream("build-info.properties")) {
+            if (is != null) {
+                Properties props = new Properties();
+                props.load(is);
+                this.appVersion = props.getProperty("version", "unknown");
+                this.buildTimestamp = props.getProperty("build.timestamp", "unknown");
+                this.buildCommit = props.getProperty("build.commit", "unknown");
+                log.info("Loaded build info - version: {}, commit: {}", appVersion, buildCommit);
+            } else {
+                log.warn("build-info.properties not found in resources");
+            }
+        } catch (Exception e) {
+            log.error("Failed to load build info", e);
+        }
+    }
+
     private void setupRoutes(Router router) {
         Handler<RoutingContext> errorWrapper = ctx -> {
             try {
@@ -139,7 +171,10 @@ public class App extends AbstractVerticle {
                     .end(new JsonObject()
                             .put("status", "healthy")
                             .put("service", "KNCA Signer")
-                            .put("version", "1.0.0")
+                            .put("version", appVersion)
+                            .put("buildTimestamp", buildTimestamp)
+                            .put("buildCommit", buildCommit)
+                            .put("kalkan", kalkanAvailable ? "available" : "not available")
                             .encode());
         });
 
@@ -151,7 +186,6 @@ public class App extends AbstractVerticle {
         router.get("/api/certificates/ca").handler(ch.handleGetCACertificate());
         router.get("/api/certificates/user").handler(ch.handleGetUserCertificate());
         router.get("/api/certificates/legal").handler(ch.handleGetLegalCertificate());
-        router.get("/api/certificates/filesystem").handler(ch.handleGetFilesystemCertificates());
         router.post("/api/certificates/generate/ca").handler(BodyHandler.create()).handler(ch.handleGenerateCACertificate());
         router.post("/api/certificates/generate/user").handler(BodyHandler.create()).handler(ch.handleGenerateUserCertificate());
         router.post("/api/certificates/generate/legal").handler(BodyHandler.create()).handler(ch.handleGenerateLegalCertificate());

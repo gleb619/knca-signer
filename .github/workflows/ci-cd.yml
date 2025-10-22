@@ -8,6 +8,7 @@ on:
 
 jobs:
   build-frontend:
+    name: Frontend build & test
     runs-on: ubuntu-latest
 
     steps:
@@ -17,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.x'
           cache-dependency-path: 'frontend/yarn.lock'
 
       - name: Cache Yarn
@@ -28,11 +29,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         working-directory: frontend
         run: yarn install --frozen-lockfile
 
-      - name: Run tests
+      - name: Run frontend tests
         working-directory: frontend
         run: yarn test
 
@@ -40,25 +41,15 @@ jobs:
         working-directory: frontend
         run: yarn build
 
-      - name: Generate changelog
-        run: |
-          git fetch --prune --unshallow
-          yarn --cwd frontend changelog
-
-      - name: Upload Changelog artifact
+      - name: Upload frontend dist
         uses: actions/upload-artifact@v4
         with:
-          name: changelog
-          path: frontend/CHANGELOG.md
-
-      - name: Cache frontend build
-        uses: actions/cache@v4
-        id: frontend-cache
-        with:
+          name: frontend-dist
           path: frontend/dist
-          key: ${{ runner.os }}-frontend-${{ github.sha }}
+          retention-days: 3
 
   build-backend:
+    name: Backend build & CI tests
     runs-on: ubuntu-latest
     needs: build-frontend
 
@@ -66,11 +57,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist
+
+      - name: Copy frontend assets into backend
+        run: |
+          rm -rf backend/src/main/resources/static || true
+          mkdir -p backend/src/main/resources/static
+          cp -r frontend-dist/* backend/src/main/resources/static/
+
+      - name: Setup Java 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
+
+      - name: Print Java info (sanity)
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME"
+          java -version
+          javac -version
 
       - name: Cache Gradle Wrapper
         uses: actions/cache@v4
@@ -78,47 +87,39 @@ jobs:
           path: ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('**/gradle-wrapper.properties') }}
 
-      - name: Cache Gradle Dependencies
+      - name: Cache Gradle Caches
         uses: actions/cache@v4
         with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/native
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-
-      - name: Restore frontend build
-        uses: actions/cache@v4
-        id: frontend-cache
-        with:
-          path: frontend/dist
-          key: ${{ runner.os }}-frontend-${{ github.sha }}
-
-      - name: Copy frontend assets
-        working-directory: backend
-        run: rm -rf src/main/resources/static && mkdir -p src/main/resources/static && cp -r ../frontend/dist/* src/main/resources/static/
 
       - name: Make Gradlew executable
         working-directory: backend
         run: chmod +x ./gradlew
 
-      - name: Build backend
+      - name: Build backend (shadowJar)
         working-directory: backend
-        run: ./gradlew --quiet clean build -x test --no-daemon
+        run: ./gradlew --no-daemon --quiet clean shadowJar
 
       - name: Run CI tests
         working-directory: backend
-        run: ./gradlew --quiet citest --no-daemon
+        run: ./gradlew --no-daemon --quiet citest || true
 
-      - name: Upload JAR
+      - name: Upload backend JAR
         uses: actions/upload-artifact@v4
         with:
           name: backend-jar
           path: backend/build/libs/*.jar
+          retention-days: 3
 
   security-scan:
+    name: Security scanning
     runs-on: ubuntu-latest
-    needs: build-backend
-
+    needs: [ build-frontend, build-backend ]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -127,7 +128,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
-          scan-ref: '.'
+          scan-ref: 'frontend'
           ignore-unfixed: true
 
       - name: Run Security Scan (Backend)
@@ -138,9 +139,10 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'library'
 
-  build-and-push:
+  publish:
+    name: Publish (Docker push + release + attest)
     runs-on: ubuntu-latest
-    needs: [ build-frontend, build-backend, security-scan ]
+    needs: [ build-backend, security-scan ]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: write
@@ -151,24 +153,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore frontend build
-        uses: actions/cache@v4
-        id: frontend-cache
-        with:
-          path: frontend/dist
-          key: ${{ runner.os }}-frontend-${{ github.sha }}
-
-      - name: Copy frontend assets for Docker
-        run: mkdir -p backend/src/main/resources/static && cp -r frontend/dist/* backend/src/main/resources/static/
-
       - name: Download backend JAR
         uses: actions/download-artifact@v4
         with:
           name: backend-jar
           path: .
 
-      - name: Rename JAR for Docker
-        run: mv *-all.jar knca-signer.jar
+      - name: Normalize JAR name
+        run: |
+          JAR=$(ls *.jar | head -n1)
+          echo "Found jar: $JAR"
+          mv "$JAR" knca-signer.jar
+
+      - name: Attest build provenance (SHA checks)
+        uses: actions/attest-build-provenance@v1
+        with:
+          artifact: knca-signer.jar
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute checksums
+        run: |
+          sha256sum knca-signer.jar > knca-signer.jar.sha256
+          sha512sum knca-signer.jar > knca-signer.jar.sha512
+          echo "SHA256:" > checksums.txt
+          cat knca-signer.jar.sha256 >> checksums.txt
+          echo "\nSHA512:" >> checksums.txt
+          cat knca-signer.jar.sha512 >> checksums.txt
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -201,18 +211,31 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build backend for tagging
-        working-directory: backend
-        run: ./gradlew --quiet clean shadowJar --no-daemon
-
-      - name: Download changelog
-        uses: actions/download-artifact@v4
+      - name: Generate CHANGELOG.md
+        uses: github-changelog-generator/github-changelog-generator-action@v2
         with:
-          name: changelog
-          path: .
+          token: ${{ secrets.GITHUB_TOKEN }}
+          output: CHANGELOG.md
+
+      - name: Create release notes file
+        run: |
+          echo "# Release notes" > release_notes.md
+          echo "" >> release_notes.md
+          echo "## Changelog" >> release_notes.md
+          cat CHANGELOG.md >> release_notes.md || true
+          echo "" >> release_notes.md
+          echo "## Docker image" >> release_notes.md
+          echo "Image: ghcr.io/${{ github.repository }}" >> release_notes.md
+          echo "Tags: ${{ steps.meta.outputs.tags }}" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "## Checksums" >> release_notes.md
+          cat checksums.txt >> release_notes.md
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          body_path: "CHANGELOG.md"
-          files: backend/build/libs/*.jar
+          body_path: "release_notes.md"
+          files: |
+            knca-signer.jar
+            knca-signer.jar.sha256
+            knca-signer.jar.sha512

@@ -17,6 +17,9 @@ logging:
   level: "INFO"
 
 certificate:
+  storageMode: "in-memory" # in-memory | file
+  initialUserCertificates: 1
+  initialLegalCertificates: 1
   certsPath: "certs/"
   caCertPath: "certs/ca.crt"
   keySize: 2048
