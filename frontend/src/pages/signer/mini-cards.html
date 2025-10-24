@@ -68,7 +68,7 @@
                                 <span x-text="translate('serial') + ':'">Serial:</span>
                                 <span :title="$store.certificateStore?.selectedCaCert?.serialNumber"
                                       class="font-mono ml-1 text-xs"
-                                      x-text="$store.certificateStore?.selectedCaCert?.serialNumber?.slice(-8) || 'N/A'"></span>
+                                      x-text="$store.certificateStore?.selectedCaCert?.serialNumber ? ($store.certificateStore.selectedCaCert.serialNumber.slice(0, 8) + '...' + $store.certificateStore.selectedCaCert.serialNumber.slice(-8)) : 'N/A'"></span>
                             </div>
                             <div>
                                 <span x-text="translate('validUntil') + ':'"></span>
