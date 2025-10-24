@@ -22,6 +22,28 @@ public class CertificateStorage {
 
     private final Storage storage;
 
+    /**
+     * Set shared company info for legal certificates of a CA.
+     */
+    public void setLegalCompanyInfo(String caAlias, String company, String bin) {
+        storage.getLegalCompanyInfos().put(caAlias, new LegalCompanyInfo(company, bin));
+    }
+
+    /**
+     * Get shared company info for legal certificates of a CA.
+     */
+    public Optional<LegalCompanyInfo> getLegalCompanyInfo(String caAlias) {
+        return Optional.ofNullable(storage.getLegalCompanyInfos().get(caAlias));
+    }
+
+    /**
+     * Get filesystem certificates.
+     */
+    @Deprecated(forRemoval = true)
+    public List<CertificateInfo> getFilesystemCertificates() {
+        return new ArrayList<>(storage.getFilesystemCertificates());
+    }
+
 
     /**
      * Get all certificates as a unified map.
@@ -194,10 +216,9 @@ public class CertificateStorage {
     }
 
     /**
-     * Get filesystem certificates.
+     * Record for legal company information.
      */
-    public List<CertificateInfo> getFilesystemCertificates() {
-        return new ArrayList<>(storage.getFilesystemCertificates());
+    public record LegalCompanyInfo(String company, String bin) {
     }
 
     /**
@@ -222,6 +243,8 @@ public class CertificateStorage {
         Map<String, CertificateData> userCertificates = new ConcurrentHashMap<>();
         Map<String, KeyPair> legalKeys = new ConcurrentHashMap<>();
         Map<String, CertificateData> legalCertificates = new ConcurrentHashMap<>();
+        Map<String, LegalCompanyInfo> legalCompanyInfos = new ConcurrentHashMap<>();
+        @Deprecated(forRemoval = true)
         Queue<CertificateInfo> filesystemCertificates = new ConcurrentLinkedQueue<>();
 
     }

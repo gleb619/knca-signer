@@ -2,6 +2,8 @@ package knca.signer.service;
 
 import knca.signer.config.ApplicationConfig;
 import knca.signer.controller.VerifierHandler.XmlValidationRequest;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -65,6 +67,7 @@ public class CertificateService {
         return validationService.validateXmlSignature(request);
     }
 
+    @Deprecated(forRemoval = true)
     public List<CertificateReader.CertificateInfo> getFilesystemCertificates() {
         return storage.getFilesystemCertificates();
     }
@@ -120,24 +123,18 @@ public class CertificateService {
         }
 
         // Generate file content based on format
-        byte[] data;
-        switch (format.toLowerCase()) {
-            case "crt":
-            case "pem":
+        byte[] data = switch (format.toLowerCase()) {
+            case "crt", "pem" ->
                 // Generate PEM certificate
-                data = generatePemCertificate(cert);
-                break;
-            case "p12":
+                    generatePemCertificate(cert);
+            case "p12" ->
                 // Generate PKCS12 keystore
-                data = generatePKCS12Keystore(privateKey, cert, caCert);
-                break;
-            case "jks":
+                    generatePKCS12Keystore(privateKey, cert, caCert);
+            case "jks" ->
                 // Generate JKS keystore
-                data = generateJKSKeystore(privateKey, cert, caCert);
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported format: " + format);
-        }
+                    generateJKSKeystore(privateKey, cert, caCert);
+            default -> throw new IllegalArgumentException("Unsupported format: " + format);
+        };
 
         return new CertificateDownloadData(filename, data);
     }
@@ -146,9 +143,9 @@ public class CertificateService {
     private byte[] generatePemCertificate(X509Certificate cert) {
         // Use existing PEM writing logic from CertificateGenerator
         java.io.StringWriter stringWriter = new java.io.StringWriter();
-        var kalkanProxy = knca.signer.kalkan.KalkanAdapter.createPEMWriter(stringWriter);
-        knca.signer.kalkan.KalkanAdapter.writeObject(kalkanProxy, cert);
-        knca.signer.kalkan.KalkanAdapter.flush(kalkanProxy);
+        var pemWriter = knca.signer.kalkan.KalkanAdapter.createPEMWriter(stringWriter);
+        pemWriter.writeObject(cert);
+        pemWriter.flush();
         return stringWriter.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
@@ -218,15 +215,15 @@ public class CertificateService {
     }
 
     // Nested classes for backward compatibility
-    @lombok.Data
-    @lombok.RequiredArgsConstructor
+    @Data
+    @RequiredArgsConstructor
     public static class CertificateResult {
         private final java.security.KeyPair keyPair;
         private final java.security.cert.X509Certificate certificate;
     }
 
-    @lombok.Data
-    @lombok.RequiredArgsConstructor
+    @Data
+    @RequiredArgsConstructor
     public static class CertificateData {
         private final String email;
         private final String iin;
@@ -235,16 +232,16 @@ public class CertificateService {
         private final java.security.cert.X509Certificate certificate;
     }
 
-    @lombok.Data
-    @lombok.AllArgsConstructor
+    @Data
+    @AllArgsConstructor
     public static class ValidationResult {
         private boolean valid;
         private String message;
         private Map<String, String> details;
     }
 
-    @lombok.Data
-    @lombok.AllArgsConstructor
+    @Data
+    @AllArgsConstructor
     public static class SignedData {
         private final String originalData;
         private final String signature;
@@ -268,8 +265,8 @@ public class CertificateService {
         }
     }
 
-    @lombok.Data
-    @lombok.AllArgsConstructor
+    @Data
+    @AllArgsConstructor
     public static class CertificateDownloadData {
         private final String filename;
         private final byte[] data;

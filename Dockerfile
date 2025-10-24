@@ -4,14 +4,14 @@ ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     TZ=Asia/Almaty \
     JAVA_OPTS="-XX:+UseG1GC -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.awt.headless=true -Djava.security.egd=file:/dev/urandom -Dfile.encoding=UTF-8 -DpreferIPv4Stack=true" \
-    HTTP_PORT="8080" \
-    HTTP_HOST="0.0.0.0" \
-    WEBSOCKET_PATH="/ws" \
-    STATIC_CONFIG_WEB_ROOT="static" \
-    LOGGING_LEVEL="WARN" \
-    CERTIFICATE_STORAGE_MODE="file" \
-    CERTIFICATE_CERTS_PATH="/app/certs/" \
-    CERTIFICATE_CA_CERT_PATH="/app/certs/ca.crt"
+    APP_HTTP_PORT="8080" \
+    APP_HTTP_HOST="0.0.0.0" \
+    APP_WEBSOCKET_PATH="/ws" \
+    APP_STATICCONFIG_WEBROOT="static" \
+    APP_LOGGING_LEVEL="WARN" \
+    APP_CERTIFICATE_STORAGEMODE="file" \
+    APP_CERTIFICATE_CERTSPATH="/app/certs/" \
+    APP_CERTIFICATE_CACERTPATH="/app/certs/ca.crt"
 
 WORKDIR /app
 

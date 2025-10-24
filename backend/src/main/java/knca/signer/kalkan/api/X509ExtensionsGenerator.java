@@ -1,6 +1,7 @@
 package knca.signer.kalkan.api;
 
 import knca.signer.kalkan.KalkanAdapter;
+import knca.signer.kalkan.KalkanConstants;
 import knca.signer.kalkan.KalkanProxy;
 
 /**
@@ -17,55 +18,71 @@ public interface X509ExtensionsGenerator {
      * Add an extension using a DEREncodable value
      */
     default void addExtension(String oid, boolean critical, Object value) {
-        KalkanAdapter.addExtension(getProxy(), oid, critical, value);
+        KalkanProxy derOid = KalkanAdapter.createDERObjectIdentifier(oid);
+        getProxy().invokeScript(
+                "realObject.addExtension(args[0], args[1], args[2])", derOid, critical, value);
     }
 
     /**
      * Add an extension using raw byte value
      */
     default void addExtension(String oid, boolean critical, byte[] value) {
-        KalkanAdapter.addExtension(getProxy(), oid, critical, value);
+        KalkanProxy derOid = KalkanAdapter.createDERObjectIdentifier(oid);
+        getProxy().invokeScript(
+                "realObject.addExtension(args[0], args[1], args[2])", derOid, critical, value);
     }
 
     /**
      * Add a BasicConstraints extension
      */
     default void addExtension(String oid, boolean critical, boolean booleanValue) {
-        KalkanAdapter.addExtension(getProxy(), oid, critical, booleanValue);
+        KalkanProxy derOid = KalkanAdapter.createDERObjectIdentifier(oid);
+        KalkanProxy basicConstraints = KalkanAdapter.createBasicConstraints(booleanValue);
+        getProxy().invokeScript(
+                "realObject.addExtension(args[0], args[1], args[2])", derOid, critical, basicConstraints);
     }
 
     /**
      * Add a KeyUsage extension
      */
     default void addExtension(String oid, boolean critical, int keyUsage) {
-        KalkanAdapter.addExtension(getProxy(), oid, critical, keyUsage);
+        KalkanProxy derOid = KalkanAdapter.createDERObjectIdentifier(oid);
+        KalkanProxy keyUsageObj = KalkanAdapter.createKeyUsage(keyUsage);
+        getProxy().invokeScript(
+                "realObject.addExtension(args[0], args[1], args[2])", derOid, critical, keyUsageObj);
     }
 
     /**
      * Add an extension using a KalkanProxy value
      */
     default void addExtension(String oid, boolean critical, KalkanProxy extensionValue) {
-        KalkanAdapter.addExtension(getProxy(), oid, critical, extensionValue);
+        KalkanProxy derOid = KalkanAdapter.createDERObjectIdentifier(oid);
+        getProxy().invokeScript(
+                "realObject.addExtension(args[0], args[1], args[2])", derOid, critical, extensionValue);
     }
 
     /**
      * Add an ExtendedKeyUsage extension for email protection
      */
     default void addExtendedKeyUsageEmailProtection() {
-        KalkanAdapter.addExtendedKeyUsageEmailProtection(getProxy());
+        KalkanProxy eku = KalkanAdapter.createDERSequence(KalkanAdapter.createDERObjectIdentifier(KalkanConstants.KeyPurposeId.id_kp_emailProtection));
+        addExtension(KalkanConstants.X509Extensions.ExtendedKeyUsage, false, eku);
     }
 
     /**
      * Generate the final X509Extensions object
      */
     default KalkanProxy generate() {
-        return KalkanAdapter.generateExtensions(getProxy());
+        return getProxy().invokeScript(
+                "realObject.generate()");
     }
 
     /**
      * Add Subject Alternative Name extension
      */
     default void addSubjectAlternativeName(KalkanProxy sanVector) {
-        KalkanAdapter.addSubjectAlternativeName(getProxy(), sanVector);
+        KalkanProxy sanSequence = KalkanAdapter.createDERSequence(sanVector);
+        KalkanProxy sanGeneralNames = KalkanAdapter.createGeneralNames(sanSequence);
+        addExtension(KalkanConstants.X509Extensions.SubjectAlternativeName, false, sanGeneralNames);
     }
 }

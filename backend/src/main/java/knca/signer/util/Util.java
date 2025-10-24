@@ -1,87 +1,120 @@
 package knca.signer.util;
 
 import io.vertx.core.json.JsonObject;
+import knca.signer.config.ApplicationConfig;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+
+import java.lang.reflect.Field;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.Map;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Util {
 
-    /**
-     * Convert environment variables to nested JSON structure for configuration override.
-     * Converts UPPER_UNDERSCORE format to nested lower.case.dot format.
-     *
-     * @return JsonObject containing nested environment variable structure
-     */
-    public static JsonObject flattenEnvironmentVariables() {
+    public static final char[] DIGITS = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    private static final String CONFIG_PACKAGE_PREFIX = "knca.signer.config";
+    private static final String ENV_VAR_PREFIX = "APP_";
+
+    public static ApplicationConfig createApplicationConfigFromEnv() {
         JsonObject root = new JsonObject();
+        Map<String, String> envToProperty = getEnvVarToPropertyMap();
 
         System.getenv().forEach((key, value) -> {
-            // Convert UPPER_UNDERSCORE format to lower.dot.case format
-            String flattenedKey = key.toLowerCase().replace('_', '.');
-
-            // Split the key into parts for nesting, filter out empty parts
-            String[] parts = flattenedKey.split("\\.");
-            java.util.List<String> filteredParts = new java.util.ArrayList<>();
-            for (String part : parts) {
-                if (!part.isEmpty()) {
-                    filteredParts.add(part);
-                }
+            String property = envToProperty.get(key);
+            if (property != null) {
+                buildNestedStructure(root, property, parseValue(value));
             }
-
-            if (filteredParts.isEmpty()) {
-                // Skip invalid env vars that result in empty keys
-                return;
-            }
-
-            // Try to parse as number if possible, otherwise keep as string
-            Object parsedValue = parseValue(value);
-
-            // Build nested structure
-            JsonObject current = root;
-            for (int i = 0; i < filteredParts.size() - 1; i++) {
-                String part = filteredParts.get(i);
-                Object existing = current.getValue(part);
-                JsonObject next;
-                if (existing == null) {
-                    next = new JsonObject();
-                    current.put(part, next);
-                } else if (existing instanceof JsonObject) {
-                    next = (JsonObject) existing;
-                } else {
-                    // Conflict: existing value is not a JsonObject, replace it
-                    next = new JsonObject();
-                    current.put(part, next);
-                }
-                current = next;
-            }
-
-            // Set the final value
-            String finalKey = filteredParts.get(filteredParts.size() - 1);
-            current.put(finalKey, parsedValue);
         });
 
-        return root;
+        return root.mapTo(ApplicationConfig.class);
     }
 
-    /**
-     * Parse string value to appropriate type (number or string).
-     */
-    public static Object parseValue(String value) {
-        // Try to parse as number if possible, otherwise keep as string
-        try {
-            if (value.matches("-?\\d+(\\.\\d+)?")) {
-                if (value.contains(".")) {
-                    return Double.parseDouble(value);
-                } else {
-                    return Long.parseLong(value);
-                }
+    private static void buildNestedStructure(JsonObject root, String property, Object value) {
+        String[] parts = property.split("\\.");
+        JsonObject current = root;
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            String part = parts[i];
+            if (part.isEmpty()) continue;
+
+            Object existing = current.getValue(part);
+            if (!(existing instanceof JsonObject)) {
+                existing = new JsonObject();
+                current.put(part, existing);
             }
-        } catch (NumberFormatException e) {
-            // Keep as string if not a valid number
-            return value;
+            current = (JsonObject) existing;
+        }
+
+        String finalKey = parts[parts.length - 1];
+        if (!finalKey.isEmpty()) {
+            current.put(finalKey, value);
+        }
+    }
+
+    private static Object parseValue(String value) {
+        if (value.matches("-?\\d+")) {
+            try {
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                return value;
+            }
+        }
+        if (value.matches("-?\\d+\\.\\d+")) {
+            try {
+                return Double.parseDouble(value);
+            } catch (NumberFormatException e) {
+                return value;
+            }
         }
         return value;
+    }
+
+    private static Map<String, String> getEnvVarToPropertyMap() {
+        Map<String, String> result = new HashMap<>();
+        extractFieldPaths("", ApplicationConfig.class, result);
+        return result;
+    }
+
+    private static void extractFieldPaths(String prefix, Class<?> clazz, Map<String, String> result) {
+        for (Field field : clazz.getDeclaredFields()) {
+            Class<?> fieldType = field.getType();
+            String currentPath = prefix.isEmpty() ? field.getName() : prefix + "." + field.getName();
+
+            if (isConfigClass(fieldType)) {
+                extractFieldPaths(currentPath, fieldType, result);
+            } else {
+                result.put(convertPropertyToEnvVar(currentPath), currentPath);
+            }
+        }
+    }
+
+    private static boolean isConfigClass(Class<?> clazz) {
+        Package pkg = clazz.getPackage();
+        return pkg != null && pkg.getName().startsWith(CONFIG_PACKAGE_PREFIX);
+    }
+
+    private static String convertPropertyToEnvVar(String propertyPath) {
+        return ENV_VAR_PREFIX + propertyPath.toUpperCase().replace(".", "_");
+    }
+
+    public static LocalDateTime toLocalDateTime(java.time.Instant instant) {
+        return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+    }
+
+    public static String encodeStr(byte[] aInput) {
+        if (aInput == null) return null;
+
+        StringBuilder result = new StringBuilder(aInput.length * 2);
+
+        for (byte b : aInput) {
+            result.append(DIGITS[(b & 240) >> 4])
+                    .append(DIGITS[b & 15]);
+        }
+
+        return result.toString();
     }
 
 }

@@ -20,13 +20,13 @@ import knca.signer.config.ApplicationConfig;
 import knca.signer.config.BeanFactory;
 import knca.signer.controller.CertificatorHandler;
 import knca.signer.controller.VerifierHandler;
+import knca.signer.util.Util;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
 import java.util.Properties;
 
 import static knca.signer.kalkan.KalkanAdapter.isKalkanAvailable;
-import static knca.signer.util.Util.flattenEnvironmentVariables;
 
 @Slf4j
 public class App extends AbstractVerticle {
@@ -50,14 +50,14 @@ public class App extends AbstractVerticle {
                         .addStore(new ConfigStoreOptions()
                                 .setType("file")
                                 .setFormat("yaml")
-                                .setConfig(new JsonObject().put("path", "application.yaml")))
-                        .addStore(new ConfigStoreOptions()
-                                .setType("json")
-                                .setConfig(flattenEnvironmentVariables())))
+                                .setConfig(new JsonObject().put("path", "application.yaml"))))
                 .getConfig(ar -> {
                     if (ar.succeeded()) {
-                        ApplicationConfig config = ar.result().mapTo(ApplicationConfig.class);
-                        vertx.deployVerticle(new App(config, new BeanFactory(vertx, config)), d -> {
+                        JsonObject yamlConfigJson = ar.result();
+                        ApplicationConfig yamlConfig = yamlConfigJson.mapTo(ApplicationConfig.class)
+                                .merge(Util.createApplicationConfigFromEnv());
+
+                        vertx.deployVerticle(new App(yamlConfig, new BeanFactory(vertx, yamlConfig)), d -> {
                             if (d.succeeded()) {
                                 log.info("Deployed successfully");
                             } else {

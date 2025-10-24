@@ -41,9 +41,8 @@ dependencies {
     compileOnly 'org.projectlombok:lombok:1.18.30'
     annotationProcessor 'org.projectlombok:lombok:1.18.30'
 
-    /* bytecode for proxies */
-    implementation 'net.bytebuddy:byte-buddy:1.17.7'
-    runtimeOnly 'net.bytebuddy:byte-buddy-agent:1.17.7'
+    /* scripting engine */
+    implementation 'org.mvel:mvel2:2.5.1.Final'
 
     /* tests */
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'

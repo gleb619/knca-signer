@@ -3,11 +3,7 @@ package knca.signer.service;
 import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanAdapter;
 import knca.signer.kalkan.KalkanConstants;
-import knca.signer.kalkan.KalkanProxy;
-import knca.signer.kalkan.api.PEMWriter;
-import knca.signer.kalkan.api.V3TBSCertificateGenerator;
-import knca.signer.kalkan.api.X509ExtensionsGenerator;
-import knca.signer.kalkan.api.X509V3CertificateGenerator;
+import knca.signer.kalkan.api.*;
 import knca.signer.service.CertificateService.CertificateData;
 import knca.signer.service.CertificateService.CertificateResult;
 import lombok.RequiredArgsConstructor;
@@ -37,10 +33,6 @@ import static knca.signer.kalkan.KalkanConstants.ROOT_SUBJECT_DN;
 public class CertificateGenerator {
 
     private static final String DEFAULT_CA_ALIAS = "ca";
-    @Deprecated(forRemoval = true)
-    private static final String SHARED_LEGAL_COMPANY = "ҚАЗАҚСТАН ЖОЛ СЕРВИСІ";
-    @Deprecated(forRemoval = true)
-    private static final String SHARED_LEGAL_BIN = "123456789012";
 
     private final java.security.Provider provider;
     private final ApplicationConfig.CertificateConfig config;
@@ -103,6 +95,9 @@ public class CertificateGenerator {
         saveCertificate(rootCert, config.getCertsPath() + alias + ".crt");
         saveCertificate(rootCert, config.getCertsPath() + alias + ".pem");
 
+        // Save CA private key in PKCS8 format
+        savePrivateKey(caKeyPair.getPrivate(), config.getCertsPath() + alias + ".key");
+
         return new CertificateResult(caKeyPair, rootCert);
     }
 
@@ -113,10 +108,10 @@ public class CertificateGenerator {
         log.info("\nGenerating User Certificate...");
 
         // Generate user info
-        String userSubjectDN = CertificateDataGenerator.generateIndividualSubjectDN();
-        String email = CertificateDataGenerator.extractEmail(userSubjectDN);
-        String iin = CertificateDataGenerator.extractIIN(userSubjectDN);
-        String bin = CertificateDataGenerator.extractBIN(userSubjectDN);
+        String userSubjectDN = CertificateDataPopulator.populateIndividualSubjectDN();
+        String email = CertificateDataPopulator.extractEmail(userSubjectDN);
+        String iin = CertificateDataPopulator.extractIIN(userSubjectDN);
+        String bin = CertificateDataPopulator.extractBIN(userSubjectDN);
 
         // Print user info
         log.info("""
@@ -154,11 +149,12 @@ public class CertificateGenerator {
     public void generateLegalEntityCertificate(KeyPair caKeyPair, X509Certificate rootCert) throws Exception {
         log.info("\nGenerating Legal Entity Certificate...");
 
-        // Generate legal entity info
-        String legalEntitySubjectDN = CertificateDataGenerator.generateLegalEntitySubjectDN();
-        String email = CertificateDataGenerator.extractEmail(legalEntitySubjectDN);
-        String iin = CertificateDataGenerator.extractIIN(legalEntitySubjectDN);
-        String bin = CertificateDataGenerator.extractBIN(legalEntitySubjectDN);
+        // Generate legal entity info using shared company and BIN
+        var entry = getOrGenerateSharedLegalEntityInfo(DEFAULT_CA_ALIAS);
+        String legalEntitySubjectDN = CertificateDataPopulator.populateLegalEntitySubjectDN(entry.getKey(), entry.getValue());
+        String email = CertificateDataPopulator.extractEmail(legalEntitySubjectDN);
+        String iin = CertificateDataPopulator.extractIIN(legalEntitySubjectDN);
+        String bin = CertificateDataPopulator.extractBIN(legalEntitySubjectDN);
 
         // Print legal entity info
         log.info("""
@@ -220,10 +216,10 @@ public class CertificateGenerator {
                 new IllegalArgumentException("Unknown CA: " + caId));
 
         String alias = "user-" + UUID.randomUUID().toString().substring(0, 8);
-        String userSubjectDN = CertificateDataGenerator.generateIndividualSubjectDN();
-        String email = CertificateDataGenerator.extractEmail(userSubjectDN);
-        String iin = CertificateDataGenerator.extractIIN(userSubjectDN);
-        String bin = CertificateDataGenerator.extractBIN(userSubjectDN);
+        String userSubjectDN = CertificateDataPopulator.populateIndividualSubjectDN();
+        String email = CertificateDataPopulator.extractEmail(userSubjectDN);
+        String iin = CertificateDataPopulator.extractIIN(userSubjectDN);
+        String bin = CertificateDataPopulator.extractBIN(userSubjectDN);
 
         KeyPair keyPair = generateKeyPair();
         X509Certificate userCert = generateUserCertificate(keyPair.getPublic(), caResult.getKeyPair().getPrivate(),
@@ -245,10 +241,11 @@ public class CertificateGenerator {
                 new IllegalArgumentException("Unknown CA: " + caId));
 
         String alias = "legal-" + UUID.randomUUID().toString().substring(0, 8);
-        String legalEntitySubjectDN = CertificateDataGenerator.generateLegalEntitySubjectDN();
-        String email = CertificateDataGenerator.extractEmail(legalEntitySubjectDN);
-        String iin = CertificateDataGenerator.extractIIN(legalEntitySubjectDN);
-        String bin = CertificateDataGenerator.extractBIN(legalEntitySubjectDN);
+        var entry = getOrGenerateSharedLegalEntityInfo(caId);
+        String legalEntitySubjectDN = CertificateDataPopulator.populateLegalEntitySubjectDN(entry.getKey(), entry.getValue());
+        String email = CertificateDataPopulator.extractEmail(legalEntitySubjectDN);
+        String iin = CertificateDataPopulator.extractIIN(legalEntitySubjectDN);
+        String bin = CertificateDataPopulator.extractBIN(legalEntitySubjectDN);
 
         KeyPair keyPair = generateKeyPair();
         X509Certificate legalCert = generateUserCertificate(keyPair.getPublic(), caResult.getKeyPair().getPrivate(),
@@ -267,10 +264,11 @@ public class CertificateGenerator {
                 new IllegalArgumentException("Unknown CA: " + caId));
 
         String alias = "legal-" + UUID.randomUUID().toString().substring(0, 8);
-        String legalEntitySubjectDN = CertificateDataGenerator.generateLegalEntitySubjectDN(SHARED_LEGAL_COMPANY, SHARED_LEGAL_BIN);
-        String email = CertificateDataGenerator.extractEmail(legalEntitySubjectDN);
-        String iin = CertificateDataGenerator.extractIIN(legalEntitySubjectDN);
-        String bin = CertificateDataGenerator.extractBIN(legalEntitySubjectDN);
+        var entry = getOrGenerateSharedLegalEntityInfo(caId);
+        String legalEntitySubjectDN = CertificateDataPopulator.populateLegalEntitySubjectDN(entry.getKey(), entry.getValue());
+        String email = CertificateDataPopulator.extractEmail(legalEntitySubjectDN);
+        String iin = CertificateDataPopulator.extractIIN(legalEntitySubjectDN);
+        String bin = CertificateDataPopulator.extractBIN(legalEntitySubjectDN);
 
         KeyPair keyPair = generateKeyPair();
         X509Certificate legalCert = generateUserCertificate(keyPair.getPublic(), caResult.getKeyPair().getPrivate(),
@@ -386,8 +384,15 @@ public class CertificateGenerator {
                     String filename = caCertPath.getFileName().toString();
                     String alias = filename.substring(0, filename.lastIndexOf('.')); // e.g., "ca2" from "ca2.crt"
 
-                    // Try to load corresponding private key
-                    Path caKeyPath = Paths.get(config.getCertsPath(), alias + ".pem");
+                    // Try to load corresponding private key - prefer .key file, fallback to .pem for backward compatibility
+                    Path caKeyPath = Paths.get(config.getCertsPath(), alias + ".key");
+                    if (!Files.exists(caKeyPath)) {
+                        // Fallback to old .pem location for backward compatibility
+                        caKeyPath = Paths.get(config.getCertsPath(), alias + ".pem");
+                        if (Files.exists(caKeyPath)) {
+                            log.warn("CA private key found in deprecated location: {}. Please regenerate certificates to use .key files", caKeyPath);
+                        }
+                    }
                     CertificateResult result = loadCACertificateFromFiles(caCertPath, caKeyPath);
                     if (result != null) {
                         loadedCAs.put(alias, result);
@@ -415,20 +420,37 @@ public class CertificateGenerator {
         // Try to load CA private key
         PrivateKey caPrivateKey = null;
         if (Files.exists(caKeyPath)) {
-            String keyText = Files.readString(caKeyPath);
-            // Remove PEM headers and decode
-            keyText = keyText.replaceAll("-----[A-Z ]*-----", "").replaceAll("\\s", "");
-            byte[] keyBytes = Base64.getDecoder().decode(keyText);
+            try {
+                String keyText = Files.readString(caKeyPath);
+                if (keyText.contains("BEGIN PRIVATE KEY")) {
+                    // This is a private key file
+                    keyText = keyText.replaceAll("-----[A-Z ]*-----", "").replaceAll("\\s", "");
+                    byte[] keyBytes = Base64.getDecoder().decode(keyText);
 
-            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-            KeyFactory keyFactory = KeyFactory.getInstance(config.getKeyFactoryType(), provider.getName());
-            caPrivateKey = keyFactory.generatePrivate(keySpec);
+                    PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+                    KeyFactory keyFactory = KeyFactory.getInstance(config.getKeyFactoryType(), provider.getName());
+                    caPrivateKey = keyFactory.generatePrivate(keySpec);
+                } else if (keyText.contains("BEGIN CERTIFICATE")) {
+                    // This is actually a certificate file (old format), not a private key
+                    log.warn("Key path {} contains certificate instead of private key. Key/cert mismatch detected.", caKeyPath);
+                } else {
+                    // Try to parse as private key anyway, in case it's a raw key format
+                    keyText = keyText.replaceAll("-----[A-Z ]*-----", "").replaceAll("\\s", "");
+                    byte[] keyBytes = Base64.getDecoder().decode(keyText);
+
+                    PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+                    KeyFactory keyFactory = KeyFactory.getInstance(config.getKeyFactoryType(), provider.getName());
+                    caPrivateKey = keyFactory.generatePrivate(keySpec);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to load private key from {}: {}. Generating new key pair.", caKeyPath, e.getMessage());
+            }
         }
 
         if (caPrivateKey == null) {
-            // Generate a new key pair if private key is missing
-            KeyPair keyPair = generateKeyPair();
-            return new CertificateResult(keyPair, caCert);
+            // Private key is missing or invalid, return null to force regeneration
+            log.info("No valid private key found for CA certificate {}. Will regenerate CA.", caCertPath);
+            return null;
         } else {
             // Create CertificateResult with loaded key
             KeyPair keyPair = new KeyPair(caCert.getPublicKey(), caPrivateKey);
@@ -556,7 +578,7 @@ public class CertificateGenerator {
     }
 
     private X509Certificate generateRootCA(KeyPair keyPair) throws Exception {
-        V3TBSCertificateGenerator tbsGen = KalkanAdapter.createV3TBSCertificateGenerator();
+        TBSCertificateManager tbsManager = KalkanAdapter.createTBSCertificateManager();
 
         // Set certificate fields
         SecureRandom random = new SecureRandom();
@@ -564,34 +586,34 @@ public class CertificateGenerator {
         while (serNum[0] < 16) {
             random.nextBytes(serNum);
         }
-        tbsGen.setSerialNumber(serNum);
-        tbsGen.setSignature(config.getSignatureAlgorithm());
-        tbsGen.setIssuer(ROOT_SUBJECT_DN);
-        tbsGen.setSubject(ROOT_SUBJECT_DN);
-        tbsGen.setSubjectPublicKeyInfo(keyPair.getPublic());
+        tbsManager.setSerialNumber(serNum);
+        tbsManager.setSignature(config.getSignatureAlgorithm());
+        tbsManager.setIssuer(ROOT_SUBJECT_DN);
+        tbsManager.setSubject(ROOT_SUBJECT_DN);
+        tbsManager.setSubjectPublicKeyInfo(keyPair.getPublic());
 
         // Validity period
         Calendar cal = Calendar.getInstance();
         Date nowDate = cal.getTime();
         cal.add(Calendar.YEAR, config.getCaValidityYears());
         Date nextDate = cal.getTime();
-        tbsGen.setStartDate(nowDate);
-        tbsGen.setEndDate(nextDate);
+        tbsManager.setStartDate(nowDate);
+        tbsManager.setEndDate(nextDate);
 
         // Extensions
         X509ExtensionsGenerator extGen = KalkanAdapter.createX509ExtensionsGenerator();
         extGen.addExtension(KalkanConstants.X509Extensions.BasicConstraints, true, true);
         extGen.addExtension(KalkanConstants.X509Extensions.KeyUsage, true, KalkanConstants.KeyUsage.keyCertSign | KalkanConstants.KeyUsage.cRLSign);
         var extResult = extGen.generate();
-        tbsGen.setExtensions(extResult.getResult());
+        tbsManager.setExtensions(extResult.getResult());
 
         // Generate TBS certificate
-        var tbsResult = tbsGen.generateTBSCertificate();
+        var tbsResult = tbsManager.generateTBSCertificate();
 
         // Sign the certificate
         Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
         sig.initSign(keyPair.getPrivate());
-        byte[] derEncoded = KalkanAdapter.getDEREncoded(tbsResult);
+        byte[] derEncoded = tbsManager.getDEREncoded(tbsResult);
         sig.update(derEncoded);
         byte[] signature = sig.sign();
 
@@ -604,7 +626,7 @@ public class CertificateGenerator {
     private X509Certificate generateUserCertificate(PublicKey userPublicKey, PrivateKey caPrivateKey,
                                                     X509Certificate caCert, String subjectDN, String email,
                                                     String iin, String bin) throws Exception {
-        V3TBSCertificateGenerator tbsGen = KalkanAdapter.createV3TBSCertificateGenerator();
+        TBSCertificateManager tbsManager = KalkanAdapter.createTBSCertificateManager();
 
         // Set certificate fields
         SecureRandom random = new SecureRandom();
@@ -612,19 +634,19 @@ public class CertificateGenerator {
         while (serNum[0] < 16) {
             random.nextBytes(serNum);
         }
-        tbsGen.setSerialNumber(serNum);
-        tbsGen.setSignature(config.getSignatureAlgorithm());
-        tbsGen.setIssuer(caCert.getSubjectDN().getName());
-        tbsGen.setSubject(subjectDN);
-        tbsGen.setSubjectPublicKeyInfo(userPublicKey);
+        tbsManager.setSerialNumber(serNum);
+        tbsManager.setSignature(config.getSignatureAlgorithm());
+        tbsManager.setIssuer(caCert.getSubjectDN().getName());
+        tbsManager.setSubject(subjectDN);
+        tbsManager.setSubjectPublicKeyInfo(userPublicKey);
 
         // Validity period
         Calendar cal = Calendar.getInstance();
         Date nowDate = cal.getTime();
         cal.add(Calendar.YEAR, config.getUserValidityYears());
         Date nextDate = cal.getTime();
-        tbsGen.setStartDate(nowDate);
-        tbsGen.setEndDate(nextDate);
+        tbsManager.setStartDate(nowDate);
+        tbsManager.setEndDate(nextDate);
 
         // Extensions
         X509ExtensionsGenerator extGen = KalkanAdapter.createX509ExtensionsGenerator();
@@ -635,24 +657,24 @@ public class CertificateGenerator {
         extGen.addExtendedKeyUsageEmailProtection();
 
         // Subject Alternative Name with IIN and BIN
-        KalkanProxy sanVector = KalkanAdapter.createASN1EncodableVector();
-        KalkanAdapter.addGeneralNameEmail(sanVector, email);
-        KalkanAdapter.addGeneralNameOtherName(sanVector, CertificateDataGenerator.IIN_OID, iin);
+        ASN1EncodableVector sanVector = KalkanAdapter.createASN1EncodableVectorWrapper();
+        sanVector.addGeneralNameEmail(email);
+        sanVector.addGeneralNameOtherName(CertificateDataPopulator.IIN_OID, iin);
         if (bin != null) {
-            KalkanAdapter.addGeneralNameOtherName(sanVector, CertificateDataGenerator.BIN_OID, bin);
+            sanVector.addGeneralNameOtherName(CertificateDataPopulator.BIN_OID, bin);
         }
-        extGen.addSubjectAlternativeName(sanVector);
+        extGen.addSubjectAlternativeName(sanVector.getProxy());
 
         var extResult = extGen.generate();
-        tbsGen.setExtensions(extResult.getResult());
+        tbsManager.setExtensions(extResult.getResult());
 
         // Generate TBS certificate
-        var tbsResult = tbsGen.generateTBSCertificate();
+        var tbsResult = tbsManager.generateTBSCertificate();
 
         // Sign the certificate
         Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
         sig.initSign(caPrivateKey);
-        byte[] derEncoded = KalkanAdapter.getDEREncoded(tbsResult);
+        byte[] derEncoded = tbsManager.getDEREncoded(tbsResult);
         sig.update(derEncoded);
         byte[] signature = sig.sign();
 
@@ -671,6 +693,37 @@ public class CertificateGenerator {
         Path path = Paths.get(filename);
         Files.createDirectories(path.getParent());
         Files.write(path, pem.getBytes(), StandardOpenOption.CREATE);
+    }
+
+    /**
+     * Get or generate shared legal entity info (company and BIN) for the given CA.
+     */
+    private Map.Entry<String, String> getOrGenerateSharedLegalEntityInfo(String caAlias) {
+        var infoOpt = registry.getLegalCompanyInfo(caAlias);
+        if (infoOpt.isPresent()) {
+            var info = infoOpt.get();
+            return Map.entry(info.company(), info.bin());
+        } else {
+            String company = CertificateDataPopulator.populateCompany();
+            String bin = CertificateDataPopulator.populateBIN();
+            registry.setLegalCompanyInfo(caAlias, company, bin);
+            return Map.entry(company, bin);
+        }
+    }
+
+    private void savePrivateKey(PrivateKey privateKey, String filename) throws Exception {
+        // Convert to PKCS8 encoded format
+        PKCS8EncodedKeySpec pkcs8KeySpec = new PKCS8EncodedKeySpec(privateKey.getEncoded());
+
+        // Create PEM format with proper headers
+        String base64Key = Base64.getEncoder().encodeToString(pkcs8KeySpec.getEncoded());
+        String pemKey = "-----BEGIN PRIVATE KEY-----\n" +
+                base64Key.replaceAll("(.{64})", "$1\n") +
+                "\n-----END PRIVATE KEY-----\n";
+
+        Path path = Paths.get(filename);
+        Files.createDirectories(path.getParent());
+        Files.write(path, pemKey.getBytes(), StandardOpenOption.CREATE);
     }
 
 }

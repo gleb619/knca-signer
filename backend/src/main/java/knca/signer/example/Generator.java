@@ -6,6 +6,8 @@ import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateStorage;
 import lombok.extern.slf4j.Slf4j;
 
+import java.security.Provider;
+
 /**
  * Main entry point for certificate generation.
  * Now uses the new instance-based CertificateGenerator.
@@ -16,7 +18,7 @@ public class Generator {
     public static void main(String[] args) {
         try {
             // Load and register the KalkanProvider
-            java.security.Provider realProvider = KalkanRegistry.loadRealKalkanProvider();
+            Provider realProvider = KalkanRegistry.loadRealKalkanProvider();
             String providerName = realProvider.getName();
             log.info("Registered provider: " + providerName);
 

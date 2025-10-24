@@ -138,7 +138,7 @@ public class ValidatorTest {
     public void testKalkanProviderWrapper() {
         // Test that our KalkanProvider proxy works
         try {
-            KalkanProxy provider = KalkanRegistry.createKalkanProvider();
+            KalkanProxy provider = new KalkanRegistry().createKalkanProvider();
             assertNotNull(provider, "KalkanProvider should be created");
             assertNotNull(provider.getRealObject(), "Provider should have real object");
         } catch (Exception e) {

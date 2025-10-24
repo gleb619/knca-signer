@@ -1,20 +1,18 @@
 package knca.signer.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSetter;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.*;
 
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Application configuration holder
- */
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
+@Builder(toBuilder = true)
+@NoArgsConstructor(access = AccessLevel.PUBLIC)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ApplicationConfig {
 
@@ -25,67 +23,78 @@ public class ApplicationConfig {
     private LoggingConfig logging;
     private CertificateConfig certificate;
 
-    @Data
-    public static class HttpConfig {
+    @SneakyThrows
+    public ApplicationConfig merge(ApplicationConfig overrides) {
+        if (overrides == null) return this;
 
-        private int port;
-        private String host;
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_DEFAULT);
 
+        return mapper.convertValue(
+                mapper.updateValue(mapper.valueToTree(this), overrides),
+                ApplicationConfig.class
+        );
     }
 
     @Data
-    public static class CorsConfig {
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    @NoArgsConstructor(access = AccessLevel.PUBLIC)
+    public static class HttpConfig {
+        private int port;
+        private String host;
+    }
 
+    @Data
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    @NoArgsConstructor(access = AccessLevel.PUBLIC)
+    public static class CorsConfig {
         private String allowedOrigins;
         private List<String> allowedMethods;
         private List<String> allowedHeaders;
 
         @JsonSetter("allowedMethods")
         public void setAllowedMethods(Object o) {
-            if (o instanceof String s) {
-                this.allowedMethods = Arrays.asList(s.split("\\s*,\\s*"));
-            } else if (o instanceof List<?> l) {
-                this.allowedMethods = (List<String>) l;
-            }
+            this.allowedMethods = o instanceof String s ? Arrays.asList(s.split("\\s*,\\s*")) : (List<String>) o;
         }
 
         @JsonSetter("allowedHeaders")
         public void setAllowedHeaders(Object o) {
-            if (o instanceof String s) {
-                this.allowedHeaders = Arrays.asList(s.split("\\s*,\\s*"));
-            } else if (o instanceof List<?> l) {
-                this.allowedHeaders = (List<String>) l;
-            }
+            this.allowedHeaders = o instanceof String s ? Arrays.asList(s.split("\\s*,\\s*")) : (List<String>) o;
         }
-
     }
 
     @Data
-    public static class WebSocketConfig {
-
-        private String path;
-
-    }
-
-    @Data
-    public static class StaticConfig {
-
-        private String webRoot;
-
-    }
-
-    @Data
-    public static class LoggingConfig {
-
-        private String level;
-
-    }
-
-    @Data
-    @NoArgsConstructor
     @AllArgsConstructor
-    public static class CertificateConfig {
+    @Builder(toBuilder = true)
+    @NoArgsConstructor(access = AccessLevel.PUBLIC)
+    public static class WebSocketConfig {
+        private String path;
+    }
 
+    @Data
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    @NoArgsConstructor(access = AccessLevel.PUBLIC)
+    public static class StaticConfig {
+        private String webRoot;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    @NoArgsConstructor(access = AccessLevel.PUBLIC)
+    public static class LoggingConfig {
+        private String level;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    @NoArgsConstructor(access = AccessLevel.PUBLIC)
+    public static class CertificateConfig {
         private String storageMode;
         private int initialUserCertificates;
         private int initialLegalCertificates;
@@ -97,7 +106,5 @@ public class ApplicationConfig {
         private String keystorePassword;
         private int caValidityYears;
         private int userValidityYears;
-
     }
-
 }

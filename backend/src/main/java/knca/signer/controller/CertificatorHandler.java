@@ -2,16 +2,19 @@ package knca.signer.controller;
 
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import knca.signer.service.CertificateService;
 import knca.signer.service.CertificateStorage;
+import knca.signer.util.Util;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Map;
+
+import static knca.signer.util.Util.toLocalDateTime;
 
 /**
  * Handler for certificate-related operations including certificate retrieval and generation.
@@ -74,6 +77,11 @@ public class CertificatorHandler {
         return ctx -> handleGenerateEntityCert(ctx, "user", "User", certificateService::generateUserCertificate);
     }
 
+    /**
+     * Handles requests to generate legal certificate.
+     *
+     * @return Handler for generating legal certificate
+     */
     public Handler<RoutingContext> handleGenerateLegalCertificate() {
         return ctx -> handleGenerateEntityCert(ctx, "legal", "Legal", certificateService::generateLegalEntityCertificate);
     }
@@ -85,43 +93,6 @@ public class CertificatorHandler {
      */
     public Handler<RoutingContext> handleGetLegalCertificate() {
         return ctx -> handleGetCertificatesForCA(ctx, "legal", storageService.getLegalCertificates(), (alias, data) -> buildCertificateDto(alias, data, true));
-    }
-
-    /**
-     * Handles requests to retrieve all certificates from the filesystem with full CertificateInfo.
-     *
-     * @return Handler for reading filesystem certificates
-     */
-    public Handler<RoutingContext> handleGetFilesystemCertificates() {
-        return ctx -> {
-            try {
-                log.info("Retrieving all certificates from memory cache");
-                var certificates = certificateService.getFilesystemCertificates();
-                var result = new JsonObject();
-                var filesArray = new io.vertx.core.json.JsonArray();
-                for (var certInfo : certificates) {
-                    var dto = CertificateDto.builder()
-                            .type(certInfo.getType())
-                            .filename(certInfo.getFilename())
-                            .serialNumber(certInfo.getSerialNumber())
-                            .issuer(certInfo.getIssuer())
-                            .subject(certInfo.getSubject())
-                            .notBefore(certInfo.getNotBefore())
-                            .notAfter(certInfo.getNotAfter())
-                            .email(certInfo.getEmail())
-                            .iin(certInfo.getIin())
-                            .bin(certInfo.getBin())
-                            .publicKeyAlgorithm(certInfo.getPublicKeyAlgorithm())
-                            .keySize(certInfo.getKeySize())
-                            .build();
-                    filesArray.add(dto);
-                }
-                result.put("certificates", filesArray);
-                sendJsonResponse(ctx, result);
-            } catch (Exception e) {
-                handleError(ctx, "retrieving filesystem certificates", e);
-            }
-        };
     }
 
     /**
@@ -161,6 +132,8 @@ public class CertificatorHandler {
         };
     }
 
+    /* ============= */
+
     private String getContentTypeForFormat(String format) {
         return switch (format.toLowerCase()) {
             case "crt", "pem" -> "application/x-pem-file";
@@ -170,13 +143,11 @@ public class CertificatorHandler {
         };
     }
 
-    /* ============= */
-
     private <T> void handleGetCertificates(RoutingContext ctx, String type, Map<String, T> certs, CertDtoBuilder<T> builder) {
         try {
             log.info("Retrieving {} certificates", type);
             var result = new JsonObject();
-            var certList = new io.vertx.core.json.JsonArray();
+            var certList = new JsonArray();
             certs.forEach((alias, data) -> certList.add(builder.build(alias, data)));
             result.put("certificates", certList);
             sendJsonResponse(ctx, result);
@@ -190,13 +161,14 @@ public class CertificatorHandler {
             var caId = extractCaIdFromQuery(ctx);
             log.info("Retrieving {} certificates for CA: {}", type, caId);
             var result = new JsonObject();
-            var certList = new io.vertx.core.json.JsonArray();
+            var certList = new JsonArray();
             certs.entrySet().stream()
                     .filter(entry -> {
                         if (type.equals("user") || type.equals("legal")) {
                             var data = (CertificateService.CertificateData) entry.getValue();
                             return caId.equals(data.getCaId());
                         }
+
                         return true; // For CA certificates, return all
                     })
                     .forEach(entry -> certList.add(builder.build(entry.getKey(), entry.getValue())));
@@ -229,7 +201,7 @@ public class CertificatorHandler {
         var cert = data.getCertificate();
 
         // Get the basic certificate serial number, issuer, subject from certificate itself
-        String serialNumber = cert.getSerialNumber().toString();
+        String serialNumber = Util.encodeStr(cert.getSerialNumber().toByteArray());
         String issuer = cert.getIssuerDN().getName();
         String subject = cert.getSubjectDN().getName();
         LocalDateTime notBefore = toLocalDateTime(cert.getNotBefore().toInstant());
@@ -253,11 +225,10 @@ public class CertificatorHandler {
         if (subject.contains("OU=BIN")) {
             type = "LEGAL";
             filename = alias + ".p12";
-        } else {
+        } else if (subject.contains("=IIN")) {
             type = "USER";
             filename = alias + ".p12";
-        }
-        if (cert.getSubjectDN().getName().contains("KUÄ") || cert.getSubjectDN().getName().contains("КУӘ")) {
+        } else {
             type = "CA";
             filename = alias + ".crt";
         }
@@ -282,12 +253,6 @@ public class CertificatorHandler {
         }
 
         return builder.build();
-    }
-
-
-
-    private LocalDateTime toLocalDateTime(java.time.Instant instant) {
-        return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
     }
 
     private String extractCaId(RoutingContext ctx) {

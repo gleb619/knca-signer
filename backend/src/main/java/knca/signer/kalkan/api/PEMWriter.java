@@ -1,6 +1,5 @@
 package knca.signer.kalkan.api;
 
-import knca.signer.kalkan.KalkanAdapter;
 import knca.signer.kalkan.KalkanProxy;
 
 /**
@@ -17,13 +16,15 @@ public interface PEMWriter {
      * Write an object in PEM format
      */
     default void writeObject(Object obj) {
-        KalkanAdapter.writeObject(getProxy(), obj);
+        getProxy().invokeScript(
+                "realObject.writeObject(args[0])", obj);
     }
 
     /**
      * Flush pending write operations
      */
     default void flush() {
-        KalkanAdapter.flush(getProxy());
+        getProxy().invokeScript(
+                "realObject.flush()");
     }
 }

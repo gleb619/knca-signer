@@ -1,31 +1,43 @@
 package knca.signer.kalkan;
 
-import knca.signer.kalkan.api.PEMWriter;
-import knca.signer.kalkan.api.V3TBSCertificateGenerator;
-import knca.signer.kalkan.api.X509ExtensionsGenerator;
-import knca.signer.kalkan.api.X509V3CertificateGenerator;
+import knca.signer.kalkan.api.*;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import net.bytebuddy.ByteBuddy;
-import net.bytebuddy.dynamic.DynamicType;
-import net.bytebuddy.implementation.FieldAccessor;
-import net.bytebuddy.implementation.InvocationHandlerAdapter;
-import net.bytebuddy.implementation.MethodCall;
-import net.bytebuddy.jar.asm.Opcodes;
-import net.bytebuddy.matcher.ElementMatchers;
+import org.mvel2.MVEL;
 
+import java.io.Serializable;
 import java.io.Writer;
 import java.lang.reflect.Array;
-import java.lang.reflect.InvocationHandler;
+import java.security.Provider;
+import java.security.Security;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * KalkanRegistry provides high-performance proxy creation and method dispatching
+ * for the Kazakhstani NCA Kalkan cryptography library using MVEL expression evaluation.
+ * <p>
+ * Key Features:
+ * - MVEL-powered method dispatching for optimal performance
+ * - Script caching for frequently used operations
+ * - Simple wrapper-based proxies (no dynamic bytecode generation)
+ * - Seamless integration avoiding commercial licensing restrictions
+ * <p>
+ * Performance Benefits:
+ * - Eliminates Java reflection overhead through compiled MVEL expressions
+ * - Startup time improvement by removing ByteBuddy bytecode manipulation
+ * - Memory-efficient lightweight proxy implementation
+ */
 @Slf4j
 public class KalkanRegistry {
 
-    private static final ByteBuddy buddy = new ByteBuddy();
-    public static final AtomicReference<ClassLoader> CLASS_LOADER = new AtomicReference<>(KalkanRegistry.class.getClassLoader());
+    // MVEL script cache for performance
+    private static final Map<String, Serializable> SCRIPT_CACHE = new ConcurrentHashMap<>();
 
     public static Object wrapValue(Object result) {
         if (result == null) return null;
@@ -33,41 +45,29 @@ public class KalkanRegistry {
         return createProxy(result.getClass(), result);
     }
 
+    /**
+     * Load the real KalkanProvider instance using reflection and register it
+     */
+    public static Provider loadRealKalkanProvider() throws Exception {
+        try {
+            Class<?> pc = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.jce.provider.KalkanProvider");
+            Object rp = ReflectionHelper.newInstance(pc);
+            Security.addProvider((Provider) rp);
+            return (Provider) rp;
+        } catch (Exception e) {
+            throw new KalkanException("Failed to load KalkanProvider", e);
+        }
+    }
+
     private static KalkanProxy createProxy(Class<?> clazz, Object instance) {
         try {
-            DynamicType.Unloaded<?> unloaded = buddy
-                    .subclass(Object.class)
-                    .implement(KalkanProxy.class)
-                    .implement(clazz.getInterfaces())
-                    .defineField("_instance", Object.class, Opcodes.ACC_PRIVATE)
-                    .defineConstructor(Opcodes.ACC_PUBLIC)
-                    .withParameters(Object.class)
-                    .intercept(MethodCall.invoke(Object.class.getConstructor())
-                            .andThen(FieldAccessor.ofField("_instance").setsArgumentAt(0)))
-                    .method(ElementMatchers.named("getRealObject"))
-                    .intercept(FieldAccessor.ofField("_instance"))
-                    .method(ElementMatchers.named("equals"))
-                    .intercept(InvocationHandlerAdapter.of((p, m, a) ->
-                            ((KalkanProxy) p).getRealObject().equals(ReflectionHelper.unwrapValue(a[0]))))
-                    .method(ElementMatchers.named("hashCode"))
-                    .intercept(InvocationHandlerAdapter.of((p, m, a) -> ((KalkanProxy) p).getRealObject().hashCode()))
-                    .method(ElementMatchers.named("toString"))
-                    .intercept(InvocationHandlerAdapter.of((p, m, a) ->
-                            "KalkanProxy[%s]: %s".formatted(((KalkanProxy) p).getRealObject().getClass().getName(), ((KalkanProxy) p).getRealObject())))
-                    .method(ElementMatchers.not(ElementMatchers.named("getRealObject")).and(ElementMatchers.not(ElementMatchers.named("invoke")))
-                            .and(ElementMatchers.not(ElementMatchers.named("getResult"))).and(ElementMatchers.not(ElementMatchers.named("getResultType")))
-                            .and(ElementMatchers.not(ElementMatchers.named("genericValue"))).and(ElementMatchers.not(ElementMatchers.named("equals")))
-                            .and(ElementMatchers.not(ElementMatchers.named("hashCode"))).and(ElementMatchers.not(ElementMatchers.named("toString"))))
-                    .intercept(InvocationHandlerAdapter.of(new TransparentProxyHandler(instance)))
-                    .make();
-            Class<?> proxyClass = unloaded.load(CLASS_LOADER.get()).getLoaded();
-            return (KalkanProxy) proxyClass.getConstructor(Object.class).newInstance(instance);
+            return new MVELKalkanProxy(instance);
         } catch (Exception e) {
             throw new KalkanException("Failed to create proxy for " + clazz.getName(), e);
         }
     }
 
-    public static KalkanProxy createAlgorithmIdentifier(Object objectId, Object parameters) {
+    public KalkanProxy createAlgorithmIdentifier(Object objectId, Object parameters) {
         try {
             return create("kz.gov.pki.kalkan.asn1.x509.AlgorithmIdentifier",
                     new Class[]{ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.DERObjectIdentifier"),
@@ -78,7 +78,7 @@ public class KalkanRegistry {
         }
     }
 
-    public static KalkanProxy createASN1EncodableVector() {
+    public KalkanProxy createASN1EncodableVector() {
         try {
             return create("kz.gov.pki.kalkan.asn1.DEREncodableVector", null, null);
         } catch (Exception e) {
@@ -87,29 +87,15 @@ public class KalkanRegistry {
         }
     }
 
-    /**
-     * Load the real KalkanProvider instance using reflection and register it
-     */
-    public static java.security.Provider loadRealKalkanProvider() throws Exception {
-        try {
-            Class<?> pc = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.jce.provider.KalkanProvider");
-            Object rp = ReflectionHelper.newInstance(pc);
-            java.security.Security.addProvider((java.security.Provider) rp);
-            return (java.security.Provider) rp;
-        } catch (Exception e) {
-            throw new KalkanException("Failed to load KalkanProvider", e);
-        }
-    }
-
-    public static KalkanProxy createKalkanProvider() {
+    public KalkanProxy createKalkanProvider() {
         return create("kz.gov.pki.kalkan.jce.provider.KalkanProvider", null, null);
     }
 
-    public static KalkanProxy createDERObjectIdentifier(String oid) {
+    public KalkanProxy createDERObjectIdentifier(String oid) {
         return create("kz.gov.pki.kalkan.asn1.DERObjectIdentifier", new Class[]{String.class}, new Object[]{oid});
     }
 
-    public static KalkanProxy createDERSequence(Object vector) {
+    public KalkanProxy createDERSequence(Object vector) {
         try {
             Object unwrapped = ReflectionHelper.unwrapValue(vector);
             Class<?> derEncodableVectorClass = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.DEREncodableVector");
@@ -129,19 +115,19 @@ public class KalkanRegistry {
         }
     }
 
-    public static KalkanProxy createDERInteger(byte[] serNum) {
+    public KalkanProxy createDERInteger(byte[] serNum) {
         return create("kz.gov.pki.kalkan.asn1.DERInteger", new Class[]{byte[].class}, new Object[]{serNum});
     }
 
-    public static KalkanProxy createDERNull() {
+    public KalkanProxy createDERNull() {
         return create("kz.gov.pki.kalkan.asn1.DERNull", null, null);
     }
 
-    public static KalkanProxy createDERUTF8String(String value) {
+    public KalkanProxy createDERUTF8String(String value) {
         return create("kz.gov.pki.kalkan.asn1.DERUTF8String", new Class[]{String.class}, new Object[]{value});
     }
 
-    public static KalkanProxy createDERTaggedObject(boolean explicit, int tagNo, Object obj) {
+    public KalkanProxy createDERTaggedObject(boolean explicit, int tagNo, Object obj) {
         try {
             return create("kz.gov.pki.kalkan.asn1.DERTaggedObject",
                     new Class[]{boolean.class, int.class, ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.DEREncodable")},
@@ -151,7 +137,7 @@ public class KalkanRegistry {
         }
     }
 
-    public static KalkanProxy createGeneralName(int tag, Object name) {
+    public KalkanProxy createGeneralName(int tag, Object name) {
         Object unwrapped = ReflectionHelper.unwrapValue(name);
         if (unwrapped instanceof String) {
             return create("kz.gov.pki.kalkan.asn1.x509.GeneralName", new Class[]{int.class, String.class}, new Object[]{tag, unwrapped});
@@ -166,7 +152,7 @@ public class KalkanRegistry {
         }
     }
 
-    public static KalkanProxy createGeneralNames(Object sequence) {
+    public KalkanProxy createGeneralNames(Object sequence) {
         try {
             Class<?> asn1SequenceClass = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.ASN1Sequence");
             return create("kz.gov.pki.kalkan.asn1.x509.GeneralNames",
@@ -176,23 +162,23 @@ public class KalkanRegistry {
         }
     }
 
-    public static KalkanProxy createX509Name(String name) {
+    public KalkanProxy createX509Name(String name) {
         return create("kz.gov.pki.kalkan.asn1.x509.X509Name", new Class[]{String.class}, new Object[]{name});
     }
 
-    public static KalkanProxy createTime(Date time) {
+    public KalkanProxy createTime(Date time) {
         return create("kz.gov.pki.kalkan.asn1.x509.Time", new Class[]{Date.class}, new Object[]{time});
     }
 
-    public static KalkanProxy createBasicConstraints(boolean ca) {
+    public KalkanProxy createBasicConstraints(boolean ca) {
         return create("kz.gov.pki.kalkan.asn1.x509.BasicConstraints", new Class[]{boolean.class}, new Object[]{ca});
     }
 
-    public static KalkanProxy createKeyUsage(int keyUsage) {
+    public KalkanProxy createKeyUsage(int keyUsage) {
         return create("kz.gov.pki.kalkan.asn1.x509.KeyUsage", new Class[]{int.class}, new Object[]{keyUsage});
     }
 
-    public static KalkanProxy createSubjectPublicKeyInfo(Object seq) {
+    public KalkanProxy createSubjectPublicKeyInfo(Object seq) {
         try {
             Class<?> asn1SequenceClass = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.ASN1Sequence");
             return create("kz.gov.pki.kalkan.asn1.x509.SubjectPublicKeyInfo",
@@ -205,7 +191,8 @@ public class KalkanRegistry {
     /**
      * Create a V3TBSCertificateGenerator interface wrapper
      */
-    public static V3TBSCertificateGenerator createV3TBSCertificateGenerator() {
+    @Deprecated(forRemoval = true)
+    public V3TBSCertificateGenerator createV3TBSCertificateGenerator() {
         KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.asn1.x509.V3TBSCertificateGenerator", null, null);
         return () -> kalkanProxy;
     }
@@ -213,7 +200,7 @@ public class KalkanRegistry {
     /**
      * Create a X509ExtensionsGenerator interface wrapper
      */
-    public static X509ExtensionsGenerator createX509ExtensionsGenerator() {
+    public X509ExtensionsGenerator createX509ExtensionsGenerator() {
         KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.asn1.x509.X509ExtensionsGenerator", null, null);
         return () -> kalkanProxy;
     }
@@ -221,27 +208,43 @@ public class KalkanRegistry {
     /**
      * Create a X509V3CertificateGenerator interface wrapper
      */
-    public static X509V3CertificateGenerator createX509V3CertificateGenerator() {
+    public X509V3CertificateGenerator createX509V3CertificateGenerator() {
         KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.x509.X509V3CertificateGenerator", null, null);
+        return () -> kalkanProxy;
+    }
+
+    /**
+     * Create a ASN1EncodableVector interface wrapper
+     */
+    public ASN1EncodableVector createASN1EncodableVectorWrapper() {
+        KalkanProxy kalkanProxy = createASN1EncodableVector();
         return () -> kalkanProxy;
     }
 
     /**
      * Create a PEMWriter interface wrapper
      */
-    public static PEMWriter createPEMWriter(java.io.Writer writer) {
+    public PEMWriter createPEMWriter(java.io.Writer writer) {
         KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.openssl.PEMWriter", new Class[]{Writer.class}, new Object[]{writer});
         return () -> kalkanProxy;
     }
 
+    /**
+     * Create a TBSCertificateManager interface wrapper
+     */
+    public TBSCertificateManager createTBSCertificateManager() {
+        KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.asn1.x509.V3TBSCertificateGenerator", null, null);
+        return () -> kalkanProxy;
+    }
+
     @SneakyThrows
-    public static Object createASN1SequenceFromPublicKey(java.security.PublicKey publicKey) {
+    public Object createASN1SequenceFromPublicKey(java.security.PublicKey publicKey) {
         Class<?> asn1ObjectClass = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.ASN1Object");
         return ReflectionHelper.invokeStaticMethod(asn1ObjectClass, "fromByteArray", asn1ObjectClass,
                 new Class[]{byte[].class}, new Object[]{publicKey.getEncoded()});
     }
 
-    private static KalkanProxy create(String className, Class<?>[] paramTypes, Object[] args) {
+    private KalkanProxy create(String className, Class<?>[] paramTypes, Object[] args) {
         try {
             Class<?> realClass = ReflectionHelper.loadKalkanClass(className);
             Object instance = ReflectionHelper.newInstance(realClass, paramTypes, args);
@@ -251,35 +254,67 @@ public class KalkanRegistry {
         }
     }
 
-    private static class TransparentProxyHandler implements InvocationHandler {
+    /**
+     * Simple wrapper implementation that uses MVEL for method dispatching
+     */
+    @Value
+    @RequiredArgsConstructor
+    private static class MVELKalkanProxy implements KalkanProxy {
 
-        private final Object target;
+        Object realObject;
 
-        TransparentProxyHandler(Object target) {
-            this.target = target;
+        @Override
+        public KalkanProxy invoke(ProxyArg arg) {
+            try {
+                Object result;
+
+                // Use MVEL script execution if provided (optimized path)
+                if (arg.getScript() != null && !arg.getScript().isEmpty()) {
+                    // Create MVEL context with variables
+                    var context = new HashMap<>();
+                    context.put("realObject", getRealObject());
+
+                    // Unwrap proxy arguments before passing to MVEL
+                    var unwrappedArgs = arg.getArgs() != null ? arg.getArgs() : new Object[0];
+                    for (int i = 0; i < unwrappedArgs.length; i++) {
+                        unwrappedArgs[i] = ReflectionHelper.unwrapValue(unwrappedArgs[i]);
+                    }
+                    context.put("args", unwrappedArgs);
+
+                    // Cache compiled expressions for performance
+                    String scriptKey = arg.getScript();
+                    var compiled = SCRIPT_CACHE.computeIfAbsent(scriptKey, s -> MVEL.compileExpression(arg.getScript()));
+
+                    // Execute the MVEL script
+                    result = MVEL.executeExpression(compiled, context);
+                } else {
+                    // Fallback to reflection
+                    result = ReflectionHelper.invokeMethod(getRealObject(), arg.getMethodName(), arg.getParamTypes(), arg.getArgs());
+                }
+
+                return (KalkanProxy) wrapValue(result);
+            } catch (Exception e) {
+                throw new KalkanException("Invoke failed", e);
+            }
         }
 
         @Override
-        public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) throws Throwable {
-            // Delegate all method calls to the real object, unwrapping proxy args
-            if (args != null) {
-                for (int i = 0; i < args.length; i++) {
-                    args[i] = ReflectionHelper.unwrapValue(args[i]);
-                }
-            }
-            try {
-                log.trace("Invoking method '{}' on {} with {} args", method.getName(), target.getClass().getSimpleName(), args != null ? args.length : 0);
-                Object result = method.invoke(target, args);
-                if (log.isTraceEnabled()) {
-                    log.trace("Method '{}' returned {}", method.getName(), result);
-                }
-                return wrapValue(result);
-            } catch (Throwable e) {
-                log.trace("Method '{}' threw exception: {}", method.getName(), e.getMessage());
-                throw Objects.nonNull(e.getCause()) ? e.getCause() : e;
-            }
+        public String toString() {
+            return "KalkanProxy[%s]: %s".formatted(getRealObject().getClass().getName(), getRealObject());
         }
 
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) return false;
+            if (this == obj) return true;
+            if (obj instanceof KalkanProxy) return Objects.equals(getRealObject(), ReflectionHelper.unwrapValue(obj));
+            return Objects.equals(getRealObject(), obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return getRealObject().hashCode();
+        }
     }
 
 }

@@ -332,8 +332,8 @@ public class CertificateReader {
         }
 
         // Look for otherName IIN in extensions
-        if (certString.contains(CertificateDataGenerator.IIN_OID)) {
-            return extractValueFromExtensionString(certString, CertificateDataGenerator.IIN_OID);
+        if (certString.contains(CertificateDataPopulator.IIN_OID)) {
+            return extractValueFromExtensionString(certString, CertificateDataPopulator.IIN_OID);
         }
 
         return "N/A";
@@ -367,8 +367,8 @@ public class CertificateReader {
         }
 
         // Look for otherName BIN in extensions
-        if (certString.contains(CertificateDataGenerator.BIN_OID)) {
-            return extractValueFromExtensionString(certString, CertificateDataGenerator.BIN_OID);
+        if (certString.contains(CertificateDataPopulator.BIN_OID)) {
+            return extractValueFromExtensionString(certString, CertificateDataPopulator.BIN_OID);
         }
 
         return "N/A"; // BIN is optional, but return "N/A" for consistency

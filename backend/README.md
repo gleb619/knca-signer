@@ -19,8 +19,8 @@ The backend is built using:
 - **Vert.x**: Asynchronous, event-driven web framework
 - **Java 21**: Modern Java with latest language features
 - **Gradle**: Build automation and dependency management
-- **ByteBuddy**: Runtime bytecode manipulation for proxy creation
-- **Kalkan Integration**: Cryptographic operations via reflection proxies
+- **MVEL**: High-performance expression language for optimized method dispatching
+- **Kalkan Integration**: Cryptographic operations via MVEL-powered reflection proxies
 
 ### Key Components
 
@@ -48,19 +48,27 @@ The backend is built using:
 ### Cryptography Integration
 
 Due to license restrictions, we cannot use the Kalkan cryptography library directly through standard imports and
-linkage. Instead, the application uses runtime reflection and ByteBuddy to create transparent proxies for Kalkan
-classes, allowing full functionality without direct commercial licensing requirements.
+linkage. Instead, the application uses runtime reflection with high-performance MVEL expression evaluation to create
+transparent proxies for Kalkan classes, providing optimized method dispatching without direct commercial licensing.
 
-**ByteBuddy Integration**:
+**MVEL-Powered Proxy Architecture**:
 
-- Runtime proxy generation for Kalkan classes
-- Transparent method delegation
-- Dynamic class loading and instantiation
+- **High-Performance Method Dispatching**: MVEL expressions provide fast, interpreted method invocation
+- **Compiled Script Caching**: Frequently used method calls are cached as compiled expressions for optimal performance
+- **Simple Wrapper Proxies**: Lightweight proxy implementation without complex bytecode manipulation
+- **Type-Safe Reflection**: Safe method invocation with automatic proxy wrapping/unwrapping
+
+**Performance Benefits**:
+
+- **Eliminated Reflection Overhead**: MVEL provides significant performance improvements over traditional Java
+  reflection
+- **Startup Optimization**: No dynamic bytecode generation at runtime reduces application startup time
+- **Memory Efficiency**: Simpler proxy structure uses less memory compared to full bytecode-generated proxies
 
 **Reflection Helper**:
 
 - Dynamic classpath scanning for Kalkan JARs
-- Type-safe method invocation
+- Type-safe method invocation via MVEL expressions
 - Exception handling and wrapping
 
 ### Optional Kalkan Cryptography Library
@@ -70,7 +78,7 @@ licensing restrictions:
 
 - **Kalkan JARs are NOT included** in the repository
 - **Direct imports are prohibited** due to commercial licensing
-- **Runtime reflection + ByteBuddy proxies** are used instead
+- **Runtime reflection + MVEL-powered proxies** are used instead
 - Suitable for development/testing without Kalkan JARs (will throw exceptions when cryptographic operations are
   attempted)
 

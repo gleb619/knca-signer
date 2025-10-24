@@ -1,6 +1,5 @@
 package knca.signer.kalkan.api;
 
-import knca.signer.kalkan.KalkanAdapter;
 import knca.signer.kalkan.KalkanProxy;
 
 import java.security.cert.X509Certificate;
@@ -19,14 +18,16 @@ public interface X509V3CertificateGenerator {
      * Set the signature algorithm to be used for signing
      */
     default void setSignatureAlgorithm(String signatureAlgorithm) {
-        KalkanAdapter.setSignatureAlgorithm(getProxy(), signatureAlgorithm);
+        getProxy().invokeScript(
+                "realObject.setSignatureAlgorithm(args[0])", signatureAlgorithm);
     }
 
     /**
      * Generate the final X.509 certificate from TBS certificate and signature
      */
     default X509Certificate generate(Object tbsCert, byte[] signature) {
-        KalkanProxy kalkanProxy = KalkanAdapter.generateCertificate(getProxy(), tbsCert, signature);
-        return kalkanProxy.genericValue();
+        KalkanProxy result = getProxy().invokeScript(
+                "realObject.generate(args[0], args[1])", tbsCert, signature);
+        return result.genericValue();
     }
 }

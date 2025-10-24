@@ -5,7 +5,7 @@ import java.util.Random;
 /**
  * Utility class for generating fake Kazakh certificate data.
  */
-public class CertificateDataGenerator {
+public class CertificateDataPopulator {
 
     // OIDs for Kazakh extensions
     public static final String IIN_OID = "1.2.398.3.3.4.1.1";
@@ -48,7 +48,7 @@ public class CertificateDataGenerator {
     /**
      * Generate a random 12-digit IIN (Individual Identification Number).
      */
-    public static String generateIIN() {
+    public static String populateIIN() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 12; i++) {
             sb.append(random.nextInt(10));
@@ -60,14 +60,21 @@ public class CertificateDataGenerator {
      * Generate a random 12-digit BIN (Business Identification Number).
      * Same format as IIN.
      */
-    public static String generateBIN() {
-        return generateIIN();
+    public static String populateBIN() {
+        return populateIIN();
+    }
+
+    /**
+     * Generate a random Kazakh company name.
+     */
+    public static String populateCompany() {
+        return KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)];
     }
 
     /**
      * Generate a random alphanumeric string of specified length.
      */
-    public static String generateRandomAlphanumeric(int length) {
+    public static String populateRandomAlphanumeric(int length) {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < length; i++) {
@@ -79,8 +86,8 @@ public class CertificateDataGenerator {
     /**
      * Generate a random email address.
      */
-    public static String generateEmail() {
-        String local = "user" + generateRandomAlphanumeric(8);
+    public static String populateEmail() {
+        String local = "user" + populateRandomAlphanumeric(8);
         String domain = EMAIL_DOMAINS[random.nextInt(EMAIL_DOMAINS.length)];
         return "%s@%s".formatted(local, domain);
     }
@@ -88,30 +95,30 @@ public class CertificateDataGenerator {
     /**
      * Generate subject DN for an individual certificate.
      */
-    public static String generateIndividualSubjectDN() {
+    public static String populateIndividualSubjectDN() {
         String surname = KAZAKH_SURNAMES[random.nextInt(KAZAKH_SURNAMES.length)];
         String givenName = KAZAKH_GIVEN_NAMES[random.nextInt(KAZAKH_GIVEN_NAMES.length)];
         String patronymic = KAZAKH_PATRONYMICS[random.nextInt(KAZAKH_PATRONYMICS.length)];
         String fullName = givenName + " " + surname;
-        String iin = generateIIN();
-        String email = generateEmail();
+        String iin = populateIIN();
+        String email = populateEmail();
         return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, G=%s, emailAddress=%s".formatted(fullName, surname, iin, patronymic, email);
     }
 
     /**
      * Generate subject DN for a legal entity certificate.
      */
-    public static String generateLegalEntitySubjectDN() {
+    public static String populateLegalEntitySubjectDN() {
         String surname = KAZAKH_SURNAMES[random.nextInt(KAZAKH_SURNAMES.length)];
         String givenName = KAZAKH_GIVEN_NAMES[random.nextInt(KAZAKH_GIVEN_NAMES.length)];
         String patronymic = KAZAKH_PATRONYMICS[random.nextInt(KAZAKH_PATRONYMICS.length)];
         String fullName = givenName + " " + surname;
         String company = KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)];
-        String bin = generateBIN();
-        String iin = generateIIN();
-        String email = generateEmail();
-        String businessCategory = BUSINESS_CATEGORY[random.nextInt(KAZAKH_COMPANIES.length)];
-        String dc = COMPANY_ROLES[random.nextInt(KAZAKH_COMPANIES.length)];
+        String bin = populateBIN();
+        String iin = populateIIN();
+        String email = populateEmail();
+        String businessCategory = BUSINESS_CATEGORY[random.nextInt(BUSINESS_CATEGORY.length)];
+        String dc = COMPANY_ROLES[random.nextInt(COMPANY_ROLES.length)];
         return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, O=%s, OU=BIN%s, BusinessCategory=%s, G=%s, DC=%s, emailAddress=%s".formatted(
                 fullName, surname, iin, company, bin, businessCategory, patronymic, dc, email);
     }
@@ -145,14 +152,13 @@ public class CertificateDataGenerator {
     /**
      * Generate subject DN for a legal entity certificate with specified company and BIN.
      */
-    @Deprecated(forRemoval = true)
-    public static String generateLegalEntitySubjectDN(String company, String bin) {
+    public static String populateLegalEntitySubjectDN(String company, String bin) {
         String surname = KAZAKH_SURNAMES[random.nextInt(KAZAKH_SURNAMES.length)];
         String givenName = KAZAKH_GIVEN_NAMES[random.nextInt(KAZAKH_GIVEN_NAMES.length)];
         String patronymic = KAZAKH_PATRONYMICS[random.nextInt(KAZAKH_PATRONYMICS.length)];
         String fullName = givenName + " " + surname;
-        String iin = generateIIN();
-        String email = generateEmail();
+        String iin = populateIIN();
+        String email = populateEmail();
         String businessCategory = BUSINESS_CATEGORY[random.nextInt(BUSINESS_CATEGORY.length)];
         String dc = COMPANY_ROLES[random.nextInt(COMPANY_ROLES.length)];
         return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, O=%s, OU=BIN%s, BusinessCategory=%s, G=%s, DC=%s, emailAddress=%s".formatted(

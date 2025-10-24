@@ -2,7 +2,7 @@ package knca.signer.example;
 
 import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanRegistry;
-import knca.signer.service.CertificateDataGenerator;
+import knca.signer.service.CertificateDataPopulator;
 import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService.CertificateResult;
 import knca.signer.service.CertificateStorage;
@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
+import java.security.Provider;
 import java.security.cert.X509Certificate;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -18,8 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @EnabledIfSystemProperty(named = "kalkanAllowed", matches = "true")
 public class GeneratorTest {
 
-    private java.security.Provider provider;
-    private java.security.Provider realProvider;
+    private Provider provider;
+    private Provider realProvider;
     private ApplicationConfig.CertificateConfig config;
 
     @BeforeEach
@@ -27,7 +28,7 @@ public class GeneratorTest {
         // Load the real KalkanProvider using registry (same as Generator.main does)
         realProvider = KalkanRegistry.loadRealKalkanProvider();
 
-        provider = (java.security.Provider) KalkanRegistry.createKalkanProvider().getRealObject();
+        provider = (Provider) new KalkanRegistry().createKalkanProvider().getRealObject();
         config = new ApplicationConfig.CertificateConfig(
                 "in-memory",
                 3,
@@ -68,27 +69,27 @@ public class GeneratorTest {
     @Test
     public void testCertificateDataGenerator() {
         // Test IIN generation
-        String iin = CertificateDataGenerator.generateIIN();
+        String iin = CertificateDataPopulator.populateIIN();
         assertNotNull(iin, "IIN should be generated");
         assertEquals(12, iin.length(), "IIN should be 12 digits");
 
         // Test BIN generation
-        String bin = CertificateDataGenerator.generateBIN();
+        String bin = CertificateDataPopulator.populateBIN();
         assertNotNull(bin, "BIN should be generated");
         assertEquals(12, bin.length(), "BIN should be 12 digits");
 
         // Test email generation
-        String email = CertificateDataGenerator.generateEmail();
+        String email = CertificateDataPopulator.populateEmail();
         assertNotNull(email, "Email should be generated");
         assertTrue(email.contains("@"), "Email should contain @");
 
         // Test subject DN generation
-        String individualDN = CertificateDataGenerator.generateIndividualSubjectDN();
+        String individualDN = CertificateDataPopulator.populateIndividualSubjectDN();
         assertNotNull(individualDN, "Individual DN should be generated");
         assertTrue(individualDN.contains("CN="), "Should contain CN");
         assertTrue(individualDN.contains("C=KZ"), "Should contain C=KZ");
 
-        String legalDN = CertificateDataGenerator.generateLegalEntitySubjectDN();
+        String legalDN = CertificateDataPopulator.populateLegalEntitySubjectDN();
         assertNotNull(legalDN, "Legal DN should be generated");
         assertTrue(legalDN.contains("CN="), "Should contain CN");
         assertTrue(legalDN.contains("O="), "Should contain O=");
@@ -136,7 +137,7 @@ public class GeneratorTest {
     public void testWrapperClassesExist() {
         // Test that our proxy classes can be instantiated
         try {
-            KalkanRegistry.createKalkanProvider();
+            new KalkanRegistry().createKalkanProvider();
             assertTrue(true, "All proxy classes should be instantiable");
         } catch (Exception e) {
             fail("Proxy classes should be instantiable: " + e.getMessage());
