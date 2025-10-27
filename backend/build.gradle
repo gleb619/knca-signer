@@ -77,6 +77,11 @@ task runGenerator(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
 }
 
+task runSigner(type: JavaExec) {
+    mainClass = 'knca.signer.example.Signer'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
 task runReader(type: JavaExec) {
     mainClass = 'knca.signer.example.Reader'
     classpath = sourceSets.main.runtimeClasspath

@@ -151,11 +151,8 @@ public class WebSocketHandler implements Handler<ServerWebSocket> {
 
         vertx.executeBlocking(promise -> {
             try {
-                // For simplicity, we'll use the default certificate
-                String signature = certificateService.signData(xmlData, "user");
-
-                // Create a simple signed XML (in real implementation, this would embed proper XML signature)
-                String signedXml = xmlData.replace("</Document>", "<ds:Signature>" + signature + "</ds:Signature></Document>");
+                // Use the real XML signing implementation
+                String signedXml = certificateService.signXml(xmlData, "user");
 
                 JsonObject response = new JsonObject()
                         .put("responseObject", signedXml)

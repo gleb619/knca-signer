@@ -2,10 +2,8 @@ package knca.signer.service;
 
 import knca.signer.config.ApplicationConfig;
 import knca.signer.controller.VerifierHandler.XmlValidationRequest;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
+import knca.signer.util.XmlSigningUtil;
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
@@ -67,10 +65,64 @@ public class CertificateService {
         return validationService.validateXmlSignature(request);
     }
 
-    @Deprecated(forRemoval = true)
-    public List<CertificateReader.CertificateInfo> getFilesystemCertificates() {
-        return storage.getFilesystemCertificates();
+    /**
+     * Sign XML content using certificate alias. Behavior depends on storageMode:
+     * - "in-memory": uses keystore lookup
+     * - "file": uses PEM files from certsPath
+     *
+     * @param xmlData   The XML content to sign
+     * @param certAlias The certificate alias (e.g., "user", "legal")
+     * @return The signed XML as a string
+     * @throws Exception If signing fails
+     */
+    public String signXml(String xmlData, String certAlias) throws Exception {
+        if ("file".equals(config.getStorageMode())) {
+            // File mode: use PEM files
+            String certPemPath = config.getCertsPath() + certAlias + ".crt";
+            String keyPemPath = config.getCertsPath() + certAlias + ".key";
+            return signXmlWithPemFiles(xmlData, certPemPath, keyPemPath);
+        } else {
+            // In-memory mode: use keystore lookup
+            X509Certificate certificate = getCertificate(certAlias);
+            PrivateKey privateKey = getPrivateKey(certAlias);
+
+            // Create certificate chain (in real implementation, this might include intermediate CAs)
+            List<X509Certificate> certificateChain = List.of(certificate);
+
+            SigningEntity signingEntity = new SigningEntity(privateKey, certificateChain);
+            try {
+                return XmlSigningUtil.createXmlSignature(signingEntity, xmlData);
+            } catch (javax.xml.crypto.MarshalException | javax.xml.crypto.dsig.XMLSignatureException |
+                     java.security.NoSuchAlgorithmException | java.security.InvalidAlgorithmParameterException e) {
+                throw new Exception("XML signing failed: " + e.getMessage(), e);
+            }
+        }
     }
+
+    /**
+     * Sign XML content using certificate and private key from PEM files.
+     *
+     * @param xmlData     The XML content to sign
+     * @param certPemPath Path to certificate PEM file
+     * @param keyPemPath  Path to private key PEM file
+     * @return The signed XML as a string
+     * @throws Exception If signing fails
+     */
+    public String signXmlWithPemFiles(String xmlData, String certPemPath, String keyPemPath) throws Exception {
+        CertificateReader reader = new CertificateReader(config);
+        CertificateReader.PemSigningData pemData = reader.loadPemSigningData(certPemPath, keyPemPath, provider.getName());
+
+        List<X509Certificate> certificateChain = List.of(pemData.certificate);
+        SigningEntity signingEntity = new SigningEntity(pemData.privateKey, certificateChain);
+        try {
+            return XmlSigningUtil.createXmlSignature(signingEntity, xmlData);
+        } catch (javax.xml.crypto.MarshalException | javax.xml.crypto.dsig.XMLSignatureException |
+                 java.security.NoSuchAlgorithmException | java.security.InvalidAlgorithmParameterException e) {
+            throw new Exception("XML signing failed: " + e.getMessage(), e);
+        }
+    }
+
+
 
     /**
      * Download certificate in the specified format.
@@ -232,12 +284,25 @@ public class CertificateService {
         private final java.security.cert.X509Certificate certificate;
     }
 
+    @Builder
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor(access = AccessLevel.PUBLIC)
+    public static class ValidationDetail {
+        private String key;        // e.g., "signature", "dataIntegrity", "certificateIin"
+        private String type;       // e.g., "check", "extraction", "error"
+        private String status;     // e.g., "passed", "failed", "not_applicable"
+        private String value;      // for extractions like IIN/BIN values
+        private String message;    // optional translated message or error details
+    }
+
     @Data
     @AllArgsConstructor
     public static class ValidationResult {
         private boolean valid;
+        private String code;
         private String message;
-        private Map<String, String> details;
+        private List<ValidationDetail> details;
     }
 
     @Data
@@ -271,4 +336,36 @@ public class CertificateService {
         private final String filename;
         private final byte[] data;
     }
+
+    /**
+     * Represents the signing entity containing private key and certificate chain.
+     * Used for creating digital signatures across different formats (XML, CMS, raw).
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SigningEntity {
+
+        /**
+         * The private key used for signing
+         */
+        private PrivateKey key;
+
+        /**
+         * The certificate chain, where the first certificate is the signing certificate
+         */
+        private List<X509Certificate> certificateChain;
+
+        /**
+         * Get the signing certificate (first in chain)
+         */
+        public X509Certificate getCertificate() {
+            return certificateChain != null && !certificateChain.isEmpty()
+                    ? certificateChain.getFirst()
+                    : null;
+        }
+
+    }
+
+
 }

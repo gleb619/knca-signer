@@ -39,19 +39,19 @@ public class VerifierHandler {
                     return;
                 }
 
-                String signature = certificateService.signData(data, certAlias);
+                String signedXml = certificateService.signXml(data, certAlias);
                 log.info("Data signed successfully with certAlias: {}", certAlias);
 
                 respondJson(ctx, new JsonObject()
-                        .put("signature", signature)
+                        .put("signedXml", signedXml)
                         .put("certAlias", certAlias)
-                        .put("algorithm", "SHA256withRSA"));
+                        .put("algorithm", "XMLDSig"));
 
             } catch (IllegalArgumentException e) {
-                log.warn("Invalid certificate alias in sign request: {}", e.getMessage());
+                log.warn("Invalid certificate alias in XML sign request: {}", e.getMessage());
                 respondError(ctx, 404, e.getMessage());
             } catch (Exception e) {
-                log.error("Error signing data: {}", e.getMessage(), e);
+                log.error("Error signing XML: {}", e.getMessage(), e);
                 respondError(ctx, 500, "Internal server error");
             }
         };

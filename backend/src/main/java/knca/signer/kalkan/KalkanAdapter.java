@@ -116,6 +116,14 @@ public class KalkanAdapter {
         return REGISTRY.createTBSCertificateManager();
     }
 
+    public static KalkanProxy createKalkanPKCS12Keystore() {
+        return REGISTRY.createKalkanPKCS12Keystore();
+    }
+
+    public static KalkanProxy createKalkanJKSKeystore() {
+        return REGISTRY.createKalkanJKSKeystore();
+    }
+
     // ========== TBS Certificate Utility Methods ==========
 
     public static KalkanProxy createSubjectPublicKeyInfo(PublicKey publicKey) {

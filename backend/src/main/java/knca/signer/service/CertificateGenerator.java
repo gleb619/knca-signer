@@ -134,6 +134,9 @@ public class CertificateGenerator {
         saveCertificate(userCert, config.getCertsPath() + "user.crt");
         saveCertificate(userCert, config.getCertsPath() + "user.pem");
 
+        // Save user private key in PKCS8 format
+        savePrivateKey(userKeyPair.getPrivate(), config.getCertsPath() + "user.key");
+
         // Create keystores
         KeyStoreManager.createPKCS12Keystore(userKeyPair.getPrivate(), userCert, rootCert,
                 config.getCertsPath() + "user.p12", config.getKeystorePassword(),
@@ -424,7 +427,10 @@ public class CertificateGenerator {
                 String keyText = Files.readString(caKeyPath);
                 if (keyText.contains("BEGIN PRIVATE KEY")) {
                     // This is a private key file
-                    keyText = keyText.replaceAll("-----[A-Z ]*-----", "").replaceAll("\\s", "");
+                    keyText = keyText.replaceAll("-----[A-Z ]*-----", "")
+                            .replaceAll("\\s", "")
+                            //Somehow, sometimes file contains additional symbols at the end
+                            .replaceFirst("---$", "");
                     byte[] keyBytes = Base64.getDecoder().decode(keyText);
 
                     PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);

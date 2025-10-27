@@ -237,6 +237,36 @@ public class KalkanRegistry {
         return () -> kalkanProxy;
     }
 
+    /**
+     * Create a Kalkan-compatible JKS keystore using direct SPI instantiation
+     * This ensures compatibility with real Kalkan applications by using JavaKeyStore.JKS directly
+     */
+    public KalkanProxy createKalkanJKSKeystore() {
+        try {
+            // Direct instantiation of JavaKeyStore.JKS (bypasses JVM KeyStore factory)
+            Class<?> jksClass = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.jce.provider.JavaKeyStore$JKS");
+            Object jksInstance = ReflectionHelper.newInstance(jksClass);
+            return createProxy(jksClass, jksInstance);
+        } catch (Exception e) {
+            throw new KalkanException("Failed to create Kalkan JKS keystore", e);
+        }
+    }
+
+    /**
+     * Create a Kalkan-compatible PKCS12 keystore using direct SPI instantiation
+     * This ensures compatibility with real Kalkan applications by using JDKPKCS12KeyStore.BCPKCS12KeyStore
+     */
+    public KalkanProxy createKalkanPKCS12Keystore() {
+        try {
+            // Direct instantiation of JDKPKCS12KeyStore.BCPKCS12KeyStore (kalkan-specific implementation)
+            Class<?> pkcs12Class = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.jce.provider.JDKPKCS12KeyStore$BCPKCS12KeyStore");
+            Object pkcs12Instance = ReflectionHelper.newInstance(pkcs12Class);
+            return createProxy(pkcs12Class, pkcs12Instance);
+        } catch (Exception e) {
+            throw new KalkanException("Failed to create Kalkan PKCS12 keystore", e);
+        }
+    }
+
     @SneakyThrows
     public Object createASN1SequenceFromPublicKey(java.security.PublicKey publicKey) {
         Class<?> asn1ObjectClass = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.ASN1Object");

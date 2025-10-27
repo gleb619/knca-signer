@@ -7,6 +7,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 
 import javax.xml.crypto.*;
+import javax.xml.crypto.dsig.XMLSignature;
 import javax.xml.crypto.dsig.XMLSignatureFactory;
 import javax.xml.crypto.dsig.dom.DOMValidateContext;
 import javax.xml.crypto.dsig.keyinfo.KeyInfo;
@@ -17,7 +18,9 @@ import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
+import java.security.Provider;
 import java.security.PublicKey;
+import java.security.Signature;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.X509EncodedKeySpec;
@@ -31,259 +34,16 @@ import java.util.*;
 @RequiredArgsConstructor
 public class CertificateValidator {
 
-    private final java.security.Provider provider;
+    private final Provider provider;
     private final CertificateStorage registry;
-
-    /**
-     * Validate XML signature.
-     */
-    public CertificateService.ValidationResult validateXmlSignature(VerifierHandler.XmlValidationRequest request) throws Exception {
-        Map<String, String> details = new HashMap<>();
-        CertificateService.ValidationResult result = new CertificateService.ValidationResult(true, "XML signature validation successful", details);
-
-        CertificateService.CertificateResult defaultCa = registry.getFirstCACertificate().orElseThrow();
-        XmlValidator validator = new XmlValidator(defaultCa.getCertificate(), provider);
-
-        try {
-            // Basic signature validation
-            boolean signatureValid = validator.validateXmlSignature(request.getXml());
-            if (!signatureValid) {
-                result.setValid(false);
-                result.setMessage("XML signature is invalid");
-                details.put("signatureValid", "false");
-                return result;
-            }
-            details.put("signatureValid", "true");
-
-            // Check Kalkan provider if requested
-            if (request.isCheckKalkanProvider()) {
-                try {
-                    boolean kalkanUsed = validator.checkKalkanProvider(request.getXml());
-                    details.put("kalkanProviderUsed", String.valueOf(kalkanUsed));
-                } catch (Exception e) {
-                    details.put("kalkanProviderCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Kalkan provider check failed: " + e.getMessage());
-                }
-            }
-
-            // Check data integrity if requested
-            if (request.isCheckData()) {
-                try {
-                    boolean dataIntegrity = validator.checkDataIntegrity(request.getXml());
-                    details.put("dataIntegrityValid", String.valueOf(dataIntegrity));
-                    if (!dataIntegrity) {
-                        result.setValid(false);
-                        result.setMessage("Data integrity check failed");
-                    }
-                } catch (Exception e) {
-                    details.put("dataIntegrityCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Data integrity check failed: " + e.getMessage());
-                }
-            }
-
-            // Validate timestamps if requested
-            if (request.isCheckTime()) {
-                try {
-                    boolean timestampValid = validator.validateTimestamp(request.getXml());
-                    details.put("timestampValid", String.valueOf(timestampValid));
-                    if (!timestampValid) {
-                        result.setValid(false);
-                        result.setMessage("Timestamp validation failed");
-                    }
-                } catch (Exception e) {
-                    details.put("timestampCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Timestamp validation failed: " + e.getMessage());
-                }
-            }
-
-            // Extract IIN from certificate if requested
-            if (request.isCheckIinInCert()) {
-                try {
-                    String certIin = validator.extractIinFromCertificate(request.getXml());
-                    details.put("certificateIin", certIin != null ? certIin : "not found");
-
-                    if (request.getExpectedIin() != null && certIin != null) {
-                        boolean iinMatches = request.getExpectedIin().equals(certIin);
-                        details.put("certificateIinMatches", String.valueOf(iinMatches));
-                        if (!iinMatches) {
-                            result.setValid(false);
-                            result.setMessage("Certificate IIN does not match expected value");
-                        }
-                    }
-                } catch (Exception e) {
-                    details.put("certificateIinCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Certificate IIN check failed: " + e.getMessage());
-                }
-            }
-
-            // Extract IIN from signature if requested
-            if (request.isCheckIinInSign()) {
-                try {
-                    String signIin = validator.extractIinFromSignature(request.getXml());
-                    details.put("signatureIin", signIin != null ? signIin : "not found");
-
-                    if (request.getExpectedIin() != null && signIin != null) {
-                        boolean iinMatches = request.getExpectedIin().equals(signIin);
-                        details.put("signatureIinMatches", String.valueOf(iinMatches));
-                        if (!iinMatches) {
-                            result.setValid(false);
-                            result.setMessage("Signature IIN does not match expected value");
-                        }
-                    }
-                } catch (Exception e) {
-                    details.put("signatureIinCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Signature IIN check failed: " + e.getMessage());
-                }
-            }
-
-            // Extract BIN from certificate if requested
-            if (request.isCheckBinInCert()) {
-                try {
-                    String certBin = validator.extractBinFromCertificate(request.getXml());
-                    details.put("certificateBin", certBin != null ? certBin : "not found");
-
-                    if (request.getExpectedBin() != null && certBin != null) {
-                        boolean binMatches = request.getExpectedBin().equals(certBin);
-                        details.put("certificateBinMatches", String.valueOf(binMatches));
-                        if (!binMatches) {
-                            result.setValid(false);
-                            result.setMessage("Certificate BIN does not match expected value");
-                        }
-                    }
-                } catch (Exception e) {
-                    details.put("certificateBinCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Certificate BIN check failed: " + e.getMessage());
-                }
-            }
-
-            // Extract BIN from signature if requested
-            if (request.isCheckBinInSign()) {
-                try {
-                    String signBin = validator.extractBinFromSignature(request.getXml());
-                    details.put("signatureBin", signBin != null ? signBin : "not found");
-
-                    if (request.getExpectedBin() != null && signBin != null) {
-                        boolean binMatches = request.getExpectedBin().equals(signBin);
-                        details.put("signatureBinMatches", String.valueOf(binMatches));
-                        if (!binMatches) {
-                            result.setValid(false);
-                            result.setMessage("Signature BIN does not match expected value");
-                        }
-                    }
-                } catch (Exception e) {
-                    details.put("signatureBinCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Signature BIN check failed: " + e.getMessage());
-                }
-            }
-
-            // Validate certificate chain if requested
-            if (request.isCheckCertificateChain()) {
-                try {
-                    X509Certificate caCertToUse = defaultCa.getCertificate();
-
-                    // If custom CA PEM is provided, parse and use it
-                    if (request.getCaPem() != null && !request.getCaPem().trim().isEmpty()) {
-                        try {
-                            String pemContent = request.getCaPem().trim();
-                            // Check if it's base64 encoded (for backward compatibility) or plain PEM text
-                            String cleanedContent;
-                            try {
-                                // Try to decode as base64 first
-                                byte[] decodedBytes = Base64.getDecoder().decode(pemContent);
-                                cleanedContent = new String(decodedBytes).trim();
-                            } catch (Exception base64Exception) {
-                                // If base64 decode fails, treat as plain PEM text
-                                cleanedContent = pemContent;
-                            }
-
-                            // Remove PEM headers/footers and clean up
-                            cleanedContent = cleanedContent.replaceAll("-----BEGIN CERTIFICATE-----", "")
-                                    .replaceAll("-----END CERTIFICATE-----", "")
-                                    .replaceAll("-----BEGIN PUBLIC KEY-----", "")
-                                    .replaceAll("-----END PUBLIC KEY-----", "")
-                                    .replaceAll("\\s", "");
-
-                            byte[] certBytes = Base64.getDecoder().decode(cleanedContent);
-                            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-                            caCertToUse = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes));
-                            log.info("Using custom CA certificate for chain validation");
-                        } catch (Exception caParseException) {
-                            log.warn("Failed to parse custom CA PEM: {}", caParseException.getMessage());
-                            details.put("customCaParseError", caParseException.getMessage());
-                            result.setValid(false);
-                            result.setMessage("Custom CA certificate parsing failed: " + caParseException.getMessage());
-                            return result;
-                        }
-                    }
-
-                    boolean chainValid = validator.validateCertificateChain(request.getXml(), caCertToUse);
-                    details.put("certificateChainValid", String.valueOf(chainValid));
-                    if (!chainValid) {
-                        result.setValid(false);
-                        result.setMessage("Certificate chain validation failed");
-                    }
-                } catch (Exception e) {
-                    details.put("certificateChainCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Certificate chain validation failed: " + e.getMessage());
-                }
-            }
-
-            // Validate public key if requested
-            if (request.isCheckPublicKey()) {
-                try {
-                    boolean publicKeyValid = validator.validatePublicKey(request.getXml(), request.getPublicKey());
-                    details.put("publicKeyValid", String.valueOf(publicKeyValid));
-                    if (!publicKeyValid) {
-                        result.setValid(false);
-                        result.setMessage("Public key validation failed - provided key does not match certificate");
-                    }
-                } catch (Exception e) {
-                    details.put("publicKeyCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Public key validation error: " + e.getMessage());
-                }
-            }
-
-            // Check extended key usage if requested
-            if (request.isCheckExtendedKeyUsage()) {
-                try {
-                    boolean extendedKeyUsageValid = validator.checkExtendedKeyUsage(request.getXml(), request.getExtendedKeyUsageOids());
-                    details.put("extendedKeyUsageValid", String.valueOf(extendedKeyUsageValid));
-                    if (!extendedKeyUsageValid) {
-                        result.setValid(false);
-                        result.setMessage("Extended key usage validation failed - certificate EKU does not match required OIDs");
-                    }
-                } catch (Exception e) {
-                    details.put("extendedKeyUsageCheckError", e.getMessage());
-                    result.setValid(false);
-                    result.setMessage("Extended key usage validation error: " + e.getMessage());
-                }
-            }
-
-        } catch (Exception e) {
-            result.setValid(false);
-            result.setMessage("Validation failed: " + e.getMessage());
-            details.put("generalError", e.getMessage());
-        }
-
-        return result;
-    }
 
     /**
      * Validate a certificate against a CA certificate.
      */
-    public static void validateCertificate(X509Certificate userCert, X509Certificate caCert, java.security.Provider provider) throws Exception {
+    public static void validateCertificate(X509Certificate userCert, X509Certificate caCert, Provider provider) throws Exception {
         // Verify certificate signature using provider
         String sigAlgo = userCert.getSigAlgName();
-        java.security.Signature sig = java.security.Signature.getInstance(sigAlgo, provider.getName());
+        Signature sig = Signature.getInstance(sigAlgo, provider.getName());
         sig.initVerify(caCert.getPublicKey());
         sig.update(userCert.getTBSCertificate());
         if (!sig.verify(userCert.getSignature())) {
@@ -297,19 +57,9 @@ public class CertificateValidator {
     }
 
     /**
-     * Load CA certificate from file.
-     */
-    public static X509Certificate loadCACertificate(String caCertPath) throws Exception {
-        CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        try (FileInputStream fis = new FileInputStream(caCertPath)) {
-            return (X509Certificate) cf.generateCertificate(fis);
-        }
-    }
-
-    /**
      * Validate certificate chain.
      */
-    public static void validateCertificateChain(X509Certificate[] chain, X509Certificate caCert, java.security.Provider provider) throws Exception {
+    public static void validateCertificateChain(X509Certificate[] chain, X509Certificate caCert, Provider provider) throws Exception {
         if (chain == null || chain.length == 0) {
             throw new Exception("Certificate chain is empty");
         }
@@ -320,7 +70,7 @@ public class CertificateValidator {
             X509Certificate issuer = chain[i + 1];
             // Verify certificate signature using provider
             String sigAlgo = cert.getSigAlgName();
-            java.security.Signature sig = java.security.Signature.getInstance(sigAlgo, provider.getName());
+            Signature sig = Signature.getInstance(sigAlgo, provider.getName());
             sig.initVerify(issuer.getPublicKey());
             sig.update(cert.getTBSCertificate());
             if (!sig.verify(cert.getSignature())) {
@@ -334,7 +84,7 @@ public class CertificateValidator {
         if (!rootCert.getSubjectDN().equals(rootCert.getIssuerDN())) {
             // Verify root certificate signature
             String sigAlgo = rootCert.getSigAlgName();
-            java.security.Signature sig = java.security.Signature.getInstance(sigAlgo, provider.getName());
+            Signature sig = Signature.getInstance(sigAlgo, provider.getName());
             sig.initVerify(caCert.getPublicKey());
             sig.update(rootCert.getTBSCertificate());
             if (!sig.verify(rootCert.getSignature())) {
@@ -346,6 +96,416 @@ public class CertificateValidator {
         log.info("Certificate chain validated successfully");
     }
 
+    /**
+     * Validate XML signature.
+     */
+    public CertificateService.ValidationResult validateXmlSignature(VerifierHandler.XmlValidationRequest request) throws Exception {
+        List<CertificateService.ValidationDetail> details = new ArrayList<>();
+        CertificateService.ValidationResult result = new CertificateService.ValidationResult(true, "validationSuccessBasic", "XML signature validation successful", details);
+
+        CertificateService.CertificateResult defaultCa = registry.getFirstCACertificate().orElseThrow();
+        XmlValidator validator = new XmlValidator(defaultCa.getCertificate(), provider);
+
+        // Always perform signature validation first
+        performSignatureValidation(request, validator, result, details);
+
+        // If signature validation failed, return early
+        if (!result.isValid()) {
+            return result;
+        }
+
+        // Perform validation steps based on request flags
+        if (request.isCheckKalkanProvider()) performKalkanProviderCheck(request, validator, result, details);
+        if (request.isCheckData()) performDataIntegrityCheck(request, validator, result, details);
+        if (request.isCheckTime()) performTimestampCheck(request, validator, result, details);
+        if (request.isCheckIinInCert()) performIinCertCheck(request, validator, result, details);
+        if (request.isCheckIinInSign()) performIinSignCheck(request, validator, result, details);
+        if (request.isCheckBinInCert()) performBinCertCheck(request, validator, result, details);
+        if (request.isCheckBinInSign()) performBinSignCheck(request, validator, result, details);
+        if (request.isCheckCertificateChain())
+            performCertChainCheck(request, validator, result, details, defaultCa.getCertificate());
+        if (request.isCheckPublicKey()) performPublicKeyCheck(request, validator, result, details);
+        if (request.isCheckExtendedKeyUsage()) performExtendedKeyUsageCheck(request, validator, result, details);
+
+        return result;
+    }
+
+    private void performSignatureValidation(VerifierHandler.XmlValidationRequest request,
+                                            XmlValidator validator,
+                                            CertificateService.ValidationResult result,
+                                            List<CertificateService.ValidationDetail> details) {
+        try {
+            boolean signatureValid = validator.validateXmlSignature(request.getXml());
+            if (!signatureValid) {
+                result.setValid(false);
+                result.setCode("validationErrorSignatureInvalid");
+                result.setMessage("XML signature is invalid");
+                details.add(CertificateService.ValidationDetail.builder()
+                        .key("signature")
+                        .type("check")
+                        .status("failed")
+                        .build());
+            } else {
+                details.add(CertificateService.ValidationDetail.builder()
+                        .key("signature")
+                        .type("check")
+                        .status("passed")
+                        .build());
+            }
+        } catch (Exception e) {
+            log.error("Xml validation failed: ", e);
+            result.setValid(false);
+            result.setCode("validationErrorGeneral");
+            result.setMessage("Validation failed: " + e.getMessage());
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("general")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+        }
+    }
+
+    private void performKalkanProviderCheck(VerifierHandler.XmlValidationRequest request,
+                                            XmlValidator validator,
+                                            CertificateService.ValidationResult result,
+                                            List<CertificateService.ValidationDetail> details) {
+        try {
+            validator.checkKalkanProvider(request.getXml());
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("kalkanProvider")
+                    .type("check")
+                    .status("passed")
+                    .build());
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("kalkanProvider")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorProviderKalkan");
+            result.setMessage("Kalkan provider check failed: " + e.getMessage());
+        }
+    }
+
+    private void performDataIntegrityCheck(VerifierHandler.XmlValidationRequest request,
+                                           XmlValidator validator,
+                                           CertificateService.ValidationResult result,
+                                           List<CertificateService.ValidationDetail> details) {
+        try {
+            boolean dataIntegrity = validator.checkDataIntegrity(request.getXml());
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("dataIntegrity")
+                    .type("check")
+                    .status(dataIntegrity ? "passed" : "failed")
+                    .build());
+            if (!dataIntegrity) {
+                result.setValid(false);
+                result.setCode("validationErrorDataIntegrity");
+                result.setMessage("Data integrity check failed");
+            }
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("dataIntegrity")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorDataIntegrity");
+            result.setMessage("Data integrity check failed: " + e.getMessage());
+        }
+    }
+
+    private void performTimestampCheck(VerifierHandler.XmlValidationRequest request,
+                                       XmlValidator validator,
+                                       CertificateService.ValidationResult result,
+                                       List<CertificateService.ValidationDetail> details) {
+        try {
+            boolean timestampValid = validator.validateTimestamp(request.getXml());
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("timestamp")
+                    .type("check")
+                    .status(timestampValid ? "passed" : "failed")
+                    .build());
+            if (!timestampValid) {
+                result.setValid(false);
+                result.setCode("validationErrorTimestamp");
+                result.setMessage("Timestamp validation failed");
+            }
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("timestamp")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorTimestamp");
+            result.setMessage("Timestamp validation failed: " + e.getMessage());
+        }
+    }
+
+    private void performIinCertCheck(VerifierHandler.XmlValidationRequest request,
+                                     XmlValidator validator,
+                                     CertificateService.ValidationResult result,
+                                     List<CertificateService.ValidationDetail> details) {
+        try {
+            String certIin = validator.extractIinFromCertificate(request.getXml());
+            boolean iinMatches = request.getExpectedIin() != null && request.getExpectedIin().equals(certIin);
+
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("certificateIin")
+                    .type("extraction")
+                    .value(certIin)
+                    .status(iinMatches ? "passed" : (certIin != null ? "failed" : "not_found"))
+                    .build());
+
+            if (!iinMatches && request.getExpectedIin() != null) {
+                result.setValid(false);
+                result.setCode("validationErrorIinMismatch");
+                result.setMessage("Certificate IIN does not match expected value");
+            }
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("certificateIin")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorIinCertificate");
+            result.setMessage("Certificate IIN check failed: " + e.getMessage());
+        }
+    }
+
+    private void performIinSignCheck(VerifierHandler.XmlValidationRequest request,
+                                     XmlValidator validator,
+                                     CertificateService.ValidationResult result,
+                                     List<CertificateService.ValidationDetail> details) {
+        try {
+            String signIin = validator.extractIinFromSignature(request.getXml());
+            boolean iinMatches = request.getExpectedIin() != null && request.getExpectedIin().equals(signIin);
+
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("signatureIin")
+                    .type("extraction")
+                    .value(signIin)
+                    .status(iinMatches ? "passed" : (signIin != null ? "failed" : "not_found"))
+                    .build());
+
+            if (!iinMatches && request.getExpectedIin() != null) {
+                result.setValid(false);
+                result.setCode("validationErrorIinMismatch");
+                result.setMessage("Signature IIN does not match expected value");
+            }
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("signatureIin")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorIinSignature");
+            result.setMessage("Signature IIN check failed: " + e.getMessage());
+        }
+    }
+
+    private void performBinCertCheck(VerifierHandler.XmlValidationRequest request,
+                                     XmlValidator validator,
+                                     CertificateService.ValidationResult result,
+                                     List<CertificateService.ValidationDetail> details) {
+        try {
+            String certBin = validator.extractBinFromCertificate(request.getXml());
+            boolean binMatches = request.getExpectedBin() != null && request.getExpectedBin().equals(certBin);
+
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("certificateBin")
+                    .type("extraction")
+                    .value(certBin)
+                    .status(binMatches ? "passed" : (certBin != null ? "failed" : "not_found"))
+                    .build());
+
+            if (!binMatches && request.getExpectedBin() != null) {
+                result.setValid(false);
+                result.setCode("validationErrorBinMismatch");
+                result.setMessage("Certificate BIN does not match expected value");
+            }
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("certificateBin")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorBinCertificate");
+            result.setMessage("Certificate BIN check failed: " + e.getMessage());
+        }
+    }
+
+    private void performBinSignCheck(VerifierHandler.XmlValidationRequest request,
+                                     XmlValidator validator,
+                                     CertificateService.ValidationResult result,
+                                     List<CertificateService.ValidationDetail> details) {
+        try {
+            String signBin = validator.extractBinFromSignature(request.getXml());
+            boolean binMatches = request.getExpectedBin() != null && request.getExpectedBin().equals(signBin);
+
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("signatureBin")
+                    .type("extraction")
+                    .value(signBin)
+                    .status(binMatches ? "passed" : (signBin != null ? "failed" : "not_found"))
+                    .build());
+
+            if (!binMatches && request.getExpectedBin() != null) {
+                result.setValid(false);
+                result.setCode("validationErrorBinMismatch");
+                result.setMessage("Signature BIN does not match expected value");
+            }
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("signatureBin")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorBinSignature");
+            result.setMessage("Signature BIN check failed: " + e.getMessage());
+        }
+    }
+
+    private void performCertChainCheck(VerifierHandler.XmlValidationRequest request,
+                                       XmlValidator validator,
+                                       CertificateService.ValidationResult result,
+                                       List<CertificateService.ValidationDetail> details,
+                                       X509Certificate defaultCaCert) {
+        try {
+            X509Certificate caCertToUse = parseCaCertificateForChainValidation(request, defaultCaCert);
+
+            boolean chainValid = validator.validateCertificateChain(request.getXml(), caCertToUse);
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("certificateChain")
+                    .type("check")
+                    .status(chainValid ? "passed" : "failed")
+                    .build());
+            if (!chainValid) {
+                result.setValid(false);
+                result.setCode("validationErrorChainInvalid");
+                result.setMessage("Certificate chain validation failed");
+            }
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("certificateChain")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorChainCheck");
+            result.setMessage("Certificate chain validation failed: " + e.getMessage());
+        }
+    }
+
+    private X509Certificate parseCaCertificateForChainValidation(VerifierHandler.XmlValidationRequest request, X509Certificate defaultCaCert) throws Exception {
+        if (request.getCaPem() != null && !request.getCaPem().trim().isEmpty()) {
+            String pemContent = request.getCaPem().trim();
+            try {
+                // Try to decode as base64 first
+                byte[] decodedBytes = Base64.getDecoder().decode(pemContent);
+                pemContent = new String(decodedBytes).trim();
+            } catch (Exception base64Exception) {
+                // If base64 decode fails, treat as plain PEM text
+            }
+
+            // Remove PEM headers/footers and clean up
+            pemContent = pemContent.replaceAll("-----BEGIN CERTIFICATE-----", "")
+                    .replaceAll("-----END CERTIFICATE-----", "")
+                    .replaceAll("-----BEGIN PUBLIC KEY-----", "")
+                    .replaceAll("-----END PUBLIC KEY-----", "")
+                    .replaceAll("\\s", "");
+
+            byte[] certBytes = Base64.getDecoder().decode(pemContent);
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            X509Certificate customCa = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes));
+            log.info("Using custom CA certificate for chain validation");
+            return customCa;
+        }
+        return defaultCaCert;
+    }
+
+    private void performPublicKeyCheck(VerifierHandler.XmlValidationRequest request,
+                                       XmlValidator validator,
+                                       CertificateService.ValidationResult result,
+                                       List<CertificateService.ValidationDetail> details) {
+        try {
+            boolean publicKeyValid = validator.validatePublicKey(request.getXml(), request.getPublicKey());
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("publicKey")
+                    .type("check")
+                    .status(publicKeyValid ? "passed" : "failed")
+                    .build());
+            if (!publicKeyValid) {
+                result.setValid(false);
+                result.setCode("validationErrorPublicKey");
+                result.setMessage("Public key validation failed - provided key does not match certificate");
+            }
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("publicKey")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorPublicKey");
+            result.setMessage("Public key validation error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Load CA certificate from file.
+     */
+    public static X509Certificate loadCACertificate(String caCertPath) throws Exception {
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        try (FileInputStream fis = new FileInputStream(caCertPath)) {
+            return (X509Certificate) cf.generateCertificate(fis);
+        }
+    }
+
+    private void performExtendedKeyUsageCheck(VerifierHandler.XmlValidationRequest request,
+                                              XmlValidator validator,
+                                              CertificateService.ValidationResult result,
+                                              List<CertificateService.ValidationDetail> details) {
+        try {
+            boolean extendedKeyUsageValid = validator.checkExtendedKeyUsage(request.getXml(), request.getExtendedKeyUsageOids());
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("extendedKeyUsage")
+                    .type("check")
+                    .status(extendedKeyUsageValid ? "passed" : "failed")
+                    .build());
+            if (!extendedKeyUsageValid) {
+                result.setValid(false);
+                result.setCode("validationErrorEkuInvalid");
+                result.setMessage("Extended key usage validation failed - certificate EKU does not match required OIDs");
+            }
+        } catch (Exception e) {
+            details.add(CertificateService.ValidationDetail.builder()
+                    .key("extendedKeyUsage")
+                    .type("error")
+                    .status("error")
+                    .message(e.getMessage())
+                    .build());
+            result.setValid(false);
+            result.setCode("validationErrorEkuCheck");
+            result.setMessage("Extended key usage validation error: " + e.getMessage());
+        }
+    }
 
     /**
      * Instance-based XML signature validator that uses dependency injection.
@@ -355,7 +515,7 @@ public class CertificateValidator {
     public static class XmlValidator {
 
         private final X509Certificate caCertificate;
-        private final java.security.Provider provider;
+        private final Provider provider;
 
 
         /**
@@ -376,7 +536,7 @@ public class CertificateValidator {
             }
 
             // Find Signature element
-            NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "Signature");
+            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "Signature");
             if (nl.getLength() == 0) {
                 throw new Exception("Cannot find Signature element");
             }
@@ -388,7 +548,7 @@ public class CertificateValidator {
             DOMValidateContext valContext = new DOMValidateContext(new X509KeySelector(caCertificate, provider), nl.item(0));
 
             // Unmarshal the XML Signature
-            javax.xml.crypto.dsig.XMLSignature signature = fac.unmarshalXMLSignature(valContext);
+            XMLSignature signature = fac.unmarshalXMLSignature(valContext);
 
             // Validate the signature
             boolean coreValidity = signature.validate(valContext);
@@ -420,7 +580,7 @@ public class CertificateValidator {
             // In real implementation, this would check the certificate's signature algorithm
             // and verify it's using Kalkan provider
             Document doc = parseXmlDocument(xmlContent);
-            NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "SignatureMethod");
+            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "SignatureMethod");
             if (nl.getLength() > 0) {
                 String algorithm = nl.item(0).getTextContent();
                 // Kalkan typically uses RSA with SHA256
@@ -445,7 +605,7 @@ public class CertificateValidator {
          */
         public String extractIinFromCertificate(String xmlContent) throws Exception {
             Document doc = parseXmlDocument(xmlContent);
-            NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "X509Certificate");
+            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "X509Certificate");
             if (nl.getLength() > 0) {
                 String certData = nl.item(0).getTextContent();
                 try {
@@ -475,10 +635,9 @@ public class CertificateValidator {
          */
         public String extractIinFromSignature(String xmlContent) throws Exception {
             Document doc = parseXmlDocument(xmlContent);
-            NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "SignedInfo");
+            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "SignedInfo");
             if (nl.getLength() > 0) {
                 // Check if there's any IIN information in the signed data
-                // This could be in custom namespaces or specific elements
                 String signedInfo = nl.item(0).getTextContent();
                 // Look for IIN pattern (12 digits for Kazakhstan IIN)
                 if (signedInfo != null && signedInfo.matches(".*\\b\\d{12}\\b.*")) {
@@ -497,7 +656,7 @@ public class CertificateValidator {
          */
         public String extractBinFromCertificate(String xmlContent) throws Exception {
             Document doc = parseXmlDocument(xmlContent);
-            NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "X509Certificate");
+            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "X509Certificate");
             if (nl.getLength() > 0) {
                 String certData = nl.item(0).getTextContent();
                 try {
@@ -526,7 +685,7 @@ public class CertificateValidator {
          */
         public String extractBinFromSignature(String xmlContent) throws Exception {
             Document doc = parseXmlDocument(xmlContent);
-            NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "SignedInfo");
+            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "SignedInfo");
             if (nl.getLength() > 0) {
                 // Check if there's any BIN information in the signed data
                 String signedInfo = nl.item(0).getTextContent();
@@ -550,7 +709,7 @@ public class CertificateValidator {
          */
         public boolean checkDataIntegrity(String xmlContent) throws Exception {
             Document doc = parseXmlDocument(xmlContent);
-            NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "Reference");
+            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "Reference");
             // If there are references, assume data integrity needs checking
             return nl.getLength() > 0;
         }
@@ -560,7 +719,7 @@ public class CertificateValidator {
          */
         public boolean validateCertificateChain(String xmlContent, X509Certificate caCert) throws Exception {
             Document doc = parseXmlDocument(xmlContent);
-            NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "X509Certificate");
+            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "X509Certificate");
             if (nl.getLength() > 0) {
                 String certData = nl.item(0).getTextContent();
                 try {
@@ -629,7 +788,7 @@ public class CertificateValidator {
 
                 // Extract certificate from XML signature
                 Document doc = parseXmlDocument(xmlContent);
-                NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "X509Certificate");
+                NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "X509Certificate");
                 if (nl.getLength() > 0) {
                     String certData = nl.item(0).getTextContent();
                     byte[] certBytes = Base64.getDecoder().decode(certData);
@@ -662,7 +821,7 @@ public class CertificateValidator {
             try {
                 // Extract certificate from XML signature
                 Document doc = parseXmlDocument(xmlContent);
-                NodeList nl = doc.getElementsByTagNameNS(javax.xml.crypto.dsig.XMLSignature.XMLNS, "X509Certificate");
+                NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "X509Certificate");
                 if (nl.getLength() > 0) {
                     String certData = nl.item(0).getTextContent();
                     byte[] certBytes = Base64.getDecoder().decode(certData);
@@ -713,11 +872,11 @@ public class CertificateValidator {
         /**
          * KeySelector which retrieves the public key from X509Data and validates against CA.
          */
-        private class X509KeySelector extends KeySelector {
+        private static class X509KeySelector extends KeySelector {
             private final X509Certificate caCertificate;
-            private final java.security.Provider provider;
+            private final Provider provider;
 
-            public X509KeySelector(X509Certificate caCertificate, java.security.Provider provider) {
+            public X509KeySelector(X509Certificate caCertificate, Provider provider) {
                 this.caCertificate = caCertificate;
                 this.provider = provider;
             }
@@ -755,18 +914,4 @@ public class CertificateValidator {
         }
     }
 
-    @lombok.Data
-    @lombok.RequiredArgsConstructor
-    public static class CertificateResult {
-        private final java.security.KeyPair keyPair;
-        private final java.security.cert.X509Certificate certificate;
-    }
-
-    @lombok.Data
-    @lombok.AllArgsConstructor
-    public static class ValidationResult {
-        private boolean valid;
-        private String message;
-        private Map<String, String> details;
-    }
 }

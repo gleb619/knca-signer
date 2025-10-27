@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @EnabledIfSystemProperty(named = "kalkanAllowed", matches = "true")
 public class MainTest {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(MainTest.class);
     private ApplicationConfig.CertificateConfig config;
 
     @BeforeEach
@@ -135,6 +136,17 @@ public class MainTest {
         boolean isValid = sig.verify(signatureBytes);
         assertTrue(isValid, "Direct signature verification should succeed");
 
+        // 7. Test XML signing and verification
+        String xmlData = "<root><message>" + testData + "</message></root>";
+        log.info("Testing XML signing with data: {}", xmlData);
+
+        String signedXml = certService.signXml(xmlData, userAlias);
+        assertNotNull(signedXml, "Signed XML should be generated");
+        assertTrue(signedXml.contains("Signature"), "Signed XML should contain signature element");
+        assertTrue(signedXml.contains("Test data for signing"), "Signed XML should contain original data");
+        assertTrue(signedXml.length() > xmlData.length(), "Signed XML should be longer than original");
+
+        log.info("✅ XML signing test completed successfully");
 
         // 8. Final verification - ensure temp directory has the generated files
         java.io.File tempDirFile = tempDir.toFile();

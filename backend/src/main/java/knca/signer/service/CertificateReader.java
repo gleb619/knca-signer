@@ -9,11 +9,15 @@ import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -174,6 +178,42 @@ public class CertificateReader {
         try (FileInputStream fis = new FileInputStream(certPath.toFile())) {
             return (X509Certificate) certFactory.generateCertificate(fis);
         }
+    }
+
+    /**
+     * Load private key from PKCS8 PEM file.
+     */
+    public PrivateKey loadPrivateKeyFromPem(String pemFilePath, String providerName) throws Exception {
+        String pemContent = new String(Files.readAllBytes(Paths.get(pemFilePath)));
+
+        // Remove PEM headers and decode base64
+        pemContent = pemContent.replaceAll("-----[A-Z ]*-----", "").replaceAll("\\s", "");
+        byte[] keyBytes = Base64.getDecoder().decode(pemContent);
+
+        // Parse PKCS8 encoded private key
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+
+        // Use provider to generate key
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA", providerName);
+        return keyFactory.generatePrivate(keySpec);
+    }
+
+    /**
+     * Load certificate and private key from PEM files for signing.
+     */
+    public PemSigningData loadPemSigningData(String certPemPath, String keyPemPath, String providerName) throws Exception {
+        X509Certificate cert = loadCertificateFromFile(Paths.get(certPemPath));
+        PrivateKey privateKey = loadPrivateKeyFromPem(keyPemPath, providerName);
+        return new PemSigningData(cert, privateKey);
+    }
+
+    /**
+     * Data class for certificate and private key loaded from PEM files.
+     */
+    @Data
+    public static class PemSigningData {
+        public final X509Certificate certificate;
+        public final PrivateKey privateKey;
     }
 
     /**

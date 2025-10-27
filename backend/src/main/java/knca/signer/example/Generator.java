@@ -3,7 +3,9 @@ package knca.signer.example;
 import knca.signer.config.ApplicationConfig;
 import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
+import knca.signer.service.CertificateService;
 import knca.signer.service.CertificateStorage;
+import knca.signer.service.CertificateValidator;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.Provider;
@@ -42,12 +44,16 @@ public class Generator {
 
             // Create services like in BeanFactory
             var generationService = new CertificateGenerator(realProvider, config, registryService);
-            var validationService = new knca.signer.service.CertificateValidator(realProvider, registryService);
-            var certificateService = new knca.signer.service.CertificateService(realProvider, config, registryService, generationService, validationService);
+            var validationService = new CertificateValidator(realProvider, registryService);
+            var certificateService = new CertificateService(realProvider, config, registryService, generationService, validationService);
 
             // Initialize to generate/load certificates based on mode
             certificateService.init();
             log.info("CertificateService.init() completed, checking storage...");
+
+            // Generate demonstration certificates for fixed names (for examples)
+            generationService.generateAllCertificates();
+            log.info("Generated demonstration certificates (user.crt, user.key, etc.)");
 
         } catch (Exception e) {
             log.error("Certificate generation failed: %s".formatted(e.getMessage()), e);

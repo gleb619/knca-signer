@@ -120,8 +120,9 @@ public class VerifierHandlerIT {
     void testSignData(Vertx vertx, VertxTestContext testContext) throws Exception {
         HttpClient client = vertx.createHttpClient();
 
+        String xmlContent = "<document><title>Test XML</title><content>test content</content></document>";
         JsonObject signRequest = new JsonObject()
-                .put("data", "test data to sign")
+                .put("data", xmlContent)
                 .put("certAlias", "user");
 
         client.request(HttpMethod.POST, serverPort, "localhost", "/sign")
@@ -134,9 +135,13 @@ public class VerifierHandlerIT {
                     response.body().onComplete(testContext.succeeding(buffer -> {
                         testContext.verify(() -> {
                             JsonObject json = new JsonObject(buffer.toString());
-                            assertNotNull(json.getString("signature"));
+                            assertNotNull(json.getString("signedXml"));
                             assertEquals("user", json.getString("certAlias"));
-                            assertEquals("SHA256withRSA", json.getString("algorithm"));
+                            assertEquals("XMLDSig", json.getString("algorithm"));
+
+                            String signedXml = json.getString("signedXml");
+                            assertTrue(signedXml.contains("Signature"), "Signed XML should contain signature element");
+                            assertTrue(signedXml.contains("test content"), "Signed XML should contain original content");
                         });
                         testContext.completeNow();
                     }));
@@ -146,11 +151,11 @@ public class VerifierHandlerIT {
 
 
     @Test
-    void testSignDataWithInvalidCertificate(Vertx vertx, VertxTestContext testContext) throws Exception {
+    void testSignXmlWithInvalidCertificate(Vertx vertx, VertxTestContext testContext) throws Exception {
         HttpClient client = vertx.createHttpClient();
 
         JsonObject requestBody = new JsonObject()
-                .put("data", "test data")
+                .put("data", "<test>data</test>")
                 .put("certAlias", "nonexistent");
 
         client.request(HttpMethod.POST, serverPort, "localhost", "/sign")
@@ -171,10 +176,10 @@ public class VerifierHandlerIT {
     }
 
     @Test
-    void testSignDataWithMissingData(Vertx vertx, VertxTestContext testContext) throws Exception {
+    void testSignXmlWithMissingXml(Vertx vertx, VertxTestContext testContext) throws Exception {
         HttpClient client = vertx.createHttpClient();
 
-        JsonObject requestBody = new JsonObject(); // Missing data field
+        JsonObject requestBody = new JsonObject(); // Missing xml field
 
         client.request(HttpMethod.POST, serverPort, "localhost", "/sign")
                 .compose(req -> req.send(requestBody.encode()))
@@ -269,7 +274,7 @@ public class VerifierHandlerIT {
                             JsonObject json = new JsonObject(buffer.toString());
                             assertFalse(json.getBoolean("valid"));
                             assertNotNull(json.getString("message"));
-                            assertNotNull(json.getJsonObject("details"));
+                            assertNotNull(json.getJsonArray("details"));
                         });
                         testContext.completeNow();
                     }));
