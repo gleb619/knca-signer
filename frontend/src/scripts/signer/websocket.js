@@ -129,7 +129,7 @@ export default {
                 if (responseBody != null) {
                     this.isSigning = false;
                     if (responseBody.hasOwnProperty('result')) {
-                        const result = responseBody.result;
+                        const result = this.isArray ? responseBody.result : responseBody.result[0];
                         if (result.hasOwnProperty('signatures')) {
                             const signatures = result.signatures;
                             const certificate = result.certificate;

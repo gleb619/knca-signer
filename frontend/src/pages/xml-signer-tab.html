@@ -313,7 +313,7 @@
                             <h4 class="text-base font-semibold text-gray-700" x-text="translate('signatureOutput')">
                                 Signature Output</h4>
                             <div>
-                                <button @click="$dispatch('verify-signature', { signature }); selectTab('xml-verifier');"
+                                <button @click="$dispatch('verify-signature', { signature: signature.trim() }); selectTab('xml-verifier');"
                                         class="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
                                         type="button"
                                         x-show="signature"

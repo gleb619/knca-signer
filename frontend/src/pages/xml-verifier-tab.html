@@ -302,7 +302,7 @@
                 <!-- Action Buttons -->
                 <div @submit.prevent="validateXml()" class="bg-white rounded-lg shadow-sm p-4">
                     <div class="flex flex-col sm:flex-row gap-4">
-                        <button :disabled="!xmlContent.trim() || isValidating" @click="validateXml"
+                        <button :disabled="!xmlContent?.trim() || isValidating" @click="validateXml"
                                 class="flex-1 flex justify-center items-center px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                 type="button">
                             <template x-if="!isValidating">
@@ -343,43 +343,117 @@
                 </div>
 
                 <!-- Validation Result Section -->
-                <div class="bg-white rounded-lg shadow-sm p-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <h4 class="text-base font-semibold text-gray-700" x-text="translate('validationResult')">
-                            Validation Result</h4>
+                <div class="bg-white rounded-lg shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <div :class="validationResult?.valid ? 'bg-green-100' : 'bg-red-100'"
+                                 class="w-8 h-8 rounded-full flex items-center justify-center">
+                                <svg :class="validationResult?.valid ? 'text-green-600' : 'text-red-600'"
+                                     class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path :clip-rule="validationResult?.valid ? 'evenodd' : 'nonzero'"
+                                          :fill-rule="validationResult?.valid ? 'evenodd' : 'nonzero'"
+                                          d="validationResult?.valid ? 'M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z' : 'M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z'"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold text-gray-900" x-text="translate('validationResult')">
+                                    Validation Result</h4>
+                            </div>
+                        </div>
                         <button @click="copyValidationResult()"
-                                class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
-                                type="button" x-show="validationResult"
-                                x-text="translate('copyResult')">
-                            Copy to Clipboard
+                                class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center space-x-2"
+                                type="button" x-show="validationResult">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"
+                                      stroke-width="2"></path>
+                            </svg>
+                            <span x-text="translate('copyResult')"></span>
                         </button>
                     </div>
-                    <div class="text-sm text-gray-500" x-show="!validationResult"
+
+                    <div class="text-sm text-gray-500 text-center py-8" x-show="!validationResult"
                          x-text="translate('xmlVerificationDesc')">
                         The verification result will appear here after successful validation
                     </div>
+
                     <div x-show="validationResult" x-transition:enter="transition ease-out duration-300">
-                        <div class="flex items-center mb-2">
-                            <div :class="validationResult?.valid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
-                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
-                                <svg :class="validationResult?.valid ? 'text-green-500' : 'text-red-500'"
-                                     class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                    <path clip-rule="evenodd"
-                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                          fill-rule="evenodd"></path>
+                        <!-- Main Status Card -->
+                        <div :class="validationResult?.valid ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'"
+                             class="border-l-4 p-4 mb-6 rounded-r-lg">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div :class="validationResult?.valid ? 'text-green-600' : 'text-red-600'"
+                                         class="text-sm font-medium">
+                                        <span x-text="validationResult?.valid ? translate('validationOverallSuccess') : translate('validationOverallFailure')"></span>
+                                    </div>
+                                </div>
+                                <div :class="validationResult?.valid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                                    <span x-text="validationResult?.valid ? translate('valid') : translate('invalid')"></span>
+                                </div>
+                            </div>
+                            <p class="mt-2 text-sm text-gray-700"
+                               x-text="translate(validationResult?.code || 'validationSuccessBasic')"></p>
+                        </div>
+
+                        <!-- Validation Details -->
+                        <div x-show="validationResult?.details && validationResult.details.length > 0">
+                            <h5 class="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                                <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor"
+                                     viewBox="0 0 24 24">
+                                    <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke-linecap="round" stroke-linejoin="round"
+                                          stroke-width="2"></path>
                                 </svg>
-                                <span x-text="validationResult?.valid ? translate('valid') : translate('invalid')"></span>
+                                <span x-text="translate('validationDetails')"></span>
+                            </h5>
+                            <div class="space-y-3">
+                                <template :key="index" x-for="(detail, index) in validationResult.details">
+                                    <div :class="getDetailCardClasses(detail)"
+                                         class="border-l-4 p-3 rounded-r-lg transition-all">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center space-x-2">
+                                                <div :class="getStatusIcon(detail.status)"
+                                                     class="w-4 h-4 flex-shrink-0">
+                                                    <!-- Status icons will be set by getStatusIcon function -->
+                                                </div>
+                                                <span class="text-sm font-medium text-gray-900"
+                                                      x-text="getDetailTitle(detail)"></span>
+                                            </div>
+                                            <div :class="getStatusBadgeClasses(detail.status)"
+                                                 class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium">
+                                                <span x-text="getStatusText(detail.status)"></span>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2" x-show="detail.value">
+                                            <p class="text-xs text-gray-600 font-mono bg-gray-50 p-2 rounded"
+                                               x-text="detail.value"></p>
+                                        </div>
+                                        <div class="mt-2" x-show="detail.message">
+                                            <p class="text-xs text-orange-700 bg-orange-50 p-2 rounded border border-orange-200"
+                                               x-text="detail.message"></p>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                         </div>
-                        <p class="mt-2 text-sm text-gray-700" x-text="validationResult?.message"></p>
-                        <div class="mt-3 space-y-1" x-show="validationResult?.details">
-                            <h6 class="text-sm font-medium text-gray-900" x-text="translate('validationDetails')"></h6>
-                            <template :key="key"
-                                      x-for="[key, value] in Object.entries(validationResult?.details || {})">
-                                <div class="text-xs text-gray-600">
-                                    <span class="font-medium" x-text="key"></span>: <span x-text="value"></span>
+
+                        <!-- Summary Stats -->
+                        <div class="mt-6 pt-4 border-t border-gray-200"
+                             x-show="validationResult?.details && validationResult.details.length > 0">
+                            <div class="flex items-center space-x-6 text-sm text-gray-600">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                                    <span x-text="getStatusCount('passed') + ' ' + translate('validationStatusPassed')"></span>
                                 </div>
-                            </template>
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                                    <span x-text="getStatusCount('failed') + ' ' + translate('validationStatusFailed')"></span>
+                                </div>
+                                <div class="flex items-center space-x-2" x-show="hasErrors()">
+                                    <div class="w-3 h-3 bg-orange-500 rounded-full"></div>
+                                    <span x-text="getStatusCount('error') + ' ' + translate('validationStatusError')"></span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -101,8 +101,6 @@ export default () => ({
         }
     },
 
-
-
     async validateXml() {
         // Validation
         if (!this.xmlContent || !this.xmlContent.trim()) {
@@ -151,14 +149,14 @@ export default () => ({
             this.validationResult = result;
 
             if (result.valid) {
-                this.addNotification('success', result.message || 'xmlVerificationPassed');
+                this.addNotification('success', this.translate(result.code || 'xmlVerificationPassed'));
             } else {
-                this.addNotification('error', result.message || 'xmlVerificationFailed');
+                this.addNotification('error', this.translate(result.code || 'xmlVerificationFailed'));
             }
 
         } catch (error) {
             console.error('XML validation error:', error);
-            this.addNotification('error', error.message || 'xmlVerificationFailedGeneral');
+            this.addNotification('error', this.translate(error.message || 'xmlVerificationFailedGeneral'));
         } finally {
             this.isValidating = false;
         }
@@ -231,9 +229,8 @@ export default () => ({
         document.body.removeChild(textArea);
     },
 
-    handleSignatureVerify(detail) {
-        console.info("detail: ", detail);
-        this.xmlContent = detail?.signature;
+    handleSignatureVerify(signature) {
+        this.xmlContent = signature?.signature || 'N/A';
     },
 
     async handleCertificateSelection(detail) {
@@ -267,6 +264,75 @@ export default () => ({
                 }
             }
         }
+    },
+
+    // Helper functions for enhanced UI
+
+    getDetailCardClasses(detail) {
+        const statusClasses = {
+            passed: 'border-green-200 bg-green-50',
+            failed: 'border-red-200 bg-red-50',
+            'not_found': 'border-yellow-200 bg-yellow-50',
+            error: 'border-orange-200 bg-orange-50'
+        };
+        return statusClasses[detail.status] || 'border-gray-200 bg-gray-50';
+    },
+
+    getStatusIcon(status) {
+        const icons = {
+            passed: '<svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>',
+            failed: '<svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="nonzero" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"></path></svg>',
+            'not_found': '<svg class="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>',
+            error: '<svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>'
+        };
+        return icons[status] || icons.error;
+    },
+
+    getDetailTitle(detail) {
+        const titles = {
+            signature: 'checkDataIntegrity',
+            kalkanProvider: 'checkKalkanProvider',
+            dataIntegrity: 'checkDataIntegrity',
+            timestamp: 'checkTimestamp',
+            certificateIin: 'checkIinCertificate',
+            signatureIin: 'checkIinSignature',
+            certificateBin: 'checkBinCertificate',
+            signatureBin: 'checkBinSignature',
+            certificateChain: 'checkCertificateChain',
+            publicKey: 'checkPublicKeyMatch',
+            extendedKeyUsage: 'checkExtendedKeyUsage',
+            general: 'Validation'
+        };
+        return this.translate(titles[detail.key] || detail.key);
+    },
+
+    getStatusBadgeClasses(status) {
+        const classes = {
+            passed: 'bg-green-100 text-green-800',
+            failed: 'bg-red-100 text-red-800',
+            'not_found': 'bg-yellow-100 text-yellow-800',
+            error: 'bg-orange-100 text-orange-800'
+        };
+        return classes[status] || classes.error;
+    },
+
+    getStatusText(status) {
+        const texts = {
+            passed: 'validationStatusPassed',
+            failed: 'validationStatusFailed',
+            'not_found': 'validationStatusNotFound',
+            error: 'validationStatusError'
+        };
+        return this.translate(texts[status] || texts.error);
+    },
+
+    getStatusCount(status) {
+        if (!this.validationResult?.details) return 0;
+        return this.validationResult.details.filter(detail => detail.status === status).length;
+    },
+
+    hasErrors() {
+        return this.getStatusCount('error') > 0;
     }
 
 });
