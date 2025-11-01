@@ -82,7 +82,7 @@ public class XmlSigningUtil {
         SignatureMethod signatureMethod = fac.newSignatureMethod("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", null);
         SignedInfo signedInfo = fac.newSignedInfo(canonicalizationMethod, signatureMethod, java.util.Collections.singletonList(reference));
 
-        // Create KeyInfo containing X.509 certificate
+        // Create KeyInfo containing X.509 certificate (end-entity only for signature validation)
         KeyInfoFactory keyInfoFactory = fac.getKeyInfoFactory();
         X509Data x509Data = keyInfoFactory.newX509Data(java.util.Collections.singletonList(certificate));
         KeyInfo keyInfo = keyInfoFactory.newKeyInfo(java.util.Collections.singletonList(x509Data));

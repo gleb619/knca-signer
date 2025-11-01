@@ -52,7 +52,7 @@ public class CertificateStorage {
         Map<String, CertificateData> certs = new HashMap<>();
         // Add all CA certificates
         storage.getCaCertificates().forEach((alias, result) ->
-                certs.put("ca-" + alias, new CertificateData(null, null, null, alias, result.getCertificate())));
+                certs.put("ca-%s".formatted(alias), new CertificateData(null, null, null, alias, result.getCertificate())));
         // Add all user certificates
         storage.getUserCertificates().forEach((alias, data) -> certs.put("user-" + alias, data));
         // Add all legal certificates

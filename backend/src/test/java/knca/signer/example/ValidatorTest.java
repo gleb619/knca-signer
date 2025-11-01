@@ -113,7 +113,7 @@ public class ValidatorTest {
             CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
-            XmlValidator xmlValidator = new XmlValidator(caCert, realProvider);
+            XmlValidator xmlValidator = new XmlValidator(caCert, realProvider, false);
             assertNotNull(xmlValidator, "XmlValidator should be created");
         } catch (Exception e) {
             fail("XmlValidator creation should succeed: " + e.getMessage());
@@ -169,7 +169,7 @@ public class ValidatorTest {
             CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
-            XmlValidator xmlValidator = new XmlValidator(caCert, realProvider);
+            XmlValidator xmlValidator = new XmlValidator(caCert, realProvider, false);
 
             // Test with invalid XML (no signature)
             String invalidXml = "<root><test>Invalid XML</test></root>";

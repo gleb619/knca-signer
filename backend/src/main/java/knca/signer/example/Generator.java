@@ -22,7 +22,7 @@ public class Generator {
             // Load and register the KalkanProvider
             Provider realProvider = KalkanRegistry.loadRealKalkanProvider();
             String providerName = realProvider.getName();
-            log.info("Registered provider: " + providerName);
+            log.info("Registered provider: {}", providerName);
 
             // Create configuration (simulating what would be loaded from YAML)
             ApplicationConfig.CertificateConfig config = new ApplicationConfig.CertificateConfig(

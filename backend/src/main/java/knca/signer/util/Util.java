@@ -81,7 +81,7 @@ public class Util {
     private static void extractFieldPaths(String prefix, Class<?> clazz, Map<String, String> result) {
         for (Field field : clazz.getDeclaredFields()) {
             Class<?> fieldType = field.getType();
-            String currentPath = prefix.isEmpty() ? field.getName() : prefix + "." + field.getName();
+            String currentPath = prefix.isEmpty() ? field.getName() : "%s.%s".formatted(prefix, field.getName());
 
             if (isConfigClass(fieldType)) {
                 extractFieldPaths(currentPath, fieldType, result);
@@ -97,7 +97,7 @@ public class Util {
     }
 
     private static String convertPropertyToEnvVar(String propertyPath) {
-        return ENV_VAR_PREFIX + propertyPath.toUpperCase().replace(".", "_");
+        return "%s%s".formatted(ENV_VAR_PREFIX, propertyPath.toUpperCase().replace(".", "_"));
     }
 
     public static LocalDateTime toLocalDateTime(java.time.Instant instant) {

@@ -22,7 +22,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.*;
 import java.util.stream.Stream;
 
-import static knca.signer.kalkan.KalkanConstants.ROOT_SUBJECT_DN;
+
 
 /**
  * Instance-based certificate generator that uses dependency injection.
@@ -34,7 +34,7 @@ public class CertificateGenerator {
 
     private static final String DEFAULT_CA_ALIAS = "ca";
 
-    private final java.security.Provider provider;
+    private final Provider provider;
     private final ApplicationConfig.CertificateConfig config;
     private final CertificateStorage registry;
 
@@ -92,11 +92,11 @@ public class CertificateGenerator {
         X509Certificate rootCert = generateRootCA(caKeyPair);
 
         // Always save CA certificate files
-        saveCertificate(rootCert, config.getCertsPath() + alias + ".crt");
-        saveCertificate(rootCert, config.getCertsPath() + alias + ".pem");
+        saveCertificate(rootCert, "%s%s.crt".formatted(config.getCertsPath(), alias));
+        saveCertificate(rootCert, "%s%s.pem".formatted(config.getCertsPath(), alias));
 
         // Save CA private key in PKCS8 format
-        savePrivateKey(caKeyPair.getPrivate(), config.getCertsPath() + alias + ".key");
+        savePrivateKey(caKeyPair.getPrivate(), "%s%s.key".formatted(config.getCertsPath(), alias));
 
         return new CertificateResult(caKeyPair, rootCert);
     }
@@ -131,11 +131,11 @@ public class CertificateGenerator {
                 rootCert, userSubjectDN, email, iin, bin);
 
         // Save user certificate
-        saveCertificate(userCert, config.getCertsPath() + "user.crt");
-        saveCertificate(userCert, config.getCertsPath() + "user.pem");
+        saveCertificate(userCert, "%suser.crt".formatted(config.getCertsPath()));
+        saveCertificate(userCert, "%suser.pem".formatted(config.getCertsPath()));
 
         // Save user private key in PKCS8 format
-        savePrivateKey(userKeyPair.getPrivate(), config.getCertsPath() + "user.key");
+        savePrivateKey(userKeyPair.getPrivate(), "%suser.key".formatted(config.getCertsPath()));
 
         // Create keystores
         KeyStoreManager.createPKCS12Keystore(userKeyPair.getPrivate(), userCert, rootCert,
@@ -594,8 +594,9 @@ public class CertificateGenerator {
         }
         tbsManager.setSerialNumber(serNum);
         tbsManager.setSignature(config.getSignatureAlgorithm());
-        tbsManager.setIssuer(ROOT_SUBJECT_DN);
-        tbsManager.setSubject(ROOT_SUBJECT_DN);
+        String caSubjectDN = CertificateDataPopulator.populateCASubjectDN();
+        tbsManager.setIssuer(caSubjectDN);
+        tbsManager.setSubject(caSubjectDN);
         tbsManager.setSubjectPublicKeyInfo(keyPair.getPublic());
 
         // Validity period

@@ -91,7 +91,7 @@ public class KeyStoreManager {
                                                   X509Certificate caCert, String filename,
                                                   String password, String providerName) throws Exception {
         // Step 1: Create temporary JKS keystore using standard JVM
-        String tempJksFile = filename + ".temp.jks";
+        String tempJksFile = "%s.temp.jks".formatted(filename);
         try {
             KeyStore jksKeyStore = KeyStore.getInstance("JKS");
             jksKeyStore.load(null, null);

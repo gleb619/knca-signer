@@ -111,7 +111,9 @@ public class VerifierHandler {
         private String publicKey; // Optional base64 encoded public key
         private String caPem; // Optional base64 encoded CA certificate PEM
         @Builder.Default
-        private boolean checkKalkanProvider = false;
+        private boolean checkSignature = true; // Enable signature validation by default
+        @Builder.Default
+        private boolean checkKncaProvider = false; //old name was checkKalkanProvider
         @Builder.Default
         private boolean checkData = false;
         @Builder.Default

@@ -5,8 +5,6 @@ package knca.signer.kalkan;
  */
 public class KalkanConstants {
 
-    public static final String ROOT_SUBJECT_DN = "C=KZ, CN=НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (RSA) TEST 2025";
-
     // GeneralName constants
     public static class GeneralName {
         public static final int otherName = 0;

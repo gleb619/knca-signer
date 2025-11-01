@@ -4,6 +4,7 @@ import knca.signer.controller.VerifierHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import javax.xml.crypto.*;
@@ -74,7 +75,7 @@ public class CertificateValidator {
             sig.initVerify(issuer.getPublicKey());
             sig.update(cert.getTBSCertificate());
             if (!sig.verify(cert.getSignature())) {
-                throw new Exception("Certificate signature validation failed for chain[" + i + "]");
+                throw new Exception("Certificate signature validation failed for chain[%d]".formatted(i));
             }
             cert.checkValidity();
         }
@@ -104,18 +105,22 @@ public class CertificateValidator {
         CertificateService.ValidationResult result = new CertificateService.ValidationResult(true, "validationSuccessBasic", "XML signature validation successful", details);
 
         CertificateService.CertificateResult defaultCa = registry.getFirstCACertificate().orElseThrow();
-        XmlValidator validator = new XmlValidator(defaultCa.getCertificate(), provider);
+        X509Certificate caCertForValidation = parseCaCertificateForKeyValidation(request, defaultCa.getCertificate());
+        boolean skipCaValidation = request.getCaPem() == null || request.getCaPem().trim().isEmpty();
+        XmlValidator validator = new XmlValidator(caCertForValidation, provider, skipCaValidation);
 
-        // Always perform signature validation first
-        performSignatureValidation(request, validator, result, details);
+        // Perform signature validation if requested
+        if (request.isCheckSignature()) {
+            performSignatureValidation(request, validator, result, details);
 
-        // If signature validation failed, return early
-        if (!result.isValid()) {
-            return result;
+            // If signature validation failed, return early
+            if (!result.isValid()) {
+                return result;
+            }
         }
 
         // Perform validation steps based on request flags
-        if (request.isCheckKalkanProvider()) performKalkanProviderCheck(request, validator, result, details);
+        if (request.isCheckKncaProvider()) performKncaProviderCheck(request, validator, result, details);
         if (request.isCheckData()) performDataIntegrityCheck(request, validator, result, details);
         if (request.isCheckTime()) performTimestampCheck(request, validator, result, details);
         if (request.isCheckIinInCert()) performIinCertCheck(request, validator, result, details);
@@ -156,7 +161,7 @@ public class CertificateValidator {
             log.error("Xml validation failed: ", e);
             result.setValid(false);
             result.setCode("validationErrorGeneral");
-            result.setMessage("Validation failed: " + e.getMessage());
+            result.setMessage("Validation failed: %s".formatted(e.getMessage()));
             details.add(CertificateService.ValidationDetail.builder()
                     .key("general")
                     .type("error")
@@ -166,12 +171,12 @@ public class CertificateValidator {
         }
     }
 
-    private void performKalkanProviderCheck(VerifierHandler.XmlValidationRequest request,
-                                            XmlValidator validator,
-                                            CertificateService.ValidationResult result,
-                                            List<CertificateService.ValidationDetail> details) {
+    private void performKncaProviderCheck(VerifierHandler.XmlValidationRequest request,
+                                          XmlValidator validator,
+                                          CertificateService.ValidationResult result,
+                                          List<CertificateService.ValidationDetail> details) {
         try {
-            validator.checkKalkanProvider(request.getXml());
+            validator.checkKncaProvider(request.getXml());
             details.add(CertificateService.ValidationDetail.builder()
                     .key("kalkanProvider")
                     .type("check")
@@ -186,7 +191,7 @@ public class CertificateValidator {
                     .build());
             result.setValid(false);
             result.setCode("validationErrorProviderKalkan");
-            result.setMessage("Kalkan provider check failed: " + e.getMessage());
+            result.setMessage("Kalkan provider check failed: %s".formatted(e.getMessage()));
         }
     }
 
@@ -215,7 +220,7 @@ public class CertificateValidator {
                     .build());
             result.setValid(false);
             result.setCode("validationErrorDataIntegrity");
-            result.setMessage("Data integrity check failed: " + e.getMessage());
+            result.setMessage("Data integrity check failed: %s".formatted(e.getMessage()));
         }
     }
 
@@ -412,6 +417,33 @@ public class CertificateValidator {
         }
     }
 
+    private X509Certificate parseCaCertificateForKeyValidation(VerifierHandler.XmlValidationRequest request, X509Certificate defaultCaCert) throws Exception {
+        if (request.getCaPem() != null && !request.getCaPem().trim().isEmpty()) {
+            String pemContent = request.getCaPem().trim();
+            try {
+                // Try to decode as base64 first
+                byte[] decodedBytes = Base64.getDecoder().decode(pemContent);
+                pemContent = new String(decodedBytes).trim();
+            } catch (Exception base64Exception) {
+                // If base64 decode fails, treat as plain PEM text
+            }
+
+            // Remove PEM headers/footers and clean up
+            pemContent = pemContent.replaceAll("-----BEGIN CERTIFICATE-----", "")
+                    .replaceAll("-----END CERTIFICATE-----", "")
+                    .replaceAll("-----BEGIN PUBLIC KEY-----", "")
+                    .replaceAll("-----END PUBLIC KEY-----", "")
+                    .replaceAll("\\s", "");
+
+            byte[] certBytes = Base64.getDecoder().decode(pemContent);
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            X509Certificate customCa = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes));
+            log.info("Using custom CA certificate for key validation");
+            return customCa;
+        }
+        return defaultCaCert;
+    }
+
     private X509Certificate parseCaCertificateForChainValidation(VerifierHandler.XmlValidationRequest request, X509Certificate defaultCaCert) throws Exception {
         if (request.getCaPem() != null && !request.getCaPem().trim().isEmpty()) {
             String pemContent = request.getCaPem().trim();
@@ -516,6 +548,7 @@ public class CertificateValidator {
 
         private final X509Certificate caCertificate;
         private final Provider provider;
+        private final boolean skipCaValidation;
 
 
         /**
@@ -545,7 +578,7 @@ public class CertificateValidator {
             XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
 
             // Create validation context
-            DOMValidateContext valContext = new DOMValidateContext(new X509KeySelector(caCertificate, provider), nl.item(0));
+            DOMValidateContext valContext = new DOMValidateContext(new X509KeySelector(caCertificate, provider, skipCaValidation), nl.item(0));
 
             // Unmarshal the XML Signature
             XMLSignature signature = fac.unmarshalXMLSignature(valContext);
@@ -569,24 +602,6 @@ public class CertificateValidator {
                 }
                 return false;
             }
-        }
-
-        /**
-         * Check if Kalkan provider is being used in the signature.
-         */
-        //TODO fix bug with check(right now it doesn't work)
-        public boolean checkKalkanProvider(String xmlContent) throws Exception {
-            // Simple check: look for Kalkan-specific algorithm or provider identifiers
-            // In real implementation, this would check the certificate's signature algorithm
-            // and verify it's using Kalkan provider
-            Document doc = parseXmlDocument(xmlContent);
-            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "SignatureMethod");
-            if (nl.getLength() > 0) {
-                String algorithm = nl.item(0).getTextContent();
-                // Kalkan typically uses RSA with SHA256
-                return algorithm != null && algorithm.contains("rsa-sha256");
-            }
-            return false;
         }
 
         /**
@@ -628,6 +643,78 @@ public class CertificateValidator {
                 }
             }
             return null;
+        }
+
+        /**
+         * Check if certificate was issued by knca-signer by verifying L=KNCA-SIGNER marker.
+         */
+        public boolean checkKncaProvider(String xmlContent) throws Exception {
+            log.info("=== Starting knca-signer provider check ===");
+            log.info("XML content length: {}", xmlContent.length());
+
+            Document doc = parseXmlDocument(xmlContent);
+            NodeList nl = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "X509Certificate");
+            log.info("Found {} X509Certificate elements in XML", nl.getLength());
+
+            if (nl.getLength() > 0) {
+                String certData = nl.item(0).getTextContent();
+                log.info("Raw certificate data (first 100 chars): {}", certData.substring(0, Math.min(100, certData.length())));
+                log.info("Certificate data length: {}", certData.length());
+
+                try {
+                    // Clean the certificate data - remove whitespace
+                    String cleanCertData = certData.replaceAll("\\s", "");
+                    log.info("Cleaned certificate data length: {}", cleanCertData.length());
+
+                    byte[] certBytes = Base64.getDecoder().decode(cleanCertData);
+                    log.info("Decoded certificate bytes length: {}", certBytes.length);
+
+                    CertificateFactory cf = CertificateFactory.getInstance("X.509");
+                    X509Certificate cert = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(certBytes));
+
+                    // Check if certificate subject DN contains L=KNCA-SIGNER
+                    String subjectDN = cert.getSubjectDN().toString();
+                    boolean hasKncaSignerMarker = subjectDN.contains("L=KNCA-SIGNER");
+
+                    log.info("Certificate subject DN from XML: {}", subjectDN);
+                    log.info("Certificate issuer DN: {}", cert.getIssuerDN().toString());
+                    log.info("Certificate serial number: {}", cert.getSerialNumber());
+                    log.info("Certificate issued by knca-signer: {}", hasKncaSignerMarker);
+
+                    // Additional debugging - check all OU values
+                    String[] dnParts = subjectDN.split(",");
+                    log.info("Subject DN parts:");
+                    for (String part : dnParts) {
+                        part = part.trim();
+                        if (part.startsWith("OU=")) {
+                            log.info("  Found OU: {}", part);
+                        }
+                    }
+
+                    return hasKncaSignerMarker;
+                } catch (Exception e) {
+                    log.error("Failed to parse certificate for knca-signer check: {}", e.getMessage(), e);
+                    log.error("Certificate data that failed parsing: {}", certData.substring(0, Math.min(200, certData.length())));
+                    return false;
+                }
+            }
+
+            // Additional debugging - check what elements are actually in the XML
+            NodeList allElements = doc.getElementsByTagName("*");
+            log.warn("No X509Certificate found in XML signature. Found {} total elements:", allElements.getLength());
+            for (int i = 0; i < Math.min(10, allElements.getLength()); i++) {
+                Element elem = (Element) allElements.item(i);
+                log.warn("  Element {}: {} (namespace: {})", i, elem.getTagName(), elem.getNamespaceURI());
+            }
+
+            // Check for KeyInfo and X509Data elements
+            NodeList keyInfoList = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "KeyInfo");
+            log.warn("Found {} KeyInfo elements", keyInfoList.getLength());
+
+            NodeList x509DataList = doc.getElementsByTagNameNS(XMLSignature.XMLNS, "X509Data");
+            log.warn("Found {} X509Data elements", x509DataList.getLength());
+
+            return false;
         }
 
         /**
@@ -875,10 +962,12 @@ public class CertificateValidator {
         private static class X509KeySelector extends KeySelector {
             private final X509Certificate caCertificate;
             private final Provider provider;
+            private final boolean skipCaValidation;
 
-            public X509KeySelector(X509Certificate caCertificate, Provider provider) {
+            public X509KeySelector(X509Certificate caCertificate, Provider provider, boolean skipCaValidation) {
                 this.caCertificate = caCertificate;
                 this.provider = provider;
+                this.skipCaValidation = skipCaValidation;
             }
 
             public KeySelectorResult select(KeyInfo keyInfo,
@@ -897,13 +986,15 @@ public class CertificateValidator {
                         List<?> x509Objects = x509Data.getContent();
                         for (Object o : x509Objects) {
                             if (o instanceof X509Certificate cert) {
-                                // Validate certificate against CA
-                                try {
-                                    CertificateValidator.validateCertificate(cert, caCertificate, provider);
-                                    return cert::getPublicKey;
-                                } catch (Exception e) {
-                                    throw new KeySelectorException("Certificate validation failed: " + e.getMessage());
+                                // Validate certificate against CA if required
+                                if (!skipCaValidation) {
+                                    try {
+                                        CertificateValidator.validateCertificate(cert, caCertificate, provider);
+                                    } catch (Exception e) {
+                                        throw new KeySelectorException("Certificate validation failed: " + e.getMessage());
+                                    }
                                 }
+                                return cert::getPublicKey;
                             }
                         }
                     }

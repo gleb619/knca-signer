@@ -212,10 +212,20 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Generate CHANGELOG.md
-        uses: github-changelog-generator/github-changelog-generator-action@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          output: CHANGELOG.md
+        # Replaced external action (repo not found) with a local generation step to avoid prepare-time failure.
+        run: |
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          # Try to generate changelog since last tag; fall back to full history
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          if [ -n "$LAST_TAG" ]; then
+            RANGE="${LAST_TAG}..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+          echo "Changelog generated from git commits in range: $RANGE" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          git --no-pager log --pretty=format:"* %s (%h) — %an" $RANGE >> CHANGELOG.md || true
 
       - name: Create release notes file
         run: |

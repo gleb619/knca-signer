@@ -45,10 +45,10 @@ public class Validator {
             X509Certificate caCertificate = CertificateValidator.loadCACertificate(config.getCaCertPath());
 
             // Create and run XML validator
-            XmlValidator xmlValidator = new XmlValidator(caCertificate, (java.security.Provider) provider);
+            XmlValidator xmlValidator = new XmlValidator(caCertificate, (java.security.Provider) provider, false);
             boolean valid = xmlValidator.validateXmlSignature(xmlContent);
 
-            log.info("Validation result: " + valid);
+            log.info("Validation result: {}", valid);
         } catch (Exception e) {
             log.error("Validation failed: %s".formatted(e.getMessage()), e);
         }

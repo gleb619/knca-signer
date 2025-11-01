@@ -254,7 +254,7 @@ public class VerifierHandlerIT {
 
         JsonObject requestBody = new JsonObject()
                 .put("xml", "<invalid>xml<content>")
-                .put("checkKalkanProvider", true)
+                .put("checkKncaProvider", true)
                 .put("checkData", false)
                 .put("checkTime", false)
                 .put("checkIinInCert", false)

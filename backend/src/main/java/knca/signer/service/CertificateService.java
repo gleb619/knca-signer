@@ -6,7 +6,11 @@ import knca.signer.util.XmlSigningUtil;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.xml.crypto.MarshalException;
+import javax.xml.crypto.dsig.XMLSignatureException;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Signature;
 import java.security.cert.X509Certificate;
@@ -78,22 +82,39 @@ public class CertificateService {
     public String signXml(String xmlData, String certAlias) throws Exception {
         if ("file".equals(config.getStorageMode())) {
             // File mode: use PEM files
-            String certPemPath = config.getCertsPath() + certAlias + ".crt";
-            String keyPemPath = config.getCertsPath() + certAlias + ".key";
+            String certPemPath = "%s%s.crt".formatted(config.getCertsPath(), certAlias);
+            String keyPemPath = "%s%s.key".formatted(config.getCertsPath(), certAlias);
             return signXmlWithPemFiles(xmlData, certPemPath, keyPemPath);
         } else {
             // In-memory mode: use keystore lookup
             X509Certificate certificate = getCertificate(certAlias);
             PrivateKey privateKey = getPrivateKey(certAlias);
 
-            // Create certificate chain (in real implementation, this might include intermediate CAs)
-            List<X509Certificate> certificateChain = List.of(certificate);
+            // Create certificate chain including CA certificate
+            List<X509Certificate> certificateChain;
+            if (storage.hasCACertificate(certAlias)) {
+                // CA certificate - self-signed
+                certificateChain = List.of(certificate);
+            } else {
+                // User or legal certificate - include CA certificate
+                CertificateData certData = storage.getUserCertificate(certAlias).orElse(null);
+                if (certData == null) {
+                    certData = storage.getLegalCertificate(certAlias).orElse(null);
+                }
+                if (certData != null) {
+                    String caId = certData.getCaId();
+                    X509Certificate caCert = storage.getCACertificate(caId).orElseThrow().getCertificate();
+                    certificateChain = List.of(certificate, caCert);
+                } else {
+                    certificateChain = List.of(certificate);
+                }
+            }
 
             SigningEntity signingEntity = new SigningEntity(privateKey, certificateChain);
             try {
                 return XmlSigningUtil.createXmlSignature(signingEntity, xmlData);
-            } catch (javax.xml.crypto.MarshalException | javax.xml.crypto.dsig.XMLSignatureException |
-                     java.security.NoSuchAlgorithmException | java.security.InvalidAlgorithmParameterException e) {
+            } catch (MarshalException | XMLSignatureException |
+                     NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
                 throw new Exception("XML signing failed: " + e.getMessage(), e);
             }
         }
@@ -116,8 +137,8 @@ public class CertificateService {
         SigningEntity signingEntity = new SigningEntity(pemData.privateKey, certificateChain);
         try {
             return XmlSigningUtil.createXmlSignature(signingEntity, xmlData);
-        } catch (javax.xml.crypto.MarshalException | javax.xml.crypto.dsig.XMLSignatureException |
-                 java.security.NoSuchAlgorithmException | java.security.InvalidAlgorithmParameterException e) {
+        } catch (MarshalException | XMLSignatureException |
+                 NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
             throw new Exception("XML signing failed: " + e.getMessage(), e);
         }
     }
@@ -154,7 +175,7 @@ public class CertificateService {
             var caResult = storage.getCACertificate(alias).orElseThrow();
             caCert = cert; // Self-signed CA
             privateKey = caResult.getKeyPair().getPrivate();
-            filename = alias + "." + format;
+            filename = "%s.%s".formatted(alias, format);
         } else {
             // User or legal certificate - need to find CA cert and private key
             CertificateData certData = storage.getUserCertificate(alias).orElse(null);
@@ -167,7 +188,7 @@ public class CertificateService {
                 privateKey = storage.getUserKey(alias)
                         .orElseGet(() -> storage.getLegalKey(alias).orElse(null))
                         .getPrivate();
-                filename = alias + "." + format;
+                filename = "%s.%s".formatted(alias, format);
             } else {
                 log.warn("Certificate not found: {}", alias);
                 return null;

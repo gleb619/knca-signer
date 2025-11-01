@@ -44,6 +44,14 @@ public class CertificateDataPopulator {
     private static final String[] EMAIL_DOMAINS = {
             "gmail.com", "mail.kz", "yandex.kz", "outlook.com"
     };
+    private static final String[] KAZAKH_CA_NAMES = {
+            "НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (RSA) TEST 2025",
+            "НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (RSA) TEST 2026",
+            "НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (RSA) TEST 2027",
+            "ҚАЗАҚСТАН РЕСПУБЛИКАСЫНЫҢ КУӘЛАНДЫРУШЫ ОРТАЛЫҒЫ TEST 2028",
+            "ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (RSA) TEST 2029",
+            "БІРІККЕН КУӘЛАНДЫРУШЫ ОРТАЛЫҚ ҚАЗАҚСТАН TEST 2030"
+    };
 
     /**
      * Generate a random 12-digit IIN (Individual Identification Number).
@@ -68,7 +76,7 @@ public class CertificateDataPopulator {
      * Generate a random Kazakh company name.
      */
     public static String populateCompany() {
-        return KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)];
+        return KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)] + " (TEST)";
     }
 
     /**
@@ -93,6 +101,14 @@ public class CertificateDataPopulator {
     }
 
     /**
+     * Generate subject DN for a CA certificate with random selection from available names.
+     */
+    public static String populateCASubjectDN() {
+        String caName = KAZAKH_CA_NAMES[random.nextInt(KAZAKH_CA_NAMES.length)];
+        return "C=KZ, CN=%s, L=KNCA-SIGNER".formatted(caName);
+    }
+
+    /**
      * Generate subject DN for an individual certificate.
      */
     public static String populateIndividualSubjectDN() {
@@ -102,7 +118,7 @@ public class CertificateDataPopulator {
         String fullName = givenName + " " + surname;
         String iin = populateIIN();
         String email = populateEmail();
-        return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, G=%s, emailAddress=%s".formatted(fullName, surname, iin, patronymic, email);
+        return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, L=KNCA-SIGNER, G=%s, emailAddress=%s".formatted(fullName, surname, iin, patronymic, email);
     }
 
     /**
@@ -113,13 +129,13 @@ public class CertificateDataPopulator {
         String givenName = KAZAKH_GIVEN_NAMES[random.nextInt(KAZAKH_GIVEN_NAMES.length)];
         String patronymic = KAZAKH_PATRONYMICS[random.nextInt(KAZAKH_PATRONYMICS.length)];
         String fullName = givenName + " " + surname;
-        String company = KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)];
+        String company = KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)] + " (TEST)";
         String bin = populateBIN();
         String iin = populateIIN();
         String email = populateEmail();
         String businessCategory = BUSINESS_CATEGORY[random.nextInt(BUSINESS_CATEGORY.length)];
         String dc = COMPANY_ROLES[random.nextInt(COMPANY_ROLES.length)];
-        return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, O=%s, OU=BIN%s, BusinessCategory=%s, G=%s, DC=%s, emailAddress=%s".formatted(
+        return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, O=%s, L=KNCA-SIGNER, OU=BIN%s, BusinessCategory=%s, G=%s, DC=%s, emailAddress=%s".formatted(
                 fullName, surname, iin, company, bin, businessCategory, patronymic, dc, email);
     }
 
@@ -161,7 +177,7 @@ public class CertificateDataPopulator {
         String email = populateEmail();
         String businessCategory = BUSINESS_CATEGORY[random.nextInt(BUSINESS_CATEGORY.length)];
         String dc = COMPANY_ROLES[random.nextInt(COMPANY_ROLES.length)];
-        return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, O=%s, OU=BIN%s, BusinessCategory=%s, G=%s, DC=%s, emailAddress=%s".formatted(
+        return "CN=%s, SURNAME=%s, SN=IIN%s, C=KZ, O=%s, L=KNCA-SIGNER, OU=BIN%s, BusinessCategory=%s, G=%s, DC=%s, emailAddress=%s".formatted(
                 fullName, surname, iin, company, bin, businessCategory, patronymic, dc, email);
     }
 
