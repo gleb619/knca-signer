@@ -28,25 +28,19 @@
                     <h5 class="text-sm font-medium text-blue-700 mb-2" x-text="translate('howItWorks')">How it
                         works</h5>
                     <p class="text-xs text-blue-600" id="signXmlHelp" x-show="activeSubTab === 'xml'"
-                       x-text="translate('signXmlHelp')">
+                       x-html="translate('signXmlHelp')">
                     </p>
-                    <p class="text-xs text-blue-600" id="signCmsHelp" x-show="activeSubTab === 'cms'">
-                        CMS (Cryptographic Message Syntax) signing creates digital signatures for any type of data or
-                        files using the PKCS#7 standard - this is like attaching an official digital stamp or seal that
-                        proves who signed something and when. Unlike XML signing which modifies the original document,
-                        CMS signatures can be kept separate (detached) or embedded (encapsulated), making them perfect
-                        for signing PDFs, images, text files, or any digital content without altering the original.
-                        NCALayer supports optional timestamping from trusted authorities, certificate chain inclusion
-                        for verification, and even Certificate Revocation List (CRL) embedding to ensure maximum
-                        security and legal compliance. This method is widely used for document workflows, legal
-                        archiving, and secure file sharing.
+                    <p class="text-xs text-blue-600" id="signCmsHelp" x-html="translate('signCmsHelp')"
+                       x-show="activeSubTab === 'cms'">
                     </p>
                 </div>
 
                 <!-- Websocket Section -->
                 <div hx-get="src/pages/signer/websocket.html"
                      hx-target="this"
-                     hx-trigger="load lateLoad">
+                     hx-trigger="load lateLoad"
+                     x-data="{}"
+                     x-init="setTimeout(() => { htmx.process($el); htmx.trigger($el, 'lateLoad'); }, 200)">
                     <div class="text-center py-5">
                         <div class="animate-pulse">
                             <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
@@ -72,7 +66,9 @@
                     <!-- Storage Options Section -->
                     <div hx-get="src/pages/signer/storage.html"
                          hx-target="this"
-                         hx-trigger="load lateLoad">
+                         hx-trigger="load lateLoad"
+                         x-data="{}"
+                         x-init="setTimeout(() => { htmx.process($el); htmx.trigger($el, 'lateLoad'); }, 100)">
                         <div class="text-center py-5">
                             <div class="animate-pulse">
                                 <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
@@ -144,7 +140,9 @@
                     <!-- Signing Parameters Section -->
                     <div hx-get="src/pages/signer/sign-params.html"
                          hx-target="this"
-                         hx-trigger="load lateLoad">
+                         hx-trigger="load lateLoad"
+                         x-data="{}"
+                         x-init="setTimeout(() => { htmx.process($el); htmx.trigger($el, 'lateLoad'); }, 300)">
                         <div class="text-center py-5">
                             <div class="animate-pulse">
                                 <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
@@ -157,7 +155,9 @@
                     <!-- Selected CA Certificate Mini Card -->
                     <div hx-get="src/pages/signer/mini-cards.html"
                          hx-target="this"
-                         hx-trigger="load lateLoad">
+                         hx-trigger="load lateLoad"
+                         x-data="{}"
+                         x-init="setTimeout(() => { htmx.process($el); htmx.trigger($el, 'lateLoad'); }, 400)">
                         <div class="text-center py-5">
                             <div class="animate-pulse">
                                 <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>

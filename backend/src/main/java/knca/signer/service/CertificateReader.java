@@ -11,14 +11,20 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.DSAPublicKey;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -67,7 +73,7 @@ public class CertificateReader {
             paths.filter(path -> {
                 String filename = path.getFileName().toString();
                 return Files.isRegularFile(path) &&
-                        (filename.startsWith("ca") || filename.contains("ca")) &&
+                        filename.startsWith("ca") &&
                         (filename.endsWith(".crt") || filename.endsWith(".pem"));
             }).forEach(caCertPath -> {
                 try {
@@ -90,27 +96,32 @@ public class CertificateReader {
     private List<CertificateInfo> readUserCertificates(Path certsDir) throws Exception {
         List<CertificateInfo> userCerts = new ArrayList<>();
 
-        // First try to read from keystore
-        Path p12Path = certsDir.resolve("user.p12");
-        if (Files.exists(p12Path)) {
-            try {
-                X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
-                        p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
-                CertificateInfo info = extractCertificateInfo(cert, "USER", "user.p12");
-                userCerts.add(info);
-                log.info("Read user certificate from keystore: user.p12");
-                return userCerts; // Return early if keystore read successful
-            } catch (Exception e) {
-                log.warn("Failed to read user certificate from keystore, trying individual files: {}", e.getMessage());
-            }
+        // Read from all user keystores
+        try (Stream<Path> keystorePaths = Files.walk(certsDir, 1)) {
+            keystorePaths.filter(path -> {
+                String filename = path.getFileName().toString();
+                return Files.isRegularFile(path) &&
+                        filename.startsWith("user-") &&
+                        filename.endsWith(".p12");
+            }).forEach(p12Path -> {
+                try {
+                    X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
+                            p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
+                    CertificateInfo info = extractCertificateInfo(cert, "USER", p12Path.getFileName().toString());
+                    userCerts.add(info);
+                    log.info("Read user certificate from keystore: {}", p12Path.getFileName());
+                } catch (Exception e) {
+                    log.warn("Failed to read user certificate from keystore {}: {}", p12Path.getFileName(), e.getMessage());
+                }
+            });
         }
 
-        // Fallback to individual certificate files
+        // Also read from individual certificate files
         try (Stream<Path> paths = Files.walk(certsDir, 1)) {
             paths.filter(path -> {
                 String filename = path.getFileName().toString();
                 return Files.isRegularFile(path) &&
-                        (filename.startsWith("user") || filename.contains("user")) &&
+                        filename.startsWith("user-") &&
                         (filename.endsWith(".crt") || filename.endsWith(".pem"));
             }).forEach(userCertPath -> {
                 try {
@@ -133,27 +144,32 @@ public class CertificateReader {
     private List<CertificateInfo> readLegalCertificates(Path certsDir) throws Exception {
         List<CertificateInfo> legalCerts = new ArrayList<>();
 
-        // First try to read from keystore
-        Path p12Path = certsDir.resolve("legal.p12");
-        if (Files.exists(p12Path)) {
-            try {
-                X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
-                        p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
-                CertificateInfo info = extractCertificateInfo(cert, "LEGAL", "legal.p12");
-                legalCerts.add(info);
-                log.info("Read legal certificate from keystore: legal.p12");
-                return legalCerts; // Return early if keystore read successful
-            } catch (Exception e) {
-                log.warn("Failed to read legal certificate from keystore, trying individual files: {}", e.getMessage());
-            }
+        // Read from all legal keystores
+        try (Stream<Path> keystorePaths = Files.walk(certsDir, 1)) {
+            keystorePaths.filter(path -> {
+                String filename = path.getFileName().toString();
+                return Files.isRegularFile(path) &&
+                        filename.startsWith("legal-") &&
+                        filename.endsWith(".p12");
+            }).forEach(p12Path -> {
+                try {
+                    X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
+                            p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
+                    CertificateInfo info = extractCertificateInfo(cert, "LEGAL", p12Path.getFileName().toString());
+                    legalCerts.add(info);
+                    log.info("Read legal certificate from keystore: {}", p12Path.getFileName());
+                } catch (Exception e) {
+                    log.warn("Failed to read legal certificate from keystore {}: {}", p12Path.getFileName(), e.getMessage());
+                }
+            });
         }
 
-        // Fallback to individual certificate files
+        // Also read from individual certificate files
         try (Stream<Path> paths = Files.walk(certsDir, 1)) {
             paths.filter(path -> {
                 String filename = path.getFileName().toString();
                 return Files.isRegularFile(path) &&
-                        (filename.startsWith("legal") || filename.contains("legal")) &&
+                        filename.startsWith("legal-") &&
                         (filename.endsWith(".crt") || filename.endsWith(".pem"));
             }).forEach(legalCertPath -> {
                 try {
@@ -310,8 +326,8 @@ public class CertificateReader {
     private String parseEmailFromCertificateString(String certString) {
         // Look for email in RFC822Name patterns
         if (certString.contains("RFC822Name")) {
-            java.util.regex.Pattern emailPattern = java.util.regex.Pattern.compile("RFC822Name:\\s*([^,\\s]+@[\\w\\.]+)");
-            java.util.regex.Matcher matcher = emailPattern.matcher(certString);
+            Pattern emailPattern = Pattern.compile("RFC822Name:\\s*([^,\\s]+@[\\w\\.]+)");
+            Matcher matcher = emailPattern.matcher(certString);
             if (matcher.find()) {
                 return matcher.group(1).trim();
             }
@@ -319,8 +335,8 @@ public class CertificateReader {
 
         // Look for email in subject alternative names section
         if (certString.contains("Subject Alternative Name")) {
-            java.util.regex.Pattern emailPattern = java.util.regex.Pattern.compile("([^,\\s]+@[\\w\\.]+)");
-            java.util.regex.Matcher matcher = emailPattern.matcher(certString.substring(certString.indexOf("Subject Alternative Name")));
+            Pattern emailPattern = Pattern.compile("([^,\\s]+@[\\w\\.]+)");
+            Matcher matcher = emailPattern.matcher(certString.substring(certString.indexOf("Subject Alternative Name")));
             if (matcher.find()) {
                 String email = matcher.group(1).trim();
                 // Basic email validation
@@ -357,14 +373,14 @@ public class CertificateReader {
                 if (iinEnd == -1) iinEnd = certString.length();
                 String iinPart = certString.substring(iinStart, iinEnd);
                 // Extract digits after IIN prefix
-                java.util.regex.Pattern iinPattern = java.util.regex.Pattern.compile("[A-Z]*IIN(\\d{12})");
-                java.util.regex.Matcher matcher = iinPattern.matcher(iinPart);
+                Pattern iinPattern = Pattern.compile("[A-Z]*IIN(\\d{12})");
+                Matcher matcher = iinPattern.matcher(iinPart);
                 if (matcher.find()) {
                     return matcher.group(1);
                 }
                 // Try to find 12 consecutive digits
-                java.util.regex.Pattern digitPattern = java.util.regex.Pattern.compile("\\d{12}");
-                java.util.regex.Matcher digitMatcher = digitPattern.matcher(iinPart);
+                Pattern digitPattern = Pattern.compile("\\d{12}");
+                Matcher digitMatcher = digitPattern.matcher(iinPart);
                 if (digitMatcher.find()) {
                     return digitMatcher.group();
                 }
@@ -392,14 +408,14 @@ public class CertificateReader {
                 if (binEnd == -1) binEnd = certString.length();
                 String binPart = certString.substring(binStart, binEnd);
                 // Extract digits after BIN prefix
-                java.util.regex.Pattern binPattern = java.util.regex.Pattern.compile("[A-Z]*BIN(\\d{12})");
-                java.util.regex.Matcher matcher = binPattern.matcher(binPart);
+                Pattern binPattern = Pattern.compile("[A-Z]*BIN(\\d{12})");
+                Matcher matcher = binPattern.matcher(binPart);
                 if (matcher.find()) {
                     return matcher.group(1);
                 }
                 // Try to find 12 consecutive digits
-                java.util.regex.Pattern digitPattern = java.util.regex.Pattern.compile("\\d{12}");
-                java.util.regex.Matcher digitMatcher = digitPattern.matcher(binPart);
+                Pattern digitPattern = Pattern.compile("\\d{12}");
+                Matcher digitMatcher = digitPattern.matcher(binPart);
                 if (digitMatcher.find()) {
                     return digitMatcher.group();
                 }
@@ -423,8 +439,8 @@ public class CertificateReader {
             if (oidIndex >= 0) {
                 String afterOid = certString.substring(oidIndex + oid.length());
                 // Look for printable part or UTF8String pattern
-                java.util.regex.Pattern valuePattern = java.util.regex.Pattern.compile("(UTF8String|PrintableString|IA5String)\\s*:\\s*([^\\]\\[\\n\\r\\t,]*)");
-                java.util.regex.Matcher matcher = valuePattern.matcher(afterOid);
+                Pattern valuePattern = Pattern.compile("(UTF8String|PrintableString|IA5String)\\s*:\\s*([^\\]\\[\\n\\r\\t,]*)");
+                Matcher matcher = valuePattern.matcher(afterOid);
                 if (matcher.find()) {
                     String value = matcher.group(2).trim();
                     if (value.length() >= 12) {
@@ -433,8 +449,8 @@ public class CertificateReader {
                 }
 
                 // Fallback: look for 12 consecutive digits
-                java.util.regex.Pattern digitPattern = java.util.regex.Pattern.compile("\\d{12}");
-                java.util.regex.Matcher digitMatcher = digitPattern.matcher(afterOid);
+                Pattern digitPattern = Pattern.compile("\\d{12}");
+                Matcher digitMatcher = digitPattern.matcher(afterOid);
                 if (digitMatcher.find()) {
                     return digitMatcher.group();
                 }
@@ -448,14 +464,14 @@ public class CertificateReader {
     /**
      * Extract key size from public key.
      */
-    private int extractKeySize(java.security.PublicKey publicKey) {
+    private int extractKeySize(PublicKey publicKey) {
         try {
             if (publicKey.getAlgorithm().equals("RSA")) {
-                return ((java.security.interfaces.RSAPublicKey) publicKey).getModulus().bitLength();
+                return ((RSAPublicKey) publicKey).getModulus().bitLength();
             } else if (publicKey.getAlgorithm().equals("DSA")) {
-                return ((java.security.interfaces.DSAPublicKey) publicKey).getParams().getP().bitLength();
+                return ((DSAPublicKey) publicKey).getParams().getP().bitLength();
             } else if (publicKey.getAlgorithm().equals("EC") || publicKey.getAlgorithm().equals("ECDSA")) {
-                return ((java.security.interfaces.ECPublicKey) publicKey).getParams().getOrder().bitLength();
+                return ((ECPublicKey) publicKey).getParams().getOrder().bitLength();
             }
         } catch (Exception e) {
             // Return 0 if unable to determine

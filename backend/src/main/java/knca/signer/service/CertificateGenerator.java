@@ -6,6 +6,7 @@ import knca.signer.kalkan.KalkanConstants;
 import knca.signer.kalkan.api.*;
 import knca.signer.service.CertificateService.CertificateData;
 import knca.signer.service.CertificateService.CertificateResult;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +33,7 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 public class CertificateGenerator {
 
-    private static final String DEFAULT_CA_ALIAS = "ca";
+    private static final String DEFAULT_CA_ALIAS = "default";
 
     private final Provider provider;
     private final ApplicationConfig.CertificateConfig config;
@@ -91,12 +92,13 @@ public class CertificateGenerator {
         KeyPair caKeyPair = generateKeyPair();
         X509Certificate rootCert = generateRootCA(caKeyPair);
 
-        // Always save CA certificate files
-        saveCertificate(rootCert, "%s%s.crt".formatted(config.getCertsPath(), alias));
-        saveCertificate(rootCert, "%s%s.pem".formatted(config.getCertsPath(), alias));
+        // Always save CA certificate files with ca- prefix for consistency
+        String caPrefix = "ca-" + alias;
+        saveCertificate(rootCert, "%s%s.crt".formatted(config.getCertsPath(), caPrefix));
+        saveCertificate(rootCert, "%s%s.pem".formatted(config.getCertsPath(), caPrefix));
 
         // Save CA private key in PKCS8 format
-        savePrivateKey(caKeyPair.getPrivate(), "%s%s.key".formatted(config.getCertsPath(), alias));
+        savePrivateKey(caKeyPair.getPrivate(), "%s%s.key".formatted(config.getCertsPath(), caPrefix));
 
         return new CertificateResult(caKeyPair, rootCert);
     }
@@ -142,8 +144,8 @@ public class CertificateGenerator {
                 config.getCertsPath() + "user.p12", config.getKeystorePassword(),
                 provider.getName());
         KeyStoreManager.createJKSKeystore(userKeyPair.getPrivate(), userCert, rootCert,
-                config.getCertsPath() + "user.jks", config.getKeystorePassword(),
-                provider.getName());
+                config.getCertsPath() + "user.jks", config.getKeystorePassword()
+        );
     }
 
     /**
@@ -187,8 +189,8 @@ public class CertificateGenerator {
                 config.getCertsPath() + "legal.p12", config.getKeystorePassword(),
                 provider.getName());
         KeyStoreManager.createJKSKeystore(legalEntityKeyPair.getPrivate(), legalEntityCert, rootCert,
-                config.getCertsPath() + "legal.jks", config.getKeystorePassword(),
-                provider.getName());
+                config.getCertsPath() + "legal.jks", config.getKeystorePassword()
+        );
     }
 
     /**
@@ -205,9 +207,6 @@ public class CertificateGenerator {
 
         // Load or generate legal certificates for each CA
         loadOrGenerateLegalCertificates();
-
-        // Load filesystem certificates for fast retrieval
-        loadFilesystemCertificates();
     }
 
     /**
@@ -218,7 +217,7 @@ public class CertificateGenerator {
         CertificateResult caResult = registry.getCACertificate(caId).orElseThrow(() ->
                 new IllegalArgumentException("Unknown CA: " + caId));
 
-        String alias = "user-" + UUID.randomUUID().toString().substring(0, 8);
+        String alias = "user-%s-%s".formatted(caId, UUID.randomUUID().toString().substring(0, 8));
         String userSubjectDN = CertificateDataPopulator.populateIndividualSubjectDN();
         String email = CertificateDataPopulator.extractEmail(userSubjectDN);
         String iin = CertificateDataPopulator.extractIIN(userSubjectDN);
@@ -230,7 +229,7 @@ public class CertificateGenerator {
         CertificateData data = new CertificateData(email, iin, bin, caId, userCert);
         registry.storeUserCertificate(alias, data, keyPair);
         if ("file".equals(config.getStorageMode())) {
-            saveCertificateKeyStore(userCert, keyPair.getPrivate(), caResult.getKeyPair().getPrivate(), caResult.getCertificate(), alias);
+            saveCertificateKeyStore(userCert, keyPair.getPrivate(), caResult.getCertificate(), alias);
         }
         return Map.entry(alias, data);
     }
@@ -243,7 +242,7 @@ public class CertificateGenerator {
         CertificateResult caResult = registry.getCACertificate(caId).orElseThrow(() ->
                 new IllegalArgumentException("Unknown CA: " + caId));
 
-        String alias = "legal-" + UUID.randomUUID().toString().substring(0, 8);
+        String alias = "legal-%s-%s".formatted(caId, UUID.randomUUID().toString().substring(0, 8));
         var entry = getOrGenerateSharedLegalEntityInfo(caId);
         String legalEntitySubjectDN = CertificateDataPopulator.populateLegalEntitySubjectDN(entry.getKey(), entry.getValue());
         String email = CertificateDataPopulator.extractEmail(legalEntitySubjectDN);
@@ -266,7 +265,7 @@ public class CertificateGenerator {
         CertificateResult caResult = registry.getCACertificate(caId).orElseThrow(() ->
                 new IllegalArgumentException("Unknown CA: " + caId));
 
-        String alias = "legal-" + UUID.randomUUID().toString().substring(0, 8);
+        String alias = "legal-%s-%s".formatted(caId, UUID.randomUUID().toString().substring(0, 8));
         var entry = getOrGenerateSharedLegalEntityInfo(caId);
         String legalEntitySubjectDN = CertificateDataPopulator.populateLegalEntitySubjectDN(entry.getKey(), entry.getValue());
         String email = CertificateDataPopulator.extractEmail(legalEntitySubjectDN);
@@ -279,7 +278,7 @@ public class CertificateGenerator {
         CertificateData data = new CertificateData(email, iin, bin, caId, legalCert);
         registry.storeLegalCertificate(alias, data, keyPair);
         if ("file".equals(config.getStorageMode())) {
-            saveCertificateKeyStore(legalCert, keyPair.getPrivate(), caResult.getKeyPair().getPrivate(), caResult.getCertificate(), alias);
+            saveCertificateKeyStore(legalCert, keyPair.getPrivate(), caResult.getCertificate(), alias);
         }
         return Map.entry(alias, data);
     }
@@ -288,6 +287,7 @@ public class CertificateGenerator {
      * Generate a new CA certificate with uniqueness check.
      */
     @SneakyThrows
+    @Deprecated(forRemoval = true)
     public Map.Entry<String, CertificateResult> generateAndStoreCACertificate(String alias) {
         if (alias == null || alias.trim().isEmpty()) {
             alias = DEFAULT_CA_ALIAS; // Use default alias if null/empty
@@ -301,6 +301,7 @@ public class CertificateGenerator {
     }
 
     @SneakyThrows
+    @Deprecated(forRemoval = true)
     private CertificateResult generateNewCACertificate(String alias) {
         if (alias == null || alias.trim().isEmpty()) {
             alias = DEFAULT_CA_ALIAS;
@@ -361,14 +362,6 @@ public class CertificateGenerator {
         }
     }
 
-    private void loadFilesystemCertificates() throws Exception {
-        CertificateReader reader = new CertificateReader(config);
-        List<CertificateReader.CertificateInfo> certificates = reader.readAllCertificates();
-        registry.clearFilesystemCertificates();
-        certificates.forEach(registry::addFilesystemCertificate);
-        log.info("Loaded {} certificates from filesystem", certificates.size());
-    }
-
     private Map<String, CertificateResult> loadCACertificates() throws Exception {
         Map<String, CertificateResult> loadedCAs = new HashMap<>();
         Path certsDir = Paths.get(config.getCertsPath());
@@ -385,13 +378,22 @@ public class CertificateGenerator {
             }).forEach(caCertPath -> {
                 try {
                     String filename = caCertPath.getFileName().toString();
-                    String alias = filename.substring(0, filename.lastIndexOf('.')); // e.g., "ca2" from "ca2.crt"
+                    String alias;
+                    String keyPrefix;
+                    if (filename.startsWith("ca-")) {
+                        alias = filename.substring(3, filename.lastIndexOf('.')); // e.g., "default" from "ca-default.crt"
+                        keyPrefix = "ca-" + alias;
+                    } else {
+                        // Backward compatibility: "ca.crt" -> alias "ca"
+                        alias = filename.substring(0, filename.lastIndexOf('.'));
+                        keyPrefix = alias;
+                    }
 
                     // Try to load corresponding private key - prefer .key file, fallback to .pem for backward compatibility
-                    Path caKeyPath = Paths.get(config.getCertsPath(), alias + ".key");
+                    Path caKeyPath = Paths.get(config.getCertsPath(), keyPrefix + ".key");
                     if (!Files.exists(caKeyPath)) {
                         // Fallback to old .pem location for backward compatibility
-                        caKeyPath = Paths.get(config.getCertsPath(), alias + ".pem");
+                        caKeyPath = Paths.get(config.getCertsPath(), keyPrefix + ".pem");
                         if (Files.exists(caKeyPath)) {
                             log.warn("CA private key found in deprecated location: {}. Please regenerate certificates to use .key files", caKeyPath);
                         }
@@ -481,14 +483,15 @@ public class CertificateGenerator {
             if (!Files.exists(certsDir)) {
                 return loadedCerts;
             }
-            String prefix = type.name().toLowerCase() + "-";
+            String prefix = "%s-%s-".formatted(type.name().toLowerCase(), caAlias);
             try (Stream<Path> paths = Files.walk(certsDir, 1)) {
                 paths.filter(path -> {
                     String name = path.getFileName().toString();
                     return name.startsWith(prefix) && name.endsWith(".p12");
                 }).forEach(p12Path -> {
                     try {
-                        String alias = p12Path.getFileName().toString().replace(".p12", "");
+                        String filename = p12Path.getFileName().toString();
+                        String alias = filename.replace(".p12", "");
                         // Load from PKCS12 keystore
                         X509Certificate cert = KeyStoreManager.loadCertificateFromPKCS12(
                                 p12Path.toString(), config.getKeystorePassword(), "user", "KALKAN");
@@ -506,7 +509,7 @@ public class CertificateGenerator {
                     }
                 });
             }
-            // If no prefixed files, try the generic for backward compatibility
+            // If no CA-specific files, try the generic for backward compatibility (only for default CA)
             if (DEFAULT_CA_ALIAS.equals(caAlias) && loadedCerts.isEmpty()) {
                 Path p12Path = Paths.get(config.getCertsPath(), type.name().toLowerCase() + ".p12");
                 if (Files.exists(p12Path)) {
@@ -534,6 +537,7 @@ public class CertificateGenerator {
         return loadedCerts;
     }
 
+    @Deprecated(forRemoval = true)
     private Path getCertificateFilePath(String caAlias, CertificateType certType) {
         // For default CA, use generic naming (user.p12, legal.p12)
         if (DEFAULT_CA_ALIAS.equals(caAlias)) {
@@ -553,11 +557,11 @@ public class CertificateGenerator {
         return new CertificateMetadata(email, iin, bin);
     }
 
-    private void saveCertificateKeyStore(X509Certificate cert, PrivateKey privateKey, PrivateKey caPrivateKey, X509Certificate caCert, String baseName) throws Exception {
+    private void saveCertificateKeyStore(X509Certificate cert, PrivateKey privateKey, X509Certificate caCert, String baseName) throws Exception {
         saveCertificate(cert, config.getCertsPath() + baseName + ".crt");
         saveCertificate(cert, config.getCertsPath() + baseName + ".pem");
-        KeyStoreManager.createPKCS12Keystore(privateKey, cert, caCert, config.getCertsPath() + baseName + ".p12", config.getKeystorePassword(), provider.getName());
-        KeyStoreManager.createJKSKeystore(privateKey, cert, caCert, config.getCertsPath() + baseName + ".jks", config.getKeystorePassword(), provider.getName());
+        KeyStoreManager.createPKCS12Keystore(privateKey, cert, caCert, "%s%s.p12".formatted(config.getCertsPath(), baseName), config.getKeystorePassword(), provider.getName());
+        KeyStoreManager.createJKSKeystore(privateKey, cert, caCert, "%s%s.jks".formatted(config.getCertsPath(), baseName), config.getKeystorePassword());
     }
 
     private KeyPair generateKeyPair() throws NoSuchAlgorithmException, NoSuchProviderException {
@@ -568,19 +572,75 @@ public class CertificateGenerator {
 
     private enum CertificateType {USER, LEGAL}
 
-    @lombok.Data
-    @lombok.RequiredArgsConstructor
+    private X509Certificate generateUserCertificate(PublicKey userPublicKey, PrivateKey caPrivateKey,
+                                                    X509Certificate caCert, String subjectDN, String email,
+                                                    String iin, String bin) throws Exception {
+        TBSCertificateManager tbsManager = KalkanAdapter.createTBSCertificateManager();
+
+        // Set certificate fields
+        SecureRandom random = new SecureRandom();
+        byte[] serNum = new byte[20];
+        while (serNum[0] < 16) {
+            random.nextBytes(serNum);
+        }
+        tbsManager.setSerialNumber(serNum);
+        tbsManager.setSignature(config.getSignatureAlgorithm());
+        tbsManager.setIssuer(caCert.getSubjectDN().getName());
+        tbsManager.setSubject(subjectDN);
+        tbsManager.setSubjectPublicKeyInfo(userPublicKey);
+
+        // Validity period
+        Calendar cal = Calendar.getInstance();
+        Date nowDate = cal.getTime();
+        cal.add(Calendar.YEAR, config.getUserValidityYears());
+        Date nextDate = cal.getTime();
+        tbsManager.setStartDate(nowDate);
+        tbsManager.setEndDate(nextDate);
+
+        // Extensions
+        X509ExtensionsGenerator extGen = KalkanAdapter.createX509ExtensionsGenerator();
+        extGen.addExtension(KalkanConstants.X509Extensions.BasicConstraints, true, false);
+        extGen.addExtension(KalkanConstants.X509Extensions.KeyUsage, true,
+                KalkanConstants.KeyUsage.digitalSignature | KalkanConstants.KeyUsage.keyEncipherment);
+
+        // Extended Key Usage
+        //TODO: add alternative KeyUsage
+        extGen.addExtendedKeyUsageEmailProtection(KalkanConstants.KeyPurposeId.id_kp_emailProtection);
+
+        // Subject Alternative Name with IIN and BIN
+        ASN1EncodableVector sanVector = KalkanAdapter.createASN1EncodableVectorWrapper();
+        sanVector.addGeneralNameEmail(email);
+        sanVector.addGeneralNameOtherName(CertificateDataPopulator.IIN_OID, iin);
+        if (bin != null) {
+            sanVector.addGeneralNameOtherName(CertificateDataPopulator.BIN_OID, bin);
+        }
+        extGen.addSubjectAlternativeName(sanVector.getProxy());
+
+        var extResult = extGen.generate();
+        tbsManager.setExtensions(extResult.getResult());
+
+        // Generate TBS certificate
+        var tbsResult = tbsManager.generateTBSCertificate();
+
+        // Sign the certificate
+        Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
+        sig.initSign(caPrivateKey);
+        byte[] derEncoded = tbsManager.getDEREncoded(tbsResult);
+        sig.update(derEncoded);
+        byte[] signature = sig.sign();
+
+        X509V3CertificateGenerator certGen = KalkanAdapter.createX509V3CertificateGenerator();
+        certGen.setSignatureAlgorithm(config.getSignatureAlgorithm());
+
+        return certGen.generate(tbsResult, signature);
+    }
+
+    @Data
+    @RequiredArgsConstructor
     private static class CertificateMetadata {
         private final String email;
         private final String iin;
         private final String bin;
-    }
-
-    @lombok.Data
-    @lombok.RequiredArgsConstructor
-    private static class CertificateDataWithKey {
-        private final CertificateData data;
-        private final KeyPair keyPair;
     }
 
     private X509Certificate generateRootCA(KeyPair keyPair) throws Exception {
@@ -630,65 +690,11 @@ public class CertificateGenerator {
         return certGen.generate(tbsResult, signature);
     }
 
-    private X509Certificate generateUserCertificate(PublicKey userPublicKey, PrivateKey caPrivateKey,
-                                                    X509Certificate caCert, String subjectDN, String email,
-                                                    String iin, String bin) throws Exception {
-        TBSCertificateManager tbsManager = KalkanAdapter.createTBSCertificateManager();
-
-        // Set certificate fields
-        SecureRandom random = new SecureRandom();
-        byte[] serNum = new byte[20];
-        while (serNum[0] < 16) {
-            random.nextBytes(serNum);
-        }
-        tbsManager.setSerialNumber(serNum);
-        tbsManager.setSignature(config.getSignatureAlgorithm());
-        tbsManager.setIssuer(caCert.getSubjectDN().getName());
-        tbsManager.setSubject(subjectDN);
-        tbsManager.setSubjectPublicKeyInfo(userPublicKey);
-
-        // Validity period
-        Calendar cal = Calendar.getInstance();
-        Date nowDate = cal.getTime();
-        cal.add(Calendar.YEAR, config.getUserValidityYears());
-        Date nextDate = cal.getTime();
-        tbsManager.setStartDate(nowDate);
-        tbsManager.setEndDate(nextDate);
-
-        // Extensions
-        X509ExtensionsGenerator extGen = KalkanAdapter.createX509ExtensionsGenerator();
-        extGen.addExtension(KalkanConstants.X509Extensions.BasicConstraints, true, false);
-        extGen.addExtension(KalkanConstants.X509Extensions.KeyUsage, true, KalkanConstants.KeyUsage.digitalSignature | KalkanConstants.KeyUsage.keyEncipherment);
-
-        // Extended Key Usage
-        extGen.addExtendedKeyUsageEmailProtection();
-
-        // Subject Alternative Name with IIN and BIN
-        ASN1EncodableVector sanVector = KalkanAdapter.createASN1EncodableVectorWrapper();
-        sanVector.addGeneralNameEmail(email);
-        sanVector.addGeneralNameOtherName(CertificateDataPopulator.IIN_OID, iin);
-        if (bin != null) {
-            sanVector.addGeneralNameOtherName(CertificateDataPopulator.BIN_OID, bin);
-        }
-        extGen.addSubjectAlternativeName(sanVector.getProxy());
-
-        var extResult = extGen.generate();
-        tbsManager.setExtensions(extResult.getResult());
-
-        // Generate TBS certificate
-        var tbsResult = tbsManager.generateTBSCertificate();
-
-        // Sign the certificate
-        Signature sig = Signature.getInstance(config.getSignatureAlgorithm(), provider.getName());
-        sig.initSign(caPrivateKey);
-        byte[] derEncoded = tbsManager.getDEREncoded(tbsResult);
-        sig.update(derEncoded);
-        byte[] signature = sig.sign();
-
-        X509V3CertificateGenerator certGen = KalkanAdapter.createX509V3CertificateGenerator();
-        certGen.setSignatureAlgorithm(config.getSignatureAlgorithm());
-
-        return certGen.generate(tbsResult, signature);
+    @Data
+    @RequiredArgsConstructor
+    private static class CertificateDataWithKey {
+        private final CertificateData data;
+        private final KeyPair keyPair;
     }
 
     private void saveCertificate(X509Certificate cert, String filename) throws Exception {

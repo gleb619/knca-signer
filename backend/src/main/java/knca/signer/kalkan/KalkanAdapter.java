@@ -4,9 +4,13 @@ import knca.signer.kalkan.api.*;
 import knca.signer.service.CertificateDataPopulator;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.Writer;
 import java.security.PublicKey;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Static utility adapter for Kalkan cryptographic operations.
@@ -75,7 +79,7 @@ public class KalkanAdapter {
         return REGISTRY.createX509Name(name);
     }
 
-    public static KalkanProxy createTime(java.util.Date time) {
+    public static KalkanProxy createTime(Date time) {
         return REGISTRY.createTime(time);
     }
 
@@ -91,11 +95,6 @@ public class KalkanAdapter {
         return REGISTRY.createSubjectPublicKeyInfo(seq);
     }
 
-    @Deprecated(forRemoval = true)
-    public static V3TBSCertificateGenerator createV3TBSCertificateGenerator() {
-        return REGISTRY.createV3TBSCertificateGenerator();
-    }
-
     public static X509ExtensionsGenerator createX509ExtensionsGenerator() {
         return REGISTRY.createX509ExtensionsGenerator();
     }
@@ -108,7 +107,7 @@ public class KalkanAdapter {
         return REGISTRY.createASN1EncodableVectorWrapper();
     }
 
-    public static PEMWriter createPEMWriter(java.io.Writer writer) {
+    public static PEMWriter createPEMWriter(Writer writer) {
         return REGISTRY.createPEMWriter(writer);
     }
 
@@ -236,8 +235,8 @@ public class KalkanAdapter {
 
             // Parse IIN from DN field
             if (certString.contains("SN=IIN") || certString.contains("SERIALNUMBER=IIN")) {
-                java.util.regex.Pattern iinPattern = java.util.regex.Pattern.compile("[A-Z]*IIN(\\d{12})");
-                java.util.regex.Matcher matcher = iinPattern.matcher(certString);
+                Pattern iinPattern = Pattern.compile("[A-Z]*IIN(\\d{12})");
+                Matcher matcher = iinPattern.matcher(certString);
                 if (matcher.find()) {
                     return matcher.group(1);
                 }
@@ -245,8 +244,8 @@ public class KalkanAdapter {
 
             // Look for otherName IIN in extensions
             if (certString.contains(CertificateDataPopulator.IIN_OID)) {
-                java.util.regex.Pattern digitPattern = java.util.regex.Pattern.compile("\\d{12}");
-                java.util.regex.Matcher digitMatcher = digitPattern.matcher(certString);
+                Pattern digitPattern = Pattern.compile("\\d{12}");
+                Matcher digitMatcher = digitPattern.matcher(certString);
                 if (digitMatcher.find()) {
                     return digitMatcher.group();
                 }
@@ -269,8 +268,8 @@ public class KalkanAdapter {
 
             // Parse BIN from DN field
             if (certString.contains("OU=BIN") || certString.contains("ORGANIZATIONALUNITNAME=BIN")) {
-                java.util.regex.Pattern binPattern = java.util.regex.Pattern.compile("[A-Z]*BIN(\\d{12})");
-                java.util.regex.Matcher matcher = binPattern.matcher(certString);
+                Pattern binPattern = Pattern.compile("[A-Z]*BIN(\\d{12})");
+                Matcher matcher = binPattern.matcher(certString);
                 if (matcher.find()) {
                     return matcher.group(1);
                 }
@@ -278,8 +277,8 @@ public class KalkanAdapter {
 
             // Look for otherName BIN in extensions
             if (certString.contains(CertificateDataPopulator.BIN_OID)) {
-                java.util.regex.Pattern digitPattern = java.util.regex.Pattern.compile("\\d{12}");
-                java.util.regex.Matcher digitMatcher = digitPattern.matcher(certString);
+                Pattern digitPattern = Pattern.compile("\\d{12}");
+                Matcher digitMatcher = digitPattern.matcher(certString);
                 if (digitMatcher.find()) {
                     return digitMatcher.group();
                 }

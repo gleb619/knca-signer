@@ -11,6 +11,7 @@ import java.io.Serializable;
 import java.io.Writer;
 import java.lang.reflect.Array;
 import java.security.Provider;
+import java.security.PublicKey;
 import java.security.Security;
 import java.util.Date;
 import java.util.HashMap;
@@ -189,15 +190,6 @@ public class KalkanRegistry {
     }
 
     /**
-     * Create a V3TBSCertificateGenerator interface wrapper
-     */
-    @Deprecated(forRemoval = true)
-    public V3TBSCertificateGenerator createV3TBSCertificateGenerator() {
-        KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.asn1.x509.V3TBSCertificateGenerator", null, null);
-        return () -> kalkanProxy;
-    }
-
-    /**
      * Create a X509ExtensionsGenerator interface wrapper
      */
     public X509ExtensionsGenerator createX509ExtensionsGenerator() {
@@ -224,7 +216,7 @@ public class KalkanRegistry {
     /**
      * Create a PEMWriter interface wrapper
      */
-    public PEMWriter createPEMWriter(java.io.Writer writer) {
+    public PEMWriter createPEMWriter(Writer writer) {
         KalkanProxy kalkanProxy = create("kz.gov.pki.kalkan.openssl.PEMWriter", new Class[]{Writer.class}, new Object[]{writer});
         return () -> kalkanProxy;
     }
@@ -268,7 +260,7 @@ public class KalkanRegistry {
     }
 
     @SneakyThrows
-    public Object createASN1SequenceFromPublicKey(java.security.PublicKey publicKey) {
+    public Object createASN1SequenceFromPublicKey(PublicKey publicKey) {
         Class<?> asn1ObjectClass = ReflectionHelper.loadKalkanClass("kz.gov.pki.kalkan.asn1.ASN1Object");
         return ReflectionHelper.invokeStaticMethod(asn1ObjectClass, "fromByteArray", asn1ObjectClass,
                 new Class[]{byte[].class}, new Object[]{publicKey.getEncoded()});

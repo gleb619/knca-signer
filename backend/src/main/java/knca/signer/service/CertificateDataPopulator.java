@@ -22,12 +22,12 @@ public class CertificateDataPopulator {
             "ЕРЖАН", "АЙДОС", "БЕКЖАН", "ҚАЙРАТ", "ТӨЛЕУ", "СЕРІК", "ЖАНБОЛАТ", "АРМАН", "ДӘУРЕН", "САҒАТ"
     };
     private static final String[] KAZAKH_PATRONYMICS = {
-            "ҚҰНАНБАЙҰЛЫ", "НҰРМҰХАМЕДҰЛЫ", "БАЙТҰРСЫНҰЛЫ", "ДУЛАТҰЛЫ", "ШОҚАЙҰЛЫ", "ӘЛИХАНҰЛЫ", "АХМЕТҰЛЫ", "МҰСТАФАҰЛЫ", "МІРЖАҚЫПҰЛЫ", "АБАЙҰЛЫ",
-            "ЕРЖАНҰЛЫ", "АЙДОСҰЛЫ", "БЕКЖАНҰЛЫ", "ҚАЙРАТҰЛЫ", "ТӨЛЕУҰЛЫ", "СЕРІКҰЛЫ", "ЖАНБОЛАТҰЛЫ", "АРМАНҰЛЫ", "ДӘУРЕНҰЛЫ", "САҒАТҰЛЫ"
+            "KUNANBAIULY", "NURMUHAMEDULY", "BAITURSYNULY", "DULATULY", "SHOKAIULY", "ELIKHANULY", "AKHMETULY", "MUSTAFAULY", "MIRZHAKYPULY", "ABAIULY",
+            "ERZHANULY", "AIDOSULY", "BEKZHANULY", "KAIRATULY", "TOLEUULY", "SERIKULY", "ZHANBOLATULY", "ARMANULY", "DAURENULY", "SAGATULY"
     };
     private static final String[] KAZAKH_COMPANIES = {
-            "АЛАША ГРУПП", "ҚАЗАҚСТАН ЖОЛ СЕРВИСІ", "ҚАЗНҰНАЙ ЭНЕРДЖИ", "КАЗАЭЙР ЛОУКОСТЕР ЛАЙНЗ", "ҚАРЖЫ БАНК ҚАЗАҚСТАН",
-            "ОРДАСТРОЙ", "ҚАЗТЕХНОЛОГИЯ", "ASTANA TRADE", "ТАЛГАР БАНКІ", "QAZNETRANS LOGISTICS"
+            "АЛАША ГРУППП PLUS", "ҚАЗАҚСТАН ROAD СЕРВИСІ", "ҚАЗНҰНАЙ ЭНЕРДЖИ", "КАЗАЭЙР ЛОУКОСТЕР LINES", "ҚАРЖЫ BANK ҚАЗАҚСТАН",
+            "ГҮЛ-ДАН АТЫНДАҒЫ ORDSTROY", "ҚАЗНЕТЕХНОЛОГИЯ LAB", "PUDGE БАТЫР ШЫМКЕНТТЕН", "ТАЛГАР БАНКІ 360", "ҚАЗНЕТРАНС LOGISTICS HUB"
     };
     private static final String[] COMPANY_ROLES = {
             "CHIEF_EXECUTIVE_OFFICER", "CHIEF_FINANCIAL_OFFICER", "CHIEF_TECHNOLOGY_OFFICER", "CHIEF_OPERATING_OFFICER",
@@ -57,11 +57,7 @@ public class CertificateDataPopulator {
      * Generate a random 12-digit IIN (Individual Identification Number).
      */
     public static String populateIIN() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 12; i++) {
-            sb.append(random.nextInt(10));
-        }
-        return sb.toString();
+        return generateNumber("1");
     }
 
     /**
@@ -69,14 +65,14 @@ public class CertificateDataPopulator {
      * Same format as IIN.
      */
     public static String populateBIN() {
-        return populateIIN();
+        return generateNumber("0");
     }
 
     /**
      * Generate a random Kazakh company name.
      */
     public static String populateCompany() {
-        return KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)] + " (TEST)";
+        return KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)] + " TEST CERT";
     }
 
     /**
@@ -129,7 +125,7 @@ public class CertificateDataPopulator {
         String givenName = KAZAKH_GIVEN_NAMES[random.nextInt(KAZAKH_GIVEN_NAMES.length)];
         String patronymic = KAZAKH_PATRONYMICS[random.nextInt(KAZAKH_PATRONYMICS.length)];
         String fullName = givenName + " " + surname;
-        String company = KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)] + " (TEST)";
+        String company = KAZAKH_COMPANIES[random.nextInt(KAZAKH_COMPANIES.length)] + " TEST CERT";
         String bin = populateBIN();
         String iin = populateIIN();
         String email = populateEmail();
@@ -192,6 +188,20 @@ public class CertificateDataPopulator {
             }
         }
         return null;
+    }
+
+    /**
+     * Generates a 12-digit number by appending 11 random digits to the provided first digit.
+     *
+     * @param firstNumber the first digit(s) of the number (should be 1 digit for IIN, 0 for BIN)
+     * @return a 12-digit string representation of the generated number
+     */
+    private static String generateNumber(String firstNumber) {
+        StringBuilder sb = new StringBuilder(firstNumber);
+        for (int i = 0; i < 11; i++) {
+            sb.append(random.nextInt(10));
+        }
+        return sb.toString();
     }
 
 }

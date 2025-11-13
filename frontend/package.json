@@ -1,6 +1,6 @@
 {
   "name": "knca-signer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "An application for creating a test CA, signing XML using NCALayer and test user certificate, verifying xml signatures using Kalkan.",
   "main": "index.js",
   "scripts": {

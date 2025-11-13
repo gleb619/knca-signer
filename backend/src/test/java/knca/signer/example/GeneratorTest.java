@@ -10,7 +10,9 @@ import knca.signer.service.KeyStoreManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.security.Provider;
 import java.security.cert.X509Certificate;
 
@@ -23,6 +25,9 @@ public class GeneratorTest {
     private Provider realProvider;
     private ApplicationConfig.CertificateConfig config;
 
+    @TempDir
+    Path tempDir;
+
     @BeforeEach
     void setUp() throws Exception {
         // Load the real KalkanProvider using registry (same as Generator.main does)
@@ -33,8 +38,8 @@ public class GeneratorTest {
                 "in-memory",
                 3,
                 2,
-                "certs/",
-                "certs/ca.crt",
+                tempDir + "/certs/",
+                tempDir + "/certs/ca.crt",
                 2048,
                 "RSA",
                 "1.2.840.113549.1.1.11",
@@ -144,17 +149,4 @@ public class GeneratorTest {
         }
     }
 
-    @Test
-    public void testGeneratorMainMethod() {
-        // Test that the main method can be called without throwing exceptions
-        // This is a basic smoke test
-        try {
-            // We can't easily test the full main method without file I/O,
-            // but we can test that the class loads and basic instantiation works
-            Class.forName("knca.signer.example.Generator");
-            assertTrue(true, "Generator class should be loadable");
-        } catch (ClassNotFoundException e) {
-            fail("Generator class should be found");
-        }
-    }
 }

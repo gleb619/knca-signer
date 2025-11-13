@@ -42,11 +42,8 @@ public class VerifierHandler {
                 String signedXml = certificateService.signXml(data, certAlias);
                 log.info("Data signed successfully with certAlias: {}", certAlias);
 
-                respondJson(ctx, new JsonObject()
-                        .put("signedXml", signedXml)
-                        .put("certAlias", certAlias)
-                        .put("algorithm", "XMLDSig"));
-
+                respondJson(ctx, JsonObject.mapFrom(
+                        new SignResult(signedXml, certAlias, "XMLDSig")));
             } catch (IllegalArgumentException e) {
                 log.warn("Invalid certificate alias in XML sign request: {}", e.getMessage());
                 respondError(ctx, 404, e.getMessage());
@@ -113,19 +110,11 @@ public class VerifierHandler {
         @Builder.Default
         private boolean checkSignature = true; // Enable signature validation by default
         @Builder.Default
-        private boolean checkKncaProvider = false; //old name was checkKalkanProvider
-        @Builder.Default
-        private boolean checkData = false;
-        @Builder.Default
-        private boolean checkTime = false;
+        private boolean checkKncaProvider = false;
         @Builder.Default
         private boolean checkIinInCert = false;
         @Builder.Default
-        private boolean checkIinInSign = false;
-        @Builder.Default
         private boolean checkBinInCert = false;
-        @Builder.Default
-        private boolean checkBinInSign = false;
         @Builder.Default
         private boolean checkCertificateChain = false;
         @Builder.Default
@@ -136,6 +125,9 @@ public class VerifierHandler {
         private String expectedIin; // Optional expected IIN
         private String expectedBin; // Optional expected BIN for legal certificates
 
+    }
+
+    public record SignResult(String xml, String certAlias, String algorithm) {
     }
 
 }

@@ -8,6 +8,8 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
+import knca.signer.config.ApplicationConfig;
+import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService;
 import knca.signer.service.CertificateStorage;
@@ -17,9 +19,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Provider;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,21 +40,19 @@ public class VerifierHandlerIT {
     private VerifierHandler signingHandler;
     private int serverPort;
 
-    private Path tempDir;
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void setUp(Vertx vertx, VertxTestContext testContext) throws Exception {
-        // Create a temporary directory for certificate storage
-        tempDir = Files.createTempDirectory("knca-signer-test-");
-
         // Create config for CertificateService
-        java.security.Provider realProvider = knca.signer.kalkan.KalkanRegistry.loadRealKalkanProvider();
-        knca.signer.config.ApplicationConfig.CertificateConfig config = new knca.signer.config.ApplicationConfig.CertificateConfig(
+        Provider realProvider = KalkanRegistry.loadRealKalkanProvider();
+        ApplicationConfig.CertificateConfig config = new ApplicationConfig.CertificateConfig(
                 "in-memory",
                 3,
                 2,
-                "certs/",
-                "certs/ca.crt",
+                tempDir + "/certs/",
+                tempDir + "/certs/ca.crt",
                 2048,
                 "RSA",
                 "1.2.840.113549.1.1.11",
@@ -67,8 +69,8 @@ public class VerifierHandlerIT {
         System.out.println("Using real CertificateService for integration tests");
 
         // Ensure user and legal certificates are generated
-        certificateService.generateUserCertificate("ca");
-        certificateService.generateLegalEntityCertificate("ca");
+        certificateService.generateUserCertificate("default");
+        certificateService.generateLegalEntityCertificate("default");
 
         signingHandler = new VerifierHandler(certificateService);
 
@@ -254,11 +256,9 @@ public class VerifierHandlerIT {
 
         JsonObject requestBody = new JsonObject()
                 .put("xml", "<invalid>xml<content>")
-                .put("checkKncaProvider", true)
-                .put("checkData", false)
-                .put("checkTime", false)
+                .put("checkKncaProvider", false)
+                .put("checkSignature", true)
                 .put("checkIinInCert", false)
-                .put("checkIinInSign", false)
                 .put("checkCertificateChain", false);
 
         client.request(HttpMethod.POST, serverPort, "localhost", "/validate/xml")

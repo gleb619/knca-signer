@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.lang.reflect.Field;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
@@ -100,7 +101,7 @@ public class Util {
         return "%s%s".formatted(ENV_VAR_PREFIX, propertyPath.toUpperCase().replace(".", "_"));
     }
 
-    public static LocalDateTime toLocalDateTime(java.time.Instant instant) {
+    public static LocalDateTime toLocalDateTime(Instant instant) {
         return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
     }
 

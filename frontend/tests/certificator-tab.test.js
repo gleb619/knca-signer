@@ -34,9 +34,9 @@ test('loads certificates from API', async () => {
 
     // Mock responses: 1 CA fetch + 1 user fetch + 1 legal fetch for the one CA
     global.fetch = createFetchMock([
-        { json: () => Promise.resolve(caData) }, // CA fetch
-        { json: () => Promise.resolve(userData) }, // user?caId=ca-123
-        { json: () => Promise.resolve(legalData) } // legal?caId=ca-123
+        { ok: true, json: () => Promise.resolve(caData) }, // CA fetch
+        { ok: true, json: () => Promise.resolve(userData) }, // user?caId=ca-123
+        { ok: true, json: () => Promise.resolve(legalData) } // legal?caId=ca-123
     ]);
 
     const component = certificatorTab();
@@ -82,9 +82,9 @@ test('shows loading states during generation', async () => {
     // Sequence: generate CA -> load CA -> load user certs -> load legal certs
     global.fetch = createFetchMock([
         { ok: true, json: () => Promise.resolve({ alias: "ca-new", type: "ca" }) }, // generate CA
-        { json: () => Promise.resolve({ certificates: [{ alias: "ca-new" }] }) }, // load CA certs
-        { json: () => Promise.resolve({ certificates: [] }) }, // load user certs for ca-new
-        { json: () => Promise.resolve({ certificates: [] }) }  // load legal certs for ca-new
+        { ok: true, json: () => Promise.resolve({ certificates: [{ alias: "ca-new" }] }) }, // load CA certs
+        { ok: true, json: () => Promise.resolve({ certificates: [] }) }, // load user certs for ca-new
+        { ok: true, json: () => Promise.resolve({ certificates: [] }) }  // load legal certs for ca-new
     ]);
 
     const component = certificatorTab();

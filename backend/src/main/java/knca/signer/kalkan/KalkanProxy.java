@@ -23,6 +23,7 @@ public interface KalkanProxy {
      *
      * @return the class name of the real object
      */
+    @SuppressWarnings("unused")
     default String getType() {
         return getRealObject().getClass().getName();
     }
@@ -70,6 +71,7 @@ public interface KalkanProxy {
      *
      * @return the result type name
      */
+    @Deprecated(forRemoval = true)
     default String getResultType() {
         return getRealObject().getClass().getName();
     }

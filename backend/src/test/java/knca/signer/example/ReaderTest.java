@@ -21,8 +21,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class ReaderTest {
 
     private static final Logger log = LoggerFactory.getLogger(ReaderTest.class);
+
     @TempDir
     Path tempDir;
+
     private ApplicationConfig.CertificateConfig config;
 
     @BeforeEach
@@ -31,7 +33,7 @@ class ReaderTest {
                 "in-memory",
                 3,
                 2,
-                tempDir.toString() + "/",
+                tempDir + "/",
                 tempDir + "/ca.crt",
                 2048,
                 "RSA",
@@ -70,7 +72,7 @@ class ReaderTest {
                     "in-memory",
                     3,
                     2,
-                    tempDir.toString() + "/",
+                    tempDir + "/",
                     tempDir + "/ca.crt",
                     2048,
                     "RSA",

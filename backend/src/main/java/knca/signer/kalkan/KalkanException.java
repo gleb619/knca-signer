@@ -1,7 +1,10 @@
 package knca.signer.kalkan;
 
+import lombok.Getter;
+
 import java.util.List;
 
+@Getter
 public class KalkanException extends RuntimeException {
 
     private List<String> availableConstructors;
@@ -27,11 +30,4 @@ public class KalkanException extends RuntimeException {
         this.availableMethods = availableMethods;
     }
 
-    public List<String> getAvailableConstructors() {
-        return availableConstructors;
-    }
-
-    public List<String> getAvailableMethods() {
-        return availableMethods;
-    }
 }

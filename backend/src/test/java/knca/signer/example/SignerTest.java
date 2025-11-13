@@ -3,14 +3,14 @@ package knca.signer.example;
 import io.vertx.core.Vertx;
 import knca.signer.config.ApplicationConfig;
 import knca.signer.config.BeanFactory;
-import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.io.TempDir;
 
-import java.security.Provider;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -22,18 +22,18 @@ class SignerTest {
     private Vertx vertx;
     private ApplicationConfig.CertificateConfig config;
 
+    @TempDir
+    Path tempDir;
+
     @BeforeEach
     void setUp() throws Exception {
-        // Load the real KalkanProvider using registry (same as main does)
-        Provider realProvider = KalkanRegistry.loadRealKalkanProvider();
-
         // Create certificate config (same as MainTest)
         config = new ApplicationConfig.CertificateConfig(
                 "in-memory",
                 3,
                 2,
-                "certs/",
-                "certs/ca.crt",
+                tempDir + "/certs/",
+                tempDir + "/certs/ca-default.crt",
                 2048,
                 "RSA",
                 "1.2.840.113549.1.1.11",
@@ -63,9 +63,9 @@ class SignerTest {
         certificateService = beanFactory.getCertificateService();
 
         // Generate certificates for testing (same as other tests)
-        certificateService.generateCACertificate("ca");
-        certificateService.generateUserCertificate("ca");
-        certificateService.generateLegalEntityCertificate("ca");
+        certificateService.generateCACertificate("default");
+        certificateService.generateUserCertificate("default");
+        certificateService.generateLegalEntityCertificate("default");
 
         assertNotNull(certificateService, "CertificateService should be initialized");
     }

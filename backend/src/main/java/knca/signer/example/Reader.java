@@ -6,6 +6,8 @@ import knca.signer.service.CertificateReader;
 import knca.signer.service.CertificateReader.CertificateInfo;
 import lombok.extern.slf4j.Slf4j;
 
+import java.security.Provider;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -20,7 +22,7 @@ public class Reader {
     public static void main(String[] args) {
         try {
             // Load and register the KalkanProvider
-            java.security.Provider realProvider = KalkanRegistry.loadRealKalkanProvider();
+            Provider realProvider = KalkanRegistry.loadRealKalkanProvider();
             String providerName = realProvider.getName();
             log.debug("Registered provider: {}", providerName);
 
@@ -150,7 +152,7 @@ public class Reader {
         certOutput.append("\n");
 
         // Certificate expiry warning
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
         if (certInfo.getNotAfter().isBefore(now)) {
             certOutput.append("⚠️  WARNING: This certificate has EXPIRED!\n");
         } else if (certInfo.getNotAfter().isBefore(now.plusDays(30))) {
@@ -242,7 +244,7 @@ public class Reader {
      * Returns certificate validity status as a string.
      */
     private static String getValidityStatus(CertificateInfo certInfo) {
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
         if (certInfo.getNotAfter().isBefore(now)) {
             return "❌ EXPIRED";
         } else if (certInfo.getNotBefore().isAfter(now)) {

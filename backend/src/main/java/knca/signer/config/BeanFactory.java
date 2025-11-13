@@ -17,6 +17,7 @@ import knca.signer.service.CertificateStorage;
 import knca.signer.service.CertificateValidator;
 import lombok.RequiredArgsConstructor;
 
+import java.security.Provider;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -82,13 +83,13 @@ public class BeanFactory {
         return new CertificateStorage(new CertificateStorage.Storage());
     }
 
-    private CertificateGenerator createGenerationService(java.security.Provider provider,
+    private CertificateGenerator createGenerationService(Provider provider,
                                                          CertificateStorage registry,
                                                          CertificateConfig config) {
         return new CertificateGenerator(provider, config, registry);
     }
 
-    private CertificateValidator createValidationService(java.security.Provider provider, CertificateStorage registry) {
+    private CertificateValidator createValidationService(Provider provider, CertificateStorage registry) {
         return new CertificateValidator(provider, registry);
     }
 

@@ -1,0 +1,59 @@
+<!-- Generate CA panel -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4"
+        x-text="translate('createCertificateAuthority')"></h2>
+    <p class="text-gray-600 mb-4" x-text="translate('createCaDesc')">
+    </p>
+
+    <!-- CA Generation Form -->
+    <div class="max-w-md">
+        <label class="block text-sm font-medium text-gray-700 mb-2" for="caAlias"
+               x-text="translate('caAliasLabel')">
+        </label>
+        <input :placeholder="translate('caAliasPlaceholder')"
+               @keydown.enter="generatingCA ? (function() {})() : generateCA()"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
+               id="caAlias"
+               type="text"
+               x-model="newCAAlias">
+        <button :disabled="generatingCA"
+                @click="generateCA"
+                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-cloak
+                 x-show="!generatingCA">
+                <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round" stroke-linejoin="round"
+                      stroke-width="2"/>
+            </svg>
+            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                 x-cloak
+                 x-show="generatingCA">
+                <path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/>
+            </svg>
+            <span x-text="generatingCA ? translate('creatingCA') : translate('createCA')"></span>
+        </button>
+    </div>
+
+    <!-- CA Generation Notes -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path clip-rule="evenodd"
+                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                          fill-rule="evenodd"/>
+                </svg>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-blue-800 mb-2" x-text="translate('caGenerationPurpose')">
+                </h3>
+                <p class="text-sm text-blue-700 mb-3" x-text="translate('caGenerationNote')">
+                </p>
+                <h3 class="text-sm font-medium text-blue-800 mb-2" x-text="translate('userCertSecurityTitle')">
+                </h3>
+                <p class="text-sm text-blue-700" x-text="translate('userCertSecurityRisk')">
+                </p>
+            </div>
+        </div>
+    </div>
+
+</div>

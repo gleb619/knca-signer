@@ -2,6 +2,7 @@ package knca.signer.controller;
 
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
@@ -11,8 +12,11 @@ import knca.signer.util.Util;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
+import java.security.interfaces.RSAPublicKey;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 import static knca.signer.util.Util.toLocalDateTime;
 
@@ -196,6 +200,7 @@ public class CertificatorHandler {
         }
     }
 
+    @SneakyThrows
     private CertificateDto buildCertificateDto(String alias, Object certData, boolean includeCaId) {
         var data = (CertificateService.CertificateData) certData;
         var cert = data.getCertificate();
@@ -212,7 +217,7 @@ public class CertificatorHandler {
         Integer keySize = null;
         try {
             if ("RSA".equals(publicKeyAlgorithm)) {
-                keySize = ((java.security.interfaces.RSAPublicKey) cert.getPublicKey()).getModulus().bitLength();
+                keySize = ((RSAPublicKey) cert.getPublicKey()).getModulus().bitLength();
             }
         } catch (Exception e) {
             log.debug("Could not determine key size: {}", e.getMessage());
@@ -246,7 +251,12 @@ public class CertificatorHandler {
                 .iin(data.getIin())
                 .bin(data.getBin())
                 .publicKeyAlgorithm(publicKeyAlgorithm)
-                .keySize(keySize);
+                .keySize(keySize)
+                .signatureAlgorithmOid(cert.getSigAlgOID())
+                .extendedKeyUsageOid(Objects.requireNonNullElse(cert.getExtendedKeyUsage(), Collections.<String>emptyList()).stream()
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .orElse(null));
 
         if (includeCaId) {
             builder.caId(data.getCaId());
@@ -257,11 +267,11 @@ public class CertificatorHandler {
 
     private String extractCaId(RoutingContext ctx) {
         var body = ctx.body().asJsonObject();
-        return body != null && body.containsKey("caId") ? body.getString("caId", "ca") : "ca";
+        return body != null && body.containsKey("caId") ? body.getString("caId", "default") : "default";
     }
 
     private String extractCaIdFromQuery(RoutingContext ctx) {
-        return ctx.queryParam("caId").stream().findFirst().orElse("ca");
+        return ctx.queryParam("caId").stream().findFirst().orElse("default");
     }
 
     private void sendJsonResponse(RoutingContext ctx, JsonObject json) {
@@ -269,7 +279,7 @@ public class CertificatorHandler {
     }
 
     private void sendJsonResponse(RoutingContext ctx, CertificateDto dto) {
-        ctx.response().putHeader("content-type", "application/json").end(io.vertx.core.json.Json.encode(dto));
+        ctx.response().putHeader("content-type", "application/json").end(Json.encode(dto));
     }
 
     private void handleError(RoutingContext ctx, String action, Exception e) {
@@ -311,6 +321,8 @@ public class CertificatorHandler {
         private String bin;
         private String publicKeyAlgorithm;
         private Integer keySize;
+        private String signatureAlgorithmOid;
+        private String extendedKeyUsageOid;
         private String caId;
         private Boolean generated;
 

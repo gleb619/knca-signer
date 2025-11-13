@@ -15,15 +15,13 @@ test('xmlVerifierTab initializes with default values', () => {
 
   expect(instance.isValidating).toBe(false);
   expect(instance.validationResult).toBe(null);
-  expect(instance.validationConfig.checkKalkanProvider).toBe(false);
-  expect(instance.validationConfig.checkData).toBe(true);
-  expect(instance.validationConfig.checkTime).toBe(true);
+  expect(instance.validationConfig.checkSignature).toBe(true);
+  expect(instance.validationConfig.checkKncaProvider).toBe(false);
   expect(instance.validationConfig.checkIinInCert).toBe(false);
-  expect(instance.validationConfig.checkIinInSign).toBe(false);
   expect(instance.validationConfig.checkBinInCert).toBe(false);
-  expect(instance.validationConfig.checkBinInSign).toBe(false);
   expect(instance.validationConfig.checkCertificateChain).toBe(false);
   expect(instance.validationConfig.checkPublicKey).toBe(false);
+  expect(instance.validationConfig.checkExtendedKeyUsage).toBe(false);
   expect(instance.validationConfig.expectedIin).toBe('');
   expect(instance.validationConfig.expectedBin).toBe('');
   expect(instance.validationConfig.publicKey).toBe(undefined);
@@ -50,8 +48,8 @@ test('resetValidation clears all fields', () => {
 
   // Set some values
   instance.xmlContent = 'test xml';
-  instance.validationConfig.checkKalkanProvider = true;
-  instance.validationConfig.checkData = true;
+  instance.validationConfig.checkKncaProvider = true;
+  instance.validationConfig.checkSignature = false;
   instance.validationConfig.checkPublicKey = true;
   instance.validationConfig.expectedIin = '123456789012';
   instance.validationConfig.expectedBin = '123456789012';
@@ -68,12 +66,13 @@ test('resetValidation clears all fields', () => {
 
   // Check all cleared/reset correctly
   expect(instance.xmlContent).toBe('');
-  expect(instance.validationConfig.checkKalkanProvider).toBe(false);
-  expect(instance.validationConfig.checkData).toBe(true); // resets to true
-  expect(instance.validationConfig.checkTime).toBe(true); // resets to true
+  expect(instance.validationConfig.checkSignature).toBe(true); // resets to true
+  expect(instance.validationConfig.checkKncaProvider).toBe(false);
   expect(instance.validationConfig.checkPublicKey).toBe(false);
+  expect(instance.validationConfig.checkIinInCert).toBe(false);
   expect(instance.validationConfig.checkBinInCert).toBe(false);
-  expect(instance.validationConfig.checkBinInSign).toBe(false);
+  expect(instance.validationConfig.checkCertificateChain).toBe(false);
+  expect(instance.validationConfig.checkExtendedKeyUsage).toBe(false);
   expect(instance.validationConfig.expectedIin).toBe('');
   expect(instance.validationConfig.expectedBin).toBe('');
   expect(instance.publicKeyFile).toBe(null);
@@ -178,23 +177,21 @@ test('validation flags are boolean', () => {
   const instance = xmlVerifierTab();
 
   // Test default values
-  expect(typeof instance.validationConfig.checkKalkanProvider).toBe('boolean');
-  expect(typeof instance.validationConfig.checkData).toBe('boolean');
-  expect(typeof instance.validationConfig.checkTime).toBe('boolean');
+  expect(typeof instance.validationConfig.checkSignature).toBe('boolean');
+  expect(typeof instance.validationConfig.checkKncaProvider).toBe('boolean');
   expect(typeof instance.validationConfig.checkIinInCert).toBe('boolean');
-  expect(typeof instance.validationConfig.checkIinInSign).toBe('boolean');
   expect(typeof instance.validationConfig.checkBinInCert).toBe('boolean');
-  expect(typeof instance.validationConfig.checkBinInSign).toBe('boolean');
   expect(typeof instance.validationConfig.checkCertificateChain).toBe('boolean');
   expect(typeof instance.validationConfig.checkPublicKey).toBe('boolean');
+  expect(typeof instance.validationConfig.checkExtendedKeyUsage).toBe('boolean');
 
   // Test changing values
-  instance.validationConfig.checkKalkanProvider = true;
-  instance.validationConfig.checkData = true;
+  instance.validationConfig.checkKncaProvider = true;
+  instance.validationConfig.checkSignature = false;
   instance.validationConfig.checkPublicKey = true;
   instance.validationConfig.checkBinInCert = true;
-  expect(instance.validationConfig.checkKalkanProvider).toBe(true);
-  expect(instance.validationConfig.checkData).toBe(true);
+  expect(instance.validationConfig.checkKncaProvider).toBe(true);
+  expect(instance.validationConfig.checkSignature).toBe(false);
   expect(instance.validationConfig.checkPublicKey).toBe(true);
   expect(instance.validationConfig.checkBinInCert).toBe(true);
 });
@@ -357,7 +354,6 @@ test('handleCertificateSelection prefills expectedIin from userCert', async () =
 
   expect(instance.validationConfig.expectedIin).toBe('123456789012');
   expect(instance.validationConfig.checkIinInCert).toBe(true);
-  expect(instance.validationConfig.checkIinInSign).toBe(true);
   expect(instance.validationConfig.expectedBin).toBe(''); // unchanged
 });
 
@@ -378,7 +374,6 @@ test('handleCertificateSelection prefills expectedBin from legalCert', async () 
 
   expect(instance.validationConfig.expectedBin).toBe('987654321098');
   expect(instance.validationConfig.checkBinInCert).toBe(true);
-  expect(instance.validationConfig.checkBinInSign).toBe(true);
   expect(instance.validationConfig.expectedIin).toBe(''); // unchanged
 });
 
@@ -512,4 +507,117 @@ test('handleCertificateSelection does nothing when no certificates selected', as
   expect(instance.validationConfig.expectedBin).toBe('');
   expect(instance.validationConfig.checkIinInCert).toBe(false);
   expect(instance.validationConfig.checkBinInCert).toBe(false);
+});
+
+test('handleCertificateSelection fetches user certificate PEM and sets publicKey', async () => {
+  const instance = xmlVerifierTab();
+
+  const mockUserCert = {
+    alias: 'test-user-cert',
+    iin: '123456789012'
+  };
+
+  const mockPEM = '-----BEGIN CERTIFICATE-----\nUSER_CERT_PEM\n-----END CERTIFICATE-----';
+
+  // Mock window.Alpine.store
+  global.window = {
+    ...global.window,
+    Alpine: {
+      store: vi.fn().mockReturnValue({
+        fetchUserCert: vi.fn().mockResolvedValue(mockPEM)
+      })
+    }
+  };
+
+  const detail = {
+    userCert: mockUserCert,
+    legalCert: null,
+    caCert: null
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(instance.validationConfig.expectedIin).toBe('123456789012');
+  expect(instance.validationConfig.checkIinInCert).toBe(true);
+  expect(instance.validationConfig.publicKey).toBe(mockPEM);
+  expect(instance.validationConfig.checkPublicKey).toBe(true);
+
+  // Cleanup
+  delete global.window.Alpine;
+});
+
+test('handleCertificateSelection fetches legal certificate PEM and sets publicKey', async () => {
+  const instance = xmlVerifierTab();
+
+  const mockLegalCert = {
+    alias: 'test-legal-cert',
+    bin: '987654321098'
+  };
+
+  const mockPEM = '-----BEGIN CERTIFICATE-----\nLEGAL_CERT_PEM\n-----END CERTIFICATE-----';
+
+  // Mock window.Alpine.store
+  global.window = {
+    ...global.window,
+    Alpine: {
+      store: vi.fn().mockReturnValue({
+        fetchUserCert: vi.fn().mockResolvedValue(mockPEM)
+      })
+    }
+  };
+
+  const detail = {
+    userCert: null,
+    legalCert: mockLegalCert,
+    caCert: null
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(instance.validationConfig.expectedBin).toBe('987654321098');
+  expect(instance.validationConfig.checkBinInCert).toBe(true);
+  expect(instance.validationConfig.publicKey).toBe(mockPEM);
+  expect(instance.validationConfig.checkPublicKey).toBe(true);
+
+  // Cleanup
+  delete global.window.Alpine;
+});
+
+test('handleCertificateSelection handles user certificate fetch failure', async () => {
+  const instance = xmlVerifierTab();
+
+  const mockUserCert = {
+    alias: 'test-user-cert',
+    iin: '123456789012'
+  };
+
+  // Mock window.Alpine.store with failing fetch
+  global.window = {
+    ...global.window,
+    Alpine: {
+      store: vi.fn().mockReturnValue({
+        fetchUserCert: vi.fn().mockRejectedValue(new Error('Network error'))
+      })
+    }
+  };
+
+  // Spy on console.warn
+  const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+  const detail = {
+    userCert: mockUserCert,
+    legalCert: null,
+    caCert: null
+  };
+
+  await instance.handleCertificateSelection(detail);
+
+  expect(instance.validationConfig.expectedIin).toBe('123456789012');
+  expect(instance.validationConfig.checkIinInCert).toBe(true);
+  expect(consoleWarnSpy).toHaveBeenCalledWith('Failed to fetch user certificate:', expect.any(Error));
+  expect(instance.validationConfig.publicKey).toBeUndefined(); // Should remain undefined
+  expect(instance.validationConfig.checkPublicKey).toBe(false); // Should remain false
+
+  consoleWarnSpy.mockRestore();
+  delete global.window.Alpine;
 });

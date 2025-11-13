@@ -9,7 +9,7 @@ export default () => ({
     },
     // Tab management
     activeTab: 'loader', // certificate-authority | xml-signer | xml-verifier | loader
-    loading: false,
+    loading: true,
     notifications: [],
 
     init() {
@@ -34,6 +34,9 @@ export default () => ({
                 this.selectTab('certificate-authority');
             }, 20);
         }
+        setTimeout(() => {
+            this.loading = false;
+        }, 1000);
     },
 
     changeLocale(shouldReload = true) {

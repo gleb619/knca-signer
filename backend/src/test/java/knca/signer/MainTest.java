@@ -1,6 +1,7 @@
 package knca.signer;
 
 import knca.signer.config.ApplicationConfig;
+import knca.signer.controller.VerifierHandler.XmlValidationRequest;
 import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService;
@@ -13,11 +14,16 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.security.Provider;
+import java.util.Base64;
 
+import static knca.signer.kalkan.KalkanConstants.KeyPurposeId.id_kp_emailProtection;
 import static org.junit.jupiter.api.Assertions.*;
 
 @EnabledIfSystemProperty(named = "kalkanAllowed", matches = "true")
 public class MainTest {
+
+    private static final String USER_TYPE = "user";
+    private static final String LEGAL_TYPE = "legal";
 
     @TempDir
     Path tempDir;
@@ -35,7 +41,7 @@ public class MainTest {
                 1,
                 1,
                 tempDir.toString() + "/",
-                tempDir + "/ca.crt",
+                tempDir + "/ca-default.crt",
                 2048,
                 "RSA",
                 "1.2.840.113549.1.1.11",
@@ -56,15 +62,15 @@ public class MainTest {
      * Tests both user and legal certificates with knca-signer validation.
      */
     @Test
-    public void testFullCertificateAndXmlWorkflow(@TempDir Path tempDir) throws Exception {
+    public void testFullCertificateAndXmlWorkflow() throws Exception {
         // Generate certificates
         generateCertificates();
 
         // Test XML signing and validation for user certificates
-        testXmlWorkflowForCertificateType("user", "User");
+        testXmlWorkflowForCertificateType(USER_TYPE, "User");
 
         // Test XML signing and validation for legal certificates
-        testXmlWorkflowForCertificateType("legal", "Legal");
+        testXmlWorkflowForCertificateType(LEGAL_TYPE, "Legal");
     }
 
     /**
@@ -93,9 +99,8 @@ public class MainTest {
         // Sign XML
         String signedXml = signXmlWithCertificate(certService, certAlias, certTypeName);
 
-        // Validate knca-signer marker
-        //#TODO: call `validateXmlSignature`, not `checkKncaProvider`, we need to run all xml checks for the signature  
-        verifyXmlSign(signedXml, certTypeName);
+        // Validate XML signature with full verification flow
+        verifyXmlSign(signedXml, certType, certTypeName, certAlias);
     }
 
     /**
@@ -103,12 +108,12 @@ public class MainTest {
      */
     private String getCertificateAlias(CertificateStorage storage, String certType) {
         return switch (certType) {
-            case "user" -> {
+            case USER_TYPE -> {
                 var userCerts = storage.getUserCertificates();
                 assertFalse(userCerts.isEmpty(), "Should have user certificates");
                 yield userCerts.keySet().iterator().next();
             }
-            case "legal" -> {
+            case LEGAL_TYPE -> {
                 var legalCerts = storage.getLegalCertificates();
                 assertFalse(legalCerts.isEmpty(), "Should have legal certificates");
                 yield legalCerts.keySet().iterator().next();
@@ -121,7 +126,7 @@ public class MainTest {
      * Sign XML content with the specified certificate
      */
     private String signXmlWithCertificate(CertificateService certService, String certAlias, String certTypeName) throws Exception {
-        String xmlData = "<root><message>Test XML signing for " + certTypeName + " certificate</message></root>";
+        String xmlData = "<root><message>Test XML signing for %s certificate</message></root>".formatted(certTypeName);
 
         String signedXml = certService.signXml(xmlData, certAlias);
         assertNotNull(signedXml, "Signed XML should be generated");
@@ -134,31 +139,76 @@ public class MainTest {
     }
 
     /**
-     * Validate that the signed XML contains a certificate with knca-signer marker using full XML validation
+     * Validate XML signature with full verification flow
      */
-    private void verifyXmlSign(String signedXml, String certTypeName) throws Exception {
-        // Create XML validation request with knca-signer check enabled
-        // Note: Signature validation is skipped for test purposes since we're using self-generated certificates
-        // The main goal is to validate the Kalkan provider check works correctly
-        var xmlValidationRequest = new knca.signer.controller.VerifierHandler.XmlValidationRequest();
+    private void verifyXmlSign(String signedXml, String certType, String certTypeName, String certAlias) throws Exception {
+        // Create XML validation request with full checks enabled
+        var xmlValidationRequest = new XmlValidationRequest();
         xmlValidationRequest.setXml(signedXml);
-        xmlValidationRequest.setCheckSignature(false); // Skip signature validation for self-generated certs
+        xmlValidationRequest.setCheckSignature(true);
         xmlValidationRequest.setCheckKncaProvider(true);
-        xmlValidationRequest.setCheckCertificateChain(false); // Skip chain validation for test
-        xmlValidationRequest.setCheckData(false);
-        xmlValidationRequest.setCheckTime(false);
-        xmlValidationRequest.setCheckIinInCert(false);
-        xmlValidationRequest.setCheckIinInSign(false);
-        xmlValidationRequest.setCheckBinInCert(false);
-        xmlValidationRequest.setCheckBinInSign(false);
-        xmlValidationRequest.setCheckPublicKey(false);
-        xmlValidationRequest.setCheckExtendedKeyUsage(false);
+        xmlValidationRequest.setCheckCertificateChain(true);
+        xmlValidationRequest.setCheckIinInCert(true);
+        xmlValidationRequest.setCheckPublicKey(true);
+        xmlValidationRequest.setCheckExtendedKeyUsage(true);
+
+        // Extract public key directly from storage using certificate alias
+        String publicKey = extractPublicKeyFromStorage(storage, certAlias, certType);
+        xmlValidationRequest.setPublicKey(publicKey);
+
+        // Set extended key usage OIDs (default for knca-signer certificates is email protection)
+        xmlValidationRequest.setExtendedKeyUsageOids(id_kp_emailProtection);
+
+        // Set checks based on certificate type
+        if (LEGAL_TYPE.equals(certType)) {
+            // For legal certificates, enable all applicable checks including BIN and signature validation
+            xmlValidationRequest.setCheckBinInCert(true);
+            // Set expected BIN from certificate data
+            var certData = storage.getLegalCertificates().get(certAlias);
+            if (certData != null && certData.getBin() != null) {
+                xmlValidationRequest.setExpectedBin(certData.getBin());
+            }
+        } else {
+            // For user certificates, omit BIN checks but enable all other signature validations
+            xmlValidationRequest.setCheckBinInCert(false);
+        }
+
+        // Set expected IIN from certificate data for IIN check
+        var certData = switch (certType) {
+            case USER_TYPE -> storage.getUserCertificates().get(certAlias);
+            case LEGAL_TYPE -> storage.getLegalCertificates().get(certAlias);
+            default -> null;
+        };
+        if (certData != null && certData.getIin() != null) {
+            xmlValidationRequest.setExpectedIin(certData.getIin());
+        }
 
         // Perform full XML validation
         CertificateService.ValidationResult result = validator.validateXmlSignature(xmlValidationRequest);
 
         assertTrue(result.isValid(),
-                certTypeName + " certificate XML validation should pass. Code: " + result.getCode() + ", Message: " + result.getMessage());
+                "%s certificate XML validation should pass. Code: %s, Message: %s".formatted(certTypeName, result.getCode(), result.getMessage()));
+    }
+
+    /**
+     * Extract the public key from certificate storage using alias and return it as PEM formatted string
+     */
+    private String extractPublicKeyFromStorage(CertificateStorage storage, String certAlias, String certType) throws Exception {
+        // Get certificate directly from storage
+        var certData = switch (certType) {
+            case USER_TYPE -> storage.getUserCertificates().get(certAlias);
+            case LEGAL_TYPE -> storage.getLegalCertificates().get(certAlias);
+            default -> throw new IllegalArgumentException("Unknown certificate type: " + certType);
+        };
+
+        if (certData == null) {
+            throw new Exception("Certificate not found in storage: " + certAlias);
+        }
+
+        // Extract public key and format as PEM
+        byte[] publicKeyBytes = certData.getCertificate().getPublicKey().getEncoded();
+        String base64Key = Base64.getEncoder().encodeToString(publicKeyBytes);
+        return "-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----".formatted(base64Key);
     }
 
 }

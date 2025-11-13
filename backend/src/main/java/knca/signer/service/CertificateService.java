@@ -2,17 +2,18 @@ package knca.signer.service;
 
 import knca.signer.config.ApplicationConfig;
 import knca.signer.controller.VerifierHandler.XmlValidationRequest;
-import knca.signer.util.XmlSigningUtil;
+import knca.signer.kalkan.KalkanAdapter;
+import knca.signer.util.XmlUtil;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.xml.crypto.MarshalException;
 import javax.xml.crypto.dsig.XMLSignatureException;
+import java.io.ByteArrayOutputStream;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.Signature;
+import java.security.*;
+import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.List;
@@ -22,7 +23,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CertificateService {
 
-    private final java.security.Provider provider;
+    private final Provider provider;
     private final ApplicationConfig.CertificateConfig config;
     private final CertificateStorage storage;
     private final CertificateGenerator generationService;
@@ -112,7 +113,7 @@ public class CertificateService {
 
             SigningEntity signingEntity = new SigningEntity(privateKey, certificateChain);
             try {
-                return XmlSigningUtil.createXmlSignature(signingEntity, xmlData);
+                return XmlUtil.createXmlSignature(signingEntity, xmlData);
             } catch (MarshalException | XMLSignatureException |
                      NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
                 throw new Exception("XML signing failed: " + e.getMessage(), e);
@@ -136,7 +137,7 @@ public class CertificateService {
         List<X509Certificate> certificateChain = List.of(pemData.certificate);
         SigningEntity signingEntity = new SigningEntity(pemData.privateKey, certificateChain);
         try {
-            return XmlSigningUtil.createXmlSignature(signingEntity, xmlData);
+            return XmlUtil.createXmlSignature(signingEntity, xmlData);
         } catch (MarshalException | XMLSignatureException |
                  NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
             throw new Exception("XML signing failed: " + e.getMessage(), e);
@@ -175,7 +176,7 @@ public class CertificateService {
             var caResult = storage.getCACertificate(alias).orElseThrow();
             caCert = cert; // Self-signed CA
             privateKey = caResult.getKeyPair().getPrivate();
-            filename = "%s.%s".formatted(alias, format);
+            filename = "ca-%s.%s".formatted(alias, format);
         } else {
             // User or legal certificate - need to find CA cert and private key
             CertificateData certData = storage.getUserCertificate(alias).orElse(null);
@@ -215,20 +216,20 @@ public class CertificateService {
     @SneakyThrows
     private byte[] generatePemCertificate(X509Certificate cert) {
         // Use existing PEM writing logic from CertificateGenerator
-        java.io.StringWriter stringWriter = new java.io.StringWriter();
-        var pemWriter = knca.signer.kalkan.KalkanAdapter.createPEMWriter(stringWriter);
+        StringWriter stringWriter = new StringWriter();
+        var pemWriter = KalkanAdapter.createPEMWriter(stringWriter);
         pemWriter.writeObject(cert);
         pemWriter.flush();
-        return stringWriter.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return stringWriter.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     @SneakyThrows
     private byte[] generatePKCS12Keystore(PrivateKey privateKey, X509Certificate cert, X509Certificate caCert) {
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-        java.security.KeyStore keyStore = java.security.KeyStore.getInstance("PKCS12", provider.getName());
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        KeyStore keyStore = KeyStore.getInstance("PKCS12", provider.getName());
         keyStore.load(null, null);
 
-        java.security.cert.Certificate[] chain = new java.security.cert.Certificate[]{cert, caCert};
+        Certificate[] chain = new Certificate[]{cert, caCert};
         keyStore.setKeyEntry("user", privateKey, config.getKeystorePassword().toCharArray(), chain);
 
         keyStore.store(baos, config.getKeystorePassword().toCharArray());
@@ -237,11 +238,11 @@ public class CertificateService {
 
     @SneakyThrows
     private byte[] generateJKSKeystore(PrivateKey privateKey, X509Certificate cert, X509Certificate caCert) {
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-        java.security.KeyStore keyStore = java.security.KeyStore.getInstance("JKS");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        KeyStore keyStore = KeyStore.getInstance("JKS");
         keyStore.load(null, null);
 
-        java.security.cert.Certificate[] chain = new java.security.cert.Certificate[]{cert, caCert};
+        Certificate[] chain = new Certificate[]{cert, caCert};
         keyStore.setKeyEntry("user", privateKey, config.getKeystorePassword().toCharArray(), chain);
 
         keyStore.store(baos, config.getKeystorePassword().toCharArray());
@@ -291,8 +292,8 @@ public class CertificateService {
     @Data
     @RequiredArgsConstructor
     public static class CertificateResult {
-        private final java.security.KeyPair keyPair;
-        private final java.security.cert.X509Certificate certificate;
+        private final KeyPair keyPair;
+        private final X509Certificate certificate;
     }
 
     @Data
@@ -302,7 +303,7 @@ public class CertificateService {
         private final String iin;
         private final String bin;
         private final String caId;
-        private final java.security.cert.X509Certificate certificate;
+        private final X509Certificate certificate;
     }
 
     @Builder
@@ -332,10 +333,6 @@ public class CertificateService {
         private final String originalData;
         private final String signature;
         private final String certAlias;
-
-        public String getSignedContent() {
-            return originalData + signature;
-        }
 
         public String getFormattedSignedContent() {
             return String.format("<content><data>%s</data><signature>%s</signature><alias>%s</alias></content>",

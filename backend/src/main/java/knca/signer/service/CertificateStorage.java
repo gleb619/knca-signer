@@ -1,16 +1,15 @@
 package knca.signer.service;
 
-import knca.signer.service.CertificateReader.CertificateInfo;
 import knca.signer.service.CertificateService.CertificateData;
 import knca.signer.service.CertificateService.CertificateResult;
 import lombok.RequiredArgsConstructor;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Service for managing certificate storage and retrieval operations.
@@ -35,15 +34,6 @@ public class CertificateStorage {
     public Optional<LegalCompanyInfo> getLegalCompanyInfo(String caAlias) {
         return Optional.ofNullable(storage.getLegalCompanyInfos().get(caAlias));
     }
-
-    /**
-     * Get filesystem certificates.
-     */
-    @Deprecated(forRemoval = true)
-    public List<CertificateInfo> getFilesystemCertificates() {
-        return new ArrayList<>(storage.getFilesystemCertificates());
-    }
-
 
     /**
      * Get all certificates as a unified map.
@@ -221,21 +211,7 @@ public class CertificateStorage {
     public record LegalCompanyInfo(String company, String bin) {
     }
 
-    /**
-     * Add filesystem certificate.
-     */
-    public void addFilesystemCertificate(CertificateInfo cert) {
-        storage.getFilesystemCertificates().add(cert);
-    }
-
-    /**
-     * Clear filesystem certificates.
-     */
-    public void clearFilesystemCertificates() {
-        storage.getFilesystemCertificates().clear();
-    }
-
-    @lombok.Value
+    @Value
     public static class Storage {
 
         Map<String, CertificateResult> caCertificates = new ConcurrentHashMap<>();
@@ -244,8 +220,7 @@ public class CertificateStorage {
         Map<String, KeyPair> legalKeys = new ConcurrentHashMap<>();
         Map<String, CertificateData> legalCertificates = new ConcurrentHashMap<>();
         Map<String, LegalCompanyInfo> legalCompanyInfos = new ConcurrentHashMap<>();
-        @Deprecated(forRemoval = true)
-        Queue<CertificateInfo> filesystemCertificates = new ConcurrentLinkedQueue<>();
 
     }
+
 }

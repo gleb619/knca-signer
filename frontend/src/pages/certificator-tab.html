@@ -51,9 +51,9 @@
                 <div class="mt-4 p-3 bg-blue-50 rounded-lg">
                     <h5 class="text-sm font-medium text-blue-700 mb-2" x-text="translate('howItWorks')"></h5>
                     <p class="text-xs text-blue-600" x-cloak x-show="activeSubTab === 'create'"
-                       x-text="translate('createCaHelpCreate')"></p>
+                       x-html="translate('createCaHelpCreate')"></p>
                     <p class="text-xs text-blue-600" x-cloak x-show="activeSubTab !== 'create'"
-                       x-text="translate('viewManageCertsHelp')"></p>
+                       x-html="translate('viewManageCertsHelp')"></p>
                 </div>
             </div>
         </div>
@@ -68,8 +68,7 @@
                     <div class="flex items-center space-x-3">
                         <svg class="animate-spin h-6 w-6 text-blue-600" fill="none" stroke="currentColor"
                              viewBox="0 0 24 24">
-                            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0-4H9m11 11v-5h-.581m0 0H15m5.356-4A8.001 8.001 0 0014.418 15" stroke-linecap="round" stroke-linejoin="round"
-                                  stroke-width="2"/>
+                            <path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/>
                         </svg>
                         <div>
                             <p class="font-medium text-gray-900"
@@ -82,38 +81,19 @@
 
             <!-- Create CA Tab -->
             <template x-if="activeSubTab === 'create'">
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4"
-                        x-text="translate('createCertificateAuthority')"></h2>
-                    <p class="text-gray-600 mb-6" x-text="translate('createCaDesc')">
-                    </p>
-
-                    <!-- CA Generation Form -->
-                    <div class="max-w-md">
-                        <label class="block text-sm font-medium text-gray-700 mb-2" for="caAlias"
-                               x-text="translate('caAliasLabel')">
-                        </label>
-                        <input class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
-                               id="caAlias"
-                               :placeholder="translate('caAliasPlaceholder')"
-                               type="text"
-                               x-model="newCAAlias">
-                        <button :disabled="generatingCA"
-                                @click="generateCA"
-                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-cloak
-                                 x-show="!generatingCA">
-                                <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round" stroke-linejoin="round"
-                                      stroke-width="2"/>
-                            </svg>
-                            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                 x-cloak
-                                 x-show="generatingCA">
-                                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0-4H9m11 11v-5h-.581m0 0H15m5.356-4A8.001 8.001 0 0014.418 15"
-                                      stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
-                            </svg>
-                            <span x-text="generatingCA ? translate('creatingCA') : translate('createCA')"></span>
-                        </button>
+                <div>
+                    <div hx-get="src/pages/certificator/generate-ca.html"
+                         hx-target="this"
+                         hx-trigger="load lateLoad"
+                         x-data="{}"
+                         x-init="setTimeout(() => { htmx.process($el); htmx.trigger($el, 'lateLoad'); }, 100)">
+                        <div class="text-center py-5">
+                            <div class="animate-pulse">
+                                <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
+                                <div class="h-4 bg-gray-300 rounded w-1/2 mx-auto"></div>
+                            </div>
+                            <p class="text-gray-600 mt-4">Loading creation panel...</p>
+                        </div>
                     </div>
                 </div>
             </template>
@@ -155,15 +135,17 @@
                                     </div>
                                     <div class="flex gap-2">
                                         <button :disabled="generatingUser"
+                                                :title="generatingUser ? translate('generating') : translate('newUserCert')"
                                                 @click="generateUser(caStructure.alias)"
-                                                class="px-2.5 py-1.5 bg-green-600 text-sm text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 truncate">
+                                                class="px-2.5 py-1.5 bg-green-600 text-sm text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 truncate"
+                                                type="button">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                                                  x-cloak
                                                  x-show="!generatingUser">
                                                 <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round"
                                                       stroke-linejoin="round" stroke-width="2"/>
                                             </svg>
-                                            <span :title="generatingUser ? translate('generating') : translate('newUserCert')">
+                                            <span>
                                                 <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path clip-rule="evenodd"
                                                           d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
@@ -172,15 +154,17 @@
                                             </span>
                                         </button>
                                         <button :disabled="generatingLegal"
+                                                :title="generatingLegal ? translate('generating') : translate('newLegalCert')"
                                                 @click="generateLegal(caStructure.alias)"
-                                                class="px-2.5 py-1.5 bg-orange-600 text-sm text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 truncate">
+                                                class="px-2.5 py-1.5 bg-orange-600 text-sm text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 truncate"
+                                                type="button">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                                                  x-cloak
                                                  x-show="!generatingLegal">
                                                 <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round"
                                                       stroke-linejoin="round" stroke-width="2"/>
                                             </svg>
-                                            <span :title="generatingLegal ? translate('generating') : translate('newLegalCert')">
+                                            <span>
                                                 <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 13 13">
                                                     <path d="m 10.103631,5.49525 0,3.23936 -0.700485,0 0,-1.85077 -0.549612,1.85077 -0.765932,0 -0.547456,-1.84978 0,1.84978 -0.700486,0 0,-3.19578 0,-0.0436 0.04357,0 0.984961,0 0.60533,2.01926 0.599301,-2.01926 1.030806,0 z m -6.207291,0 0,0.66443 0.935359,0 0,2.5749 0.745631,0 0,-2.5749 0.911155,0 0,-0.66443 -2.592145,0 z m 6.522495,-1.91408 c 1.889388,1.88935 1.889767,4.94793 0,6.83764 -1.889476,1.88947 -4.947903,1.88976 -6.837641,0 -1.889446,-1.88942 -1.889796,-4.94788 -2.9e-5,-6.83764 1.889418,-1.88939 4.947932,-1.88977 6.83767,0 z M 7,1 C 3.686282,1 1,3.68628 1,7 c 0,3.31369 2.686282,6 6,6 3.313718,0 6,-2.68631 6,-6 C 13,3.68628 10.313718,1 7,1 Z"/>
                                                 </svg>
@@ -202,7 +186,8 @@
                                               x-text="formatDate(caStructure.ca.notAfter)"></span>
                                     </div>
                                     <div>
-                                        <span class="text-gray-500" x-text="translate('aliasLabel')"></span>
+                                        <span class="text-gray-500" title="Alias"
+                                              x-text="translate('aliasLabel')"></span>
                                         <span class="ml-2 text-gray-900" x-text="caStructure.ca.alias"></span>
                                     </div>
                                     <div class="overflow-hidden text-ellipsis inline-flex" x-cloak
@@ -225,10 +210,6 @@
                                             </button>
                                         </div>
 
-                                    </div>
-                                    <div x-cloak x-show="caStructure.ca.publicKeyAlgorithm || caStructure.ca.keySize">
-                                        <span class="text-gray-500" x-text="translate('keyLabel')"></span>
-                                        <span class="ml-2 text-gray-900" x-text="formatKeyInfo(caStructure.ca)"></span>
                                     </div>
                                 </div>
 
@@ -292,7 +273,9 @@
                             <!-- User Certificates Cards -->
                             <div hx-get="src/pages/certificator/user-cert-cards.html"
                                  hx-target="this"
-                                 hx-trigger="load lateLoad">
+                                 hx-trigger="load lateLoad"
+                                 x-data="{}"
+                                 x-init="setTimeout(() => { htmx.process($el); htmx.trigger($el, 'lateLoad'); }, 200)">
                                 <div class="text-center py-5">
                                     <div class="animate-pulse">
                                         <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>
@@ -305,7 +288,9 @@
                             <!-- Legal Certificates Cards -->
                             <div hx-get="src/pages/certificator/legal-cert-cards.html"
                                  hx-target="this"
-                                 hx-trigger="load lateLoad">
+                                 hx-trigger="load lateLoad"
+                                 x-data="{}"
+                                 x-init="setTimeout(() => { htmx.process($el); htmx.trigger($el, 'lateLoad'); }, 300)">
                                 <div class="text-center py-5">
                                     <div class="animate-pulse">
                                         <div class="h-4 bg-gray-300 rounded w-1/4 mx-auto mb-4"></div>

@@ -50,6 +50,10 @@ export default () => ({
             this.bin = '';
         }
 
+        if(cert.extendedKeyUsageOid) {
+            this.extKeyUsageOids = cert.extendedKeyUsageOid;
+        }
+
         // Try to get and set CA certificate if buildChain is enabled
         if (caCert) {
             const pemText = await this.$store.certificateStore.fetchCaCert();
@@ -65,6 +69,7 @@ export default () => ({
     },
 
     async request() {
+        this.loading = true;
         this.isSigning = true;
 
         const selectedStorages = this.allowedStorages.filter(storage => storage); // Filter out empty values
@@ -147,6 +152,9 @@ export default () => ({
             });
         }).catch((err) => {
             this.isSigning = false;
+            setTimeout(() => {
+                this.loading = false;
+            }, 1000);
             console.error('Signing request failed:', err);
             this.addNotification('error', 'An error occurred during signing. Please check the console for details.');
         });
@@ -234,10 +242,6 @@ export default () => ({
                 this.caCerts = text;
             });
         }
-    },
-
-    init() {
-
     },
 
 });

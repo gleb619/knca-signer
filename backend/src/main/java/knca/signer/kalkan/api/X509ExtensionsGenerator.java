@@ -17,6 +17,7 @@ public interface X509ExtensionsGenerator {
     /**
      * Add an extension using a DEREncodable value
      */
+    @SuppressWarnings("unused")
     default void addExtension(String oid, boolean critical, Object value) {
         KalkanProxy derOid = KalkanAdapter.createDERObjectIdentifier(oid);
         getProxy().invokeScript(
@@ -26,6 +27,7 @@ public interface X509ExtensionsGenerator {
     /**
      * Add an extension using raw byte value
      */
+    @SuppressWarnings("unused")
     default void addExtension(String oid, boolean critical, byte[] value) {
         KalkanProxy derOid = KalkanAdapter.createDERObjectIdentifier(oid);
         getProxy().invokeScript(
@@ -63,9 +65,10 @@ public interface X509ExtensionsGenerator {
 
     /**
      * Add an ExtendedKeyUsage extension for email protection
+     * @param id - a oid of certificate purpose
      */
-    default void addExtendedKeyUsageEmailProtection() {
-        KalkanProxy eku = KalkanAdapter.createDERSequence(KalkanAdapter.createDERObjectIdentifier(KalkanConstants.KeyPurposeId.id_kp_emailProtection));
+    default void addExtendedKeyUsageEmailProtection(String id) {
+        KalkanProxy eku = KalkanAdapter.createDERSequence(KalkanAdapter.createDERObjectIdentifier(id));
         addExtension(KalkanConstants.X509Extensions.ExtendedKeyUsage, false, eku);
     }
 

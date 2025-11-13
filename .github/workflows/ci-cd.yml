@@ -168,8 +168,8 @@ jobs:
       - name: Attest build provenance (SHA checks)
         uses: actions/attest-build-provenance@v1
         with:
-          artifact: knca-signer.jar
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          subject-path: knca-signer.jar
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute checksums
         run: |
@@ -212,11 +212,9 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Generate CHANGELOG.md
-        # Replaced external action (repo not found) with a local generation step to avoid prepare-time failure.
         run: |
           echo "# Changelog" > CHANGELOG.md
           echo "" >> CHANGELOG.md
-          # Try to generate changelog since last tag; fall back to full history
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
           if [ -n "$LAST_TAG" ]; then
             RANGE="${LAST_TAG}..HEAD"

@@ -55,11 +55,13 @@ public class ApplicationConfig {
         private List<String> allowedMethods;
         private List<String> allowedHeaders;
 
+        @SuppressWarnings("unused")
         @JsonSetter("allowedMethods")
         public void setAllowedMethods(Object o) {
             this.allowedMethods = o instanceof String s ? Arrays.asList(s.split("\\s*,\\s*")) : (List<String>) o;
         }
 
+        @SuppressWarnings("unused")
         @JsonSetter("allowedHeaders")
         public void setAllowedHeaders(Object o) {
             this.allowedHeaders = o instanceof String s ? Arrays.asList(s.split("\\s*,\\s*")) : (List<String>) o;

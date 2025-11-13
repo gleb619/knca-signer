@@ -3,10 +3,10 @@ package knca.signer.service;
 import knca.signer.kalkan.KalkanAdapter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
@@ -29,7 +29,7 @@ public class KeyStoreManager {
                                             String password, String providerName) throws Exception {
         try {
             // Try Kalkan-compatible PKCS12 creation first (direct SPI instantiation)
-            createPKCS12KeystoreViaKalkan(privateKey, userCert, caCert, filename, password, providerName);
+            createPKCS12KeystoreViaKalkan(privateKey, userCert, caCert, filename, password);
             log.info("Successfully created Kalkan-compatible PKCS12 keystore: {}", filename);
         } catch (Exception e) {
             // Kalkan direct creation failed, try JVM-based conversion approach
@@ -44,7 +44,7 @@ public class KeyStoreManager {
      */
     private static void createPKCS12KeystoreViaKalkan(PrivateKey privateKey, X509Certificate userCert,
                                                       X509Certificate caCert, String filename,
-                                                      String password, String providerName) throws Exception {
+                                                      String password) throws Exception {
         // Create Kalkan-compatible PKCS12 keystore instance
         var pkcs12Proxy = KalkanAdapter.createKalkanPKCS12Keystore();
 
@@ -52,34 +52,12 @@ public class KeyStoreManager {
         Certificate[] chain = new Certificate[]{userCert, caCert};
 
         // Store private key and certificate chain using MVEL script
-        pkcs12Proxy.invokeScript("realObject.engineSetKeyEntry(alias, key, password, chain)",
+        pkcs12Proxy.invokeScript("realObject.engineSetKeyEntry(args[0], args[1], args[2], args[3])",
                 "user", privateKey, password.toCharArray(), chain);
 
         // Save keystore to file using MVEL script
-        try (FileOutputStream fos = new FileOutputStream(new File(filename))) {
-            pkcs12Proxy.invokeScript("realObject.engineStore(stream, password)", fos, password.toCharArray());
-        }
-    }
-
-    /**
-     * Create PKCS12 keystore directly using Kalkan provider.
-     */
-    @Deprecated(forRemoval = true)
-    private static void createPKCS12KeystoreDirect(PrivateKey privateKey, X509Certificate userCert,
-                                                   X509Certificate caCert, String filename,
-                                                   String password, String providerName) throws Exception {
-        KeyStore keyStore = KeyStore.getInstance("PKCS12", providerName);
-        keyStore.load(null, null);
-
-        // Create certificate chain
-        Certificate[] chain = new Certificate[]{userCert, caCert};
-
-        // Store private key and certificate chain
-        keyStore.setKeyEntry("user", privateKey, password.toCharArray(), chain);
-
-        // Save keystore
         try (FileOutputStream fos = new FileOutputStream(filename)) {
-            keyStore.store(fos, password.toCharArray());
+            pkcs12Proxy.invokeScript("realObject.engineStore(args[0], args[1])", fos, password.toCharArray());
         }
     }
 
@@ -125,7 +103,7 @@ public class KeyStoreManager {
 
         } finally {
             // Cleanup temporary file
-            Files.deleteIfExists(java.nio.file.Paths.get(tempJksFile));
+            Files.deleteIfExists(Paths.get(tempJksFile));
         }
     }
 
@@ -136,14 +114,14 @@ public class KeyStoreManager {
      */
     public static void createJKSKeystore(PrivateKey privateKey, X509Certificate userCert,
                                          X509Certificate caCert, String filename,
-                                         String password, String providerName) throws Exception {
+                                         String password) throws Exception {
         try {
-            createJKSKeystoreViaKalkan(privateKey, userCert, caCert, filename, password, providerName);
+            createJKSKeystoreViaKalkan(privateKey, userCert, caCert, filename, password);
             log.info("Successfully created Kalkan-compatible JKS keystore: {}", filename);
         } catch (Exception e) {
             // Kalkan direct creation failed, try JVM-based approach
             log.warn("Kalkan JKS creation failed, falling back to JVM keystore: {}", e.getMessage());
-            createJKSKeystoreViaJVM(privateKey, userCert, caCert, filename, password, providerName);
+            createJKSKeystoreViaJVM(privateKey, userCert, caCert, filename, password);
         }
     }
 
@@ -153,15 +131,15 @@ public class KeyStoreManager {
      */
     private static void createJKSKeystoreViaKalkan(PrivateKey privateKey, X509Certificate userCert,
                                                    X509Certificate caCert, String filename,
-                                                   String password, String providerName) throws Exception {
+                                                   String password) throws Exception {
         var jksProxy = KalkanAdapter.createKalkanJKSKeystore();
         Certificate[] chain = new Certificate[]{userCert, caCert};
 
-        jksProxy.invokeScript("realObject.engineSetKeyEntry(alias, key, password, chain)",
+        jksProxy.invokeScript("realObject.engineSetKeyEntry(args[0], args[1], args[2], args[3])",
                 "user", privateKey, password.toCharArray(), chain);
 
-        try (FileOutputStream fos = new FileOutputStream(new File(filename))) {
-            jksProxy.invokeScript("realObject.engineStore(stream, password)", fos, password.toCharArray());
+        try (FileOutputStream fos = new FileOutputStream(filename)) {
+            jksProxy.invokeScript("realObject.engineStore(args[1], args[2])", fos, password.toCharArray());
         }
     }
 
@@ -170,7 +148,7 @@ public class KeyStoreManager {
      */
     private static void createJKSKeystoreViaJVM(PrivateKey privateKey, X509Certificate userCert,
                                                 X509Certificate caCert, String filename,
-                                                String password, String providerName) throws Exception {
+                                                String password) throws Exception {
         KeyStore keyStore = KeyStore.getInstance("JKS");
         keyStore.load(null, null);
 
@@ -210,17 +188,4 @@ public class KeyStoreManager {
         return (X509Certificate) keyStore.getCertificate(alias);
     }
 
-    /**
-     * Load certificate chain from a PKCS12 keystore.
-     */
-    @Deprecated(forRemoval = true)
-    public static Certificate[] loadCertificateChainFromPKCS12(String filename,
-                                                                                  String password, String alias,
-                                                                                  String providerName) throws Exception {
-        KeyStore keyStore = KeyStore.getInstance("PKCS12", providerName);
-        try (FileInputStream fis = new FileInputStream(filename)) {
-            keyStore.load(fis, password.toCharArray());
-        }
-        return keyStore.getCertificateChain(alias);
-    }
 }

@@ -7,11 +7,14 @@ import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService.CertificateResult;
 import knca.signer.service.CertificateStorage;
 import knca.signer.service.CertificateValidator;
-import knca.signer.service.CertificateValidator.XmlValidator;
+import knca.signer.util.XmlUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
+import java.security.Provider;
 import java.security.cert.X509Certificate;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -72,8 +75,10 @@ public class ValidatorTest {
               </ds:KeyInfo>
               </ds:Signature></root>
             """;
-    private java.security.Provider realProvider;
+    @TempDir
+    Path tempDir;
     private ApplicationConfig.CertificateConfig config;
+    private Provider realProvider;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -82,8 +87,8 @@ public class ValidatorTest {
                 "in-memory",
                 3,
                 2,
-                "certs/",
-                "certs/ca.crt",
+                tempDir + "/certs/",
+                tempDir + "/certs/ca-default.crt",
                 2048,
                 "RSA",
                 "1.2.840.113549.1.1.11",
@@ -113,16 +118,20 @@ public class ValidatorTest {
             CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
-            XmlValidator xmlValidator = new XmlValidator(caCert, realProvider, false);
-            assertNotNull(xmlValidator, "XmlValidator should be created");
+            // Test that static methods can be called (no instance creation needed)
+            assertNotNull(caCert, "CA certificate should be created for validation");
         } catch (Exception e) {
-            fail("XmlValidator creation should succeed: " + e.getMessage());
+            fail("CA certificate creation should succeed: " + e.getMessage());
         }
     }
 
     @Test
     public void testCertificateValidator() {
         try {
+            var registryService = new CertificateStorage(new CertificateStorage.Storage());
+            CertificateGenerator generator = new CertificateGenerator(realProvider, config, registryService);
+            generator.generateCACertificate();
+
             // Test loading CA certificate
             X509Certificate caCert = CertificateValidator.loadCACertificate(config.getCaCertPath());
             assertNotNull(caCert, "CA certificate should be loaded");
@@ -169,11 +178,9 @@ public class ValidatorTest {
             CertificateResult caResult = generator.generateCACertificate();
             X509Certificate caCert = caResult.getCertificate();
 
-            XmlValidator xmlValidator = new XmlValidator(caCert, realProvider, false);
-
-            // Test with invalid XML (no signature)
+            // Test with invalid XML (no signature) using static method
             String invalidXml = "<root><test>Invalid XML</test></root>";
-            boolean result = xmlValidator.validateXmlSignature(invalidXml);
+            boolean result = XmlUtil.validateXmlSignature(invalidXml);
             assertFalse(result, "Invalid XML should fail validation");
         } catch (Exception e) {
             // Expected to fail, but should not crash
@@ -181,22 +188,4 @@ public class ValidatorTest {
         }
     }
 
-    @Test
-    public void testCertificateConfigInValidator() {
-        ApplicationConfig.CertificateConfig config = new ApplicationConfig.CertificateConfig(
-                "in-memory",
-                3,
-                2,
-                "certs/",
-                "certs/ca.crt",
-                2048,
-                "RSA",
-                "1.2.840.113549.1.1.11",
-                "123456",
-                10,
-                1
-        );
-        assertNotNull(config, "Config should be created");
-        assertEquals("certs/ca.crt", config.getCaCertPath());
-    }
 }

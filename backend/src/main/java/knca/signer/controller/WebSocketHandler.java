@@ -4,6 +4,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.http.ServerWebSocket;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import knca.signer.service.CertificateService;
 import knca.signer.service.CertificateStorage;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 @Slf4j
@@ -76,7 +78,7 @@ public class WebSocketHandler implements Handler<ServerWebSocket> {
         });
     }
 
-    private void handleCommonUtilsMethod(ServerWebSocket webSocket, String method, io.vertx.core.json.JsonArray args, String id) {
+    private void handleCommonUtilsMethod(ServerWebSocket webSocket, String method, JsonArray args, String id) {
         try {
             switch (method) {
                 case "getKeyInfo":
@@ -100,7 +102,7 @@ public class WebSocketHandler implements Handler<ServerWebSocket> {
         }
     }
 
-    private void handleGetKeyInfo(ServerWebSocket webSocket, io.vertx.core.json.JsonArray args, String id) {
+    private void handleGetKeyInfo(ServerWebSocket webSocket, JsonArray args, String id) {
         if (args == null || args.size() < 2) {
             sendNcaError(webSocket, "getKeyInfo requires storage type and alias", id);
             return;
@@ -140,7 +142,7 @@ public class WebSocketHandler implements Handler<ServerWebSocket> {
         }
     }
 
-    private void handleSignXml(ServerWebSocket webSocket, io.vertx.core.json.JsonArray args, String id) {
+    private void handleSignXml(ServerWebSocket webSocket, JsonArray args, String id) {
         if (args == null || args.size() < 2) {
             sendNcaError(webSocket, "signXml requires storage type and XML data", id);
             return;
@@ -170,7 +172,7 @@ public class WebSocketHandler implements Handler<ServerWebSocket> {
         }, false, null);
     }
 
-    private void handleSignCms(ServerWebSocket webSocket, io.vertx.core.json.JsonArray args, String id) {
+    private void handleSignCms(ServerWebSocket webSocket, JsonArray args, String id) {
         if (args == null || args.size() < 2) {
             sendNcaError(webSocket, "signCms requires storage type and data", id);
             return;
@@ -185,7 +187,7 @@ public class WebSocketHandler implements Handler<ServerWebSocket> {
                 // Decode base64 data if needed
                 byte[] dataBytes;
                 try {
-                    dataBytes = java.util.Base64.getDecoder().decode(data);
+                    dataBytes = Base64.getDecoder().decode(data);
                 } catch (IllegalArgumentException e) {
                     // If not base64, treat as UTF-8 string
                     dataBytes = data.getBytes(StandardCharsets.UTF_8);
@@ -212,7 +214,7 @@ public class WebSocketHandler implements Handler<ServerWebSocket> {
     private void handleGetStorageList(ServerWebSocket webSocket, String id) {
         try {
             Map<String, CertificateService.CertificateData> certs = storage.getCertificates();
-            io.vertx.core.json.JsonArray storageList = new io.vertx.core.json.JsonArray();
+            JsonArray storageList = new JsonArray();
             storageList.add("PKCS12");
 
             JsonObject response = new JsonObject()

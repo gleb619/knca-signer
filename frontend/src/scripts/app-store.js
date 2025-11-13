@@ -109,5 +109,27 @@ export default {
         }
 
         return null;
+    },
+
+    async fetchUserCert() {
+        const certAlias = this.selectedUserCert?.alias || this.selectedLegalCert?.alias;
+        if(!certAlias) return null;
+
+        if (this.certCache[certAlias]) {
+            return this.certCache[certAlias];
+        }
+
+        try {
+            const response = await fetch(`/api/certificates/download/${certAlias}/pem`);
+            if (response.ok) {
+                const pem = await response.text();
+                this.certCache[certAlias] = pem;
+                return pem;
+            }
+        } catch (err) {
+            console.warn('Failed to fetch user certificate:', err);
+        }
+
+        return null;
     }
 };

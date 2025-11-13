@@ -6,6 +6,7 @@ package knca.signer.kalkan;
 public class KalkanConstants {
 
     // GeneralName constants
+    @SuppressWarnings("unused")
     public static class GeneralName {
         public static final int otherName = 0;
         public static final int rfc822Name = 1;
@@ -27,6 +28,7 @@ public class KalkanConstants {
     }
 
     // KeyPurposeId constants
+    @SuppressWarnings("unused")
     public static class KeyPurposeId {
 
         public static final String id_kp_emailProtection = "1.3.6.1.5.5.7.3.4";

@@ -4,6 +4,9 @@ import knca.signer.kalkan.KalkanAdapter;
 import knca.signer.kalkan.KalkanProxy;
 import knca.signer.kalkan.ReflectionHelper;
 
+import java.security.PublicKey;
+import java.util.Date;
+
 /**
  * Interface for TBS Certificate management operations
  * Encapsulates V3TBSCertificateGenerator operations and DER encoding workflow
@@ -49,7 +52,7 @@ public interface TBSCertificateManager {
     /**
      * Set subject public key info
      */
-    default void setSubjectPublicKeyInfo(java.security.PublicKey publicKey) {
+    default void setSubjectPublicKeyInfo(PublicKey publicKey) {
         KalkanProxy subjPubKeyInfo = KalkanAdapter.createSubjectPublicKeyInfo(publicKey);
         getProxy().invokeScript("realObject.setSubjectPublicKeyInfo(args[0])", subjPubKeyInfo);
     }
@@ -57,7 +60,7 @@ public interface TBSCertificateManager {
     /**
      * Set certificate validity start date
      */
-    default void setStartDate(java.util.Date startDate) {
+    default void setStartDate(Date startDate) {
         KalkanProxy time = KalkanAdapter.createTime(startDate);
         getProxy().invokeScript("realObject.setStartDate(args[0])", time);
     }
@@ -65,7 +68,7 @@ public interface TBSCertificateManager {
     /**
      * Set certificate validity end date
      */
-    default void setEndDate(java.util.Date endDate) {
+    default void setEndDate(Date endDate) {
         KalkanProxy time = KalkanAdapter.createTime(endDate);
         getProxy().invokeScript("realObject.setEndDate(args[0])", time);
     }

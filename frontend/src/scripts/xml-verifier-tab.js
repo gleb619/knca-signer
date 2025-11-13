@@ -36,13 +36,10 @@ export default () => ({
 
     // Validation configuration
     validationConfig: {
-        checkKalkanProvider: false,
-        checkData: true,
-        checkTime: true,
+        checkSignature: true,
+        checkKncaProvider: false,
         checkIinInCert: false,
-        checkIinInSign: false,
         checkBinInCert: false,
-        checkBinInSign: false,
         checkCertificateChain: false,
         checkPublicKey: false,
         checkExtendedKeyUsage: false,
@@ -115,6 +112,7 @@ export default () => ({
         }
 
         this.isValidating = true;
+        this.loading = true;
 
         try {
             const requestData = {
@@ -159,18 +157,18 @@ export default () => ({
             this.addNotification('error', this.translate(error.message || 'xmlVerificationFailedGeneral'));
         } finally {
             this.isValidating = false;
+            setTimeout(() => {
+                this.loading = false;
+            }, 1000);
         }
     },
 
     resetValidation() {
         this.xmlContent = '';
-        this.validationConfig.checkKalkanProvider = false;
-        this.validationConfig.checkData = true;
-        this.validationConfig.checkTime = true;
+        this.validationConfig.checkSignature = true;
+        this.validationConfig.checkKncaProvider = false;
         this.validationConfig.checkIinInCert = false;
-        this.validationConfig.checkIinInSign = false;
         this.validationConfig.checkBinInCert = false;
-        this.validationConfig.checkBinInSign = false;
         this.validationConfig.checkCertificateChain = false;
         this.validationConfig.checkPublicKey = false;
         this.validationConfig.checkExtendedKeyUsage = false;
@@ -241,27 +239,42 @@ export default () => ({
         if (cert.iin != null && cert.iin !== '') {
             this.validationConfig.expectedIin = cert.iin;
             this.validationConfig.checkIinInCert = true;
-            this.validationConfig.checkIinInSign = true;
         }
         if (cert.bin != null && cert.bin !== '') {
             this.validationConfig.expectedBin = cert.bin;
             this.validationConfig.checkBinInCert = true;
-            this.validationConfig.checkBinInSign = true;
+        }
+
+        if(cert.extendedKeyUsageOid) {
+            this.validationConfig.checkExtendedKeyUsage = true;
+            this.validationConfig.extendedKeyUsageOids = cert.extendedKeyUsageOid;
         }
 
         // Pre-fill CA certificate PEM for chain validation
-        if (caCert && typeof window !== 'undefined' && window.Alpine && window.Alpine.store) {
+        if (caCert && typeof window?.Alpine?.store) {
             const certificateStore = window.Alpine.store('certificateStore');
-            if (certificateStore && certificateStore.fetchCaCert) {
-                try {
-                    const pem = await certificateStore.fetchCaCert();
-                    if (pem) {
-                        this.validationConfig.caPem = pem;
-                        this.validationConfig.checkCertificateChain = true;
-                    }
-                } catch (error) {
-                    console.warn('Failed to fetch CA certificate:', error);
+            try {
+                const pem = await certificateStore.fetchCaCert();
+                if (pem) {
+                    this.validationConfig.caPem = pem;
+                    this.validationConfig.checkCertificateChain = true;
                 }
+            } catch (error) {
+                console.warn('Failed to fetch CA certificate:', error);
+            }
+        }
+
+        // Pre-fill user/legal certificate PEM for public key validation
+        if ((userCert || legalCert) && window?.Alpine?.store) {
+            const certificateStore = window.Alpine.store('certificateStore');
+            try {
+                const pem = await certificateStore.fetchUserCert();
+                if (pem) {
+                    this.validationConfig.publicKey = pem;
+                    this.validationConfig.checkPublicKey = true;
+                }
+            } catch (error) {
+                console.warn('Failed to fetch user certificate:', error);
             }
         }
     },
@@ -278,22 +291,10 @@ export default () => ({
         return statusClasses[detail.status] || 'border-gray-200 bg-gray-50';
     },
 
-    getStatusIcon(status) {
-        const icons = {
-            passed: '<svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>',
-            failed: '<svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="nonzero" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"></path></svg>',
-            'not_found': '<svg class="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>',
-            error: '<svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>'
-        };
-        return icons[status] || icons.error;
-    },
-
     getDetailTitle(detail) {
         const titles = {
-            signature: 'checkDataIntegrity',
-            kalkanProvider: 'checkKalkanProvider',
-            dataIntegrity: 'checkDataIntegrity',
-            timestamp: 'checkTimestamp',
+            signature: 'checkSignature',
+            kalkanProvider: 'checkKncaProvider',
             certificateIin: 'checkIinCertificate',
             signatureIin: 'checkIinSignature',
             certificateBin: 'checkBinCertificate',
