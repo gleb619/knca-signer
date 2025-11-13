@@ -6,205 +6,226 @@ on:
     tags: [ '*' ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
 
 jobs:
-  build-frontend:
-    name: Frontend build & test
+  frontend-quality:
+    name: Frontend Quality
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: frontend
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
-          cache-dependency-path: 'frontend/yarn.lock'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: frontend/yarn.lock
 
-      - name: Cache Yarn
-        uses: actions/cache@v4
+      - run: yarn install --frozen-lockfile
+      - run: yarn lint
+      - run: yarn type-check
+      - run: yarn test --coverage
+
+      - uses: actions/upload-artifact@v4
         with:
-          path: ~/.cache/yarn/v6
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
+          name: frontend-coverage
+          path: frontend/coverage/
+          retention-days: 7
 
-      - name: Install frontend dependencies
+  backend-quality:
+    name: Backend Quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - run: chmod +x ./gradlew
+      - run: ./gradlew --no-daemon test jacocoTestReport
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/build/reports/jacoco/
+          retention-days: 7
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java,javascript
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
+
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: frontend-quality
+    defaults:
+      run:
         working-directory: frontend
-        run: yarn install --frozen-lockfile
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Run frontend tests
-        working-directory: frontend
-        run: yarn test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: frontend/yarn.lock
 
-      - name: Build frontend
-        working-directory: frontend
-        run: yarn build
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
 
-      - name: Upload frontend dist
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: frontend/dist
           retention-days: 3
 
   build-backend:
-    name: Backend build & CI tests
+    name: Build Backend
     runs-on: ubuntu-latest
-    needs: build-frontend
-
+    needs: [ build-frontend, backend-quality ]
+    defaults:
+      run:
+        working-directory: backend
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Download frontend dist
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: frontend-dist
           path: frontend-dist
 
-      - name: Copy frontend assets into backend
+      - name: Embed frontend assets
         run: |
-          rm -rf backend/src/main/resources/static || true
-          mkdir -p backend/src/main/resources/static
-          cp -r frontend-dist/* backend/src/main/resources/static/
+          rm -rf src/main/resources/static
+          mkdir -p src/main/resources/static
+          cp -r ../frontend-dist/* src/main/resources/static/
 
-      - name: Setup Java 21 (Temurin)
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
 
-      - name: Print Java info (sanity)
-        run: |
-          echo "JAVA_HOME=$JAVA_HOME"
-          java -version
-          javac -version
+      - run: chmod +x ./gradlew
+      - run: ./gradlew --no-daemon --quiet clean shadowJar
 
-      - name: Cache Gradle Wrapper
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('**/gradle-wrapper.properties') }}
-
-      - name: Cache Gradle Caches
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/native
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Make Gradlew executable
-        working-directory: backend
-        run: chmod +x ./gradlew
-
-      - name: Build backend (shadowJar)
-        working-directory: backend
-        run: ./gradlew --no-daemon --quiet clean shadowJar
-
-      - name: Run CI tests
-        working-directory: backend
-        run: ./gradlew --no-daemon --quiet citest || true
-
-      - name: Upload backend JAR
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: backend-jar
           path: backend/build/libs/*.jar
           retention-days: 3
 
   security-scan:
-    name: Security scanning
+    name: Security Scan
     runs-on: ubuntu-latest
-    needs: [ build-frontend, build-backend ]
+    needs: build-backend
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Run Security Scan (Frontend)
-        uses: aquasecurity/trivy-action@master
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-jar
+          path: .
+
+      - name: Normalize JAR
+        run: mv $(ls *.jar | head -n1) knca-signer.jar
+
+      - uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: 'frontend'
           ignore-unfixed: true
 
-      - name: Run Security Scan (Backend)
-        uses: aquasecurity/trivy-action@master
+      - uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: 'backend'
           ignore-unfixed: true
           vuln-type: 'library'
 
+      - run: docker build -t knca-signer:scan .
+
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          scan-ref: 'knca-signer:scan'
+          ignore-unfixed: true
+
   publish:
-    name: Publish (Docker push + release + attest)
+    name: Publish Release
     runs-on: ubuntu-latest
-    needs: [ build-backend, security-scan ]
+    needs: security-scan
     if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
       packages: write
       id-token: write
       attestations: write
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Download backend JAR
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: backend-jar
           path: .
 
-      - name: Normalize JAR name
+      - name: Prepare artifacts
         run: |
-          JAR=$(ls *.jar | head -n1)
-          echo "Found jar: $JAR"
-          mv "$JAR" knca-signer.jar
+          mv $(ls *.jar | head -n1) knca-signer.jar
+          sha256sum knca-signer.jar | tee knca-signer.jar.sha256
+          sha512sum knca-signer.jar | tee knca-signer.jar.sha512
 
-      - name: Attest build provenance (SHA checks)
-        uses: actions/attest-build-provenance@v1
+      - uses: actions/attest-build-provenance@v1
         with:
           subject-path: knca-signer.jar
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute checksums
-        run: |
-          sha256sum knca-signer.jar > knca-signer.jar.sha256
-          sha512sum knca-signer.jar > knca-signer.jar.sha512
-          echo "SHA256:" > checksums.txt
-          cat knca-signer.jar.sha256 >> checksums.txt
-          echo "\nSHA512:" >> checksums.txt
-          cat knca-signer.jar.sha512 >> checksums.txt
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - uses: docker/metadata-action@v5
         id: meta
-        uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=branch
-            type=ref,event=pr
             type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@v5
         with:
           context: .
           push: true
@@ -213,39 +234,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Generate CHANGELOG.md
-        run: |
-          echo "# Changelog" > CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
-          if [ -n "$LAST_TAG" ]; then
-            RANGE="${LAST_TAG}..HEAD"
-          else
-            RANGE="HEAD"
-          fi
-          echo "Changelog generated from git commits in range: $RANGE" >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          git --no-pager log --pretty=format:"* %s (%h) — %an" $RANGE >> CHANGELOG.md || true
-
-      - name: Create release notes file
-        run: |
-          echo "# Release notes" > release_notes.md
-          echo "" >> release_notes.md
-          echo "## Changelog" >> release_notes.md
-          cat CHANGELOG.md >> release_notes.md || true
-          echo "" >> release_notes.md
-          echo "## Docker image" >> release_notes.md
-          echo "Image: ghcr.io/${{ github.repository }}" >> release_notes.md
-          echo "Tags: ${{ steps.meta.outputs.tags }}" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "## Checksums" >> release_notes.md
-          cat checksums.txt >> release_notes.md
-
-      - name: Create GitHub release
+      - name: Generate release notes
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        run: |
+          {
+            echo "## Docker Image"
+            echo "\`ghcr.io/${{ github.repository }}\`"
+            echo ""
+            echo "## Checksums"
+            echo "\`\`\`"
+            cat knca-signer.jar.sha256
+            cat knca-signer.jar.sha512
+            echo "\`\`\`"
+            echo ""
+            echo "## Changes"
+            LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            if [ -n "$LAST_TAG" ]; then
+              git log --pretty=format:"- %s (%h)" ${LAST_TAG}..HEAD
+            else
+              git log --pretty=format:"- %s (%h)" HEAD
+            fi
+          } > release_notes.md
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          body_path: "release_notes.md"
+          body_path: release_notes.md
           files: |
             knca-signer.jar
             knca-signer.jar.sha256
