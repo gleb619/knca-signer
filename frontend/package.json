@@ -10,13 +10,18 @@
     "build": "vite build --mode production && mkdir -p dist/src && cp -r src/pages dist/src/pages && cp -r src/i18n dist/src",
     "build:copy": "rm -rf ../backend/src/main/resources/static && mkdir -p ../backend/src/main/resources/static && cp -r dist/* ../backend/src/main/resources/static/",
     "changelog": "npx conventional-changelog -p angular -i CHANGELOG.md -s",
+    "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run"
   },
   "devDependencies": {
     "@alpinejs/morph": "^3.15.0",
+    "@eslint/js": "^9.9.0",
+    "@vitest/coverage-v8": "3.2.4",
     "alpinejs": "^3.15.0",
     "autoprefixer": "^10.4.16",
+    "eslint": "^9.9.0",
+    "globals": "^15.9.0",
     "jsdom": "^14.1.0",
     "postcss": "^8.4.32",
     "sass": "^1.69.5",

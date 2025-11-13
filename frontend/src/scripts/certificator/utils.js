@@ -138,7 +138,7 @@ export function buildHierarchicalFromFlat(flatCertificates) {
 
     for (const cert of flatCertificates) {
         switch (cert.type) {
-            case 'CA':
+            case 'CA': {
                 const caStructure = {
                     ca: cert,
                     userCertificates: [],
@@ -148,18 +148,21 @@ export function buildHierarchicalFromFlat(flatCertificates) {
                 caMap.set(cert.alias || cert.subject, caStructure);
                 result.push(caStructure);
                 break;
-            case 'USER':
+            }
+            case 'USER': {
                 const userCaAlias = cert.issuer || cert.caId; // Assume caId or extract from issuer
                 if (caMap.has(userCaAlias)) {
                     caMap.get(userCaAlias).userCertificates.push(cert);
                 }
                 break;
-            case 'LEGAL':
+            }
+            case 'LEGAL': {
                 const legalCaAlias = cert.issuer || cert.caId;
                 if (caMap.has(legalCaAlias)) {
                     caMap.get(legalCaAlias).legalCertificates.push(cert);
                 }
                 break;
+            }
         }
     }
 

@@ -126,20 +126,20 @@ export default {
             this.response = parsed;
             if (parsed.status === true) {
                 const responseBody = parsed.body;
-                if (responseBody != null) {
-                    this.isSigning = false;
-                    if (responseBody.hasOwnProperty('result')) {
-                        const result = this.isArray ? responseBody.result : responseBody.result[0];
-                        if (result.hasOwnProperty('signatures')) {
-                            const signatures = result.signatures;
-                            const certificate = result.certificate;
-                            this.signature = `${signatures}\n${certificate}`;
-                        } else {
-                            this.signature = result;
+                    if (responseBody != null) {
+                        this.isSigning = false;
+                        if (Object.prototype.hasOwnProperty.call(responseBody, 'result')) {
+                            const result = this.isArray ? responseBody.result : responseBody.result[0];
+                            if (Object.prototype.hasOwnProperty.call(result, 'signatures')) {
+                                const signatures = result.signatures;
+                                const certificate = result.certificate;
+                                this.signature = `${signatures}\n${certificate}`;
+                            } else {
+                                this.signature = result;
+                            }
+                            this.successMessage = 'Signature generated successfully!';
                         }
-                        this.successMessage = 'Signature generated successfully!';
                     }
-                }
             } else if (parsed.status === false) {
                 this.isSigning = false;
                 const responseCode = parsed.code;
