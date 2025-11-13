@@ -7,9 +7,6 @@ cors:
   allowedMethods: [ "GET", "POST", "PUT", "DELETE" ]
   allowedHeaders: [ "Content-Type", "Authorization" ]
 
-websocket:
-  path: "/ws"
-
 staticConfig:
   webRoot: "static"
 
@@ -21,7 +18,7 @@ certificate:
   initialUserCertificates: 1
   initialLegalCertificates: 1
   certsPath: "certs/"
-  caCertPath: "certs/ca.crt"
+  caCertPath: "certs/ca-default.crt"
   keySize: 2048
   keyFactoryType: "RSA"
   signatureAlgorithm: "1.2.840.113549.1.1.11"

@@ -95,7 +95,7 @@ public class App extends AbstractVerticle {
                     int port = config.getHttp().getPort();
                     log.info("KNCA Signer Server started on port {}", port);
                     log.info("HTTP: http://localhost:{}", port);
-                    log.info("WebSocket: ws://localhost:{}{}", port, config.getWebsocket().getPath());
+                    log.info("WebSocket: ws://localhost:{}", port);
                     startPromise.complete();
                 } else {
                     log.error("Failed to start server", ar.cause());

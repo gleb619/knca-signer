@@ -18,7 +18,6 @@ public class ApplicationConfig {
 
     private HttpConfig http;
     private CorsConfig cors;
-    private WebSocketConfig websocket;
     private StaticConfig staticConfig;
     private LoggingConfig logging;
     private CertificateConfig certificate;
@@ -66,14 +65,6 @@ public class ApplicationConfig {
         public void setAllowedHeaders(Object o) {
             this.allowedHeaders = o instanceof String s ? Arrays.asList(s.split("\\s*,\\s*")) : (List<String>) o;
         }
-    }
-
-    @Data
-    @AllArgsConstructor
-    @Builder(toBuilder = true)
-    @NoArgsConstructor(access = AccessLevel.PUBLIC)
-    public static class WebSocketConfig {
-        private String path;
     }
 
     @Data

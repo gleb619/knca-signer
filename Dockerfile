@@ -6,7 +6,6 @@ ENV LANG=en_US.UTF-8 \
     JAVA_OPTS="-XX:+UseG1GC -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.awt.headless=true -Djava.security.egd=file:/dev/urandom -Dfile.encoding=UTF-8 -DpreferIPv4Stack=true" \
     APP_HTTP_PORT="8080" \
     APP_HTTP_HOST="0.0.0.0" \
-    APP_WEBSOCKET_PATH="/ws" \
     APP_STATICCONFIG_WEBROOT="static" \
     APP_LOGGING_LEVEL="WARN" \
     APP_CERTIFICATE_STORAGEMODE="file" \
@@ -33,6 +32,10 @@ COPY knca-signer.jar app.jar
 # Set ownership
 RUN chown -R appuser:appgroup /app
 USER appuser
+
+# IMPORTANT: For Docker volume mounts to work properly, ensure host directories
+# are owned by UID 100:GID 1000 (or matching user/group IDs)
+# VOLUME /app/certs
 
 EXPOSE 8080
 

@@ -144,8 +144,6 @@ public class CertificateService {
         }
     }
 
-
-
     /**
      * Download certificate in the specified format.
      *

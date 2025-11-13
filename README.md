@@ -13,6 +13,15 @@ NCALayer с последующей верификацией на серверн�
 
 ---
 
+## Status
+
+[![CI](https://github.com/gleb619/knca-signer/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/gleb619/knca-signer/actions/workflows/ci-cd.yml)
+[![CodeQL](https://github.com/gleb619/knca-signer/actions/workflows/codeql.yml/badge.svg)](https://github.com/gleb619/knca-signer/actions)
+[![Coverage](https://img.shields.io/badge/coverage-pending-blue)](https://github.com/gleb619/knca-signer/actions)
+[![Security](https://img.shields.io/badge/security-pending-green)](https://github.com/gleb619/knca-signer/actions)
+
+---
+
 ## Архитектура
 
 Проект состоит из двух основных компонентов:
@@ -77,6 +86,8 @@ docker pull ghcr.io/gleb619/knca-signer:latest
 
 # Запустите с docker
 mkdir -p certs lib && \
+# ВАЖНО: Убедитесь, что каталоги принадлежат UID 100:GID 1000 для получения надлежащих разрешений на доступ к папкам
+sudo chown -R 100:1000 certs lib && \
 echo "WARNING: You must place the corresponding Kalkan cryptographic libraries into ./lib, or the application will not work properly." && \
 docker run -d \
   --name knca-signer \
@@ -104,6 +115,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
+      # ВАЖНО: Убедитесь, что каталоги ./certs и ./lib принадлежат UID 100:GID 1000
+      # Запустите: sudo chown -R 100:1000 ./certs ./lib
+      # Это соответствует UID/GID пользователя приложения контейнера для получения надлежащих разрешений на запись
       - ./certs:/app/certs
       - ./lib:/app/lib
     environment:

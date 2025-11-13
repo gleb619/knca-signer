@@ -570,8 +570,6 @@ public class CertificateGenerator {
         return kpg.generateKeyPair();
     }
 
-    private enum CertificateType {USER, LEGAL}
-
     private X509Certificate generateUserCertificate(PublicKey userPublicKey, PrivateKey caPrivateKey,
                                                     X509Certificate caCert, String subjectDN, String email,
                                                     String iin, String bin) throws Exception {
@@ -737,6 +735,10 @@ public class CertificateGenerator {
         Path path = Paths.get(filename);
         Files.createDirectories(path.getParent());
         Files.write(path, pemKey.getBytes(), StandardOpenOption.CREATE);
+    }
+
+    private enum CertificateType {
+        USER, LEGAL
     }
 
 }

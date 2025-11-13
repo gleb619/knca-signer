@@ -46,7 +46,6 @@ class SignerTest {
         ApplicationConfig appConfig = ApplicationConfig.builder()
                 .http(new ApplicationConfig.HttpConfig(8080, "0.0.0.0"))
                 .cors(new ApplicationConfig.CorsConfig("*", java.util.Arrays.asList("GET", "POST", "PUT", "DELETE"), java.util.Arrays.asList("Content-Type", "Authorization")))
-                .websocket(new ApplicationConfig.WebSocketConfig("/ws"))
                 .logging(new ApplicationConfig.LoggingConfig("INFO"))
                 .certificate(config)
                 .staticConfig(new ApplicationConfig.StaticConfig("static"))

@@ -127,7 +127,7 @@ public class VerifierHandler {
 
     }
 
-    public record SignResult(String xml, String certAlias, String algorithm) {
+    public record SignResult(String signedXml, String certAlias, String algorithm) {
     }
 
 }

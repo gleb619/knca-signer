@@ -24,3 +24,7 @@ user.bazelrc
 /src/main/resources/static/src/*
 /certs/*
 /src/main/resources/build-info.properties
+/src/main/resources/static/android-chrome-*
+/src/main/resources/static/apple-touch-*
+/src/main/resources/static/favicon*
+/src/main/resources/static/site.webmanifest

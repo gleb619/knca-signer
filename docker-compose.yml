@@ -7,6 +7,9 @@ services:
       - "8080:8080"
     volumes:
       # Mount certificate directories
+      # IMPORTANT: Ensure host directories ./certs and ./lib are owned by UID 100:GID 1000
+      # Run: sudo chown -R 100:1000 ./certs ./lib
+      # This matches the container's appuser UID/GID for proper volume write permissions
       - ./certs:/app/certs:ro
       - ./backend/lib:/app/lib:ro
     environment:
@@ -18,7 +21,6 @@ services:
 #      - APP_CORS_ALLOWEDORIGINS=*
 #      - APP_CORS_ALLOWEDMETHODS=GET,POST,PUT,DELETE
 #      - APP_CORS_ALLOWEDHEADERS=Content-Type,Authorization
-#      - APP_WEBSOCKET_PATH=/ws
 #      - APP_STATICCONFIG_WEBROOT=static
 #      - APP_CERTIFICATE_CERTSPATH=certs/
 #      - APP_CERTIFICATE_CACERTPATH=certs/ca.crt
