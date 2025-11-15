@@ -24,6 +24,7 @@ import knca.signer.util.Util;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.Properties;
 
 import static knca.signer.kalkan.KalkanAdapter.isKalkanAvailable;
@@ -87,10 +88,13 @@ public class App extends AbstractVerticle {
             setupRoutes(router);
             setupWebSocket();
 
+            var eventBus = vertx.eventBus();
+            eventBus.consumer("beans.init", message -> beanFactory.init(kalkanAvailable));
+
             httpServer.requestHandler(router).listen(ar -> {
                 if (ar.succeeded()) {
                     log.debug("Started bean construction...");
-                    beanFactory.init();
+                    eventBus.publish("beans.init", LocalDateTime.now());
 
                     int port = config.getHttp().getPort();
                     log.info("KNCA Signer Server started on port {}", port);

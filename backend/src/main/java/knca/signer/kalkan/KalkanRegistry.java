@@ -56,7 +56,8 @@ public class KalkanRegistry {
             Security.addProvider((Provider) rp);
             return (Provider) rp;
         } catch (Exception e) {
-            throw new KalkanException("Failed to load KalkanProvider", e);
+            throw new KalkanException("Failed to load KalkanProvider", e)
+                    .asSystemError();
         }
     }
 

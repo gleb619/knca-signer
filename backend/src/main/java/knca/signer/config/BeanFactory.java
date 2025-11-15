@@ -10,12 +10,14 @@ import knca.signer.config.ApplicationConfig.CertificateConfig;
 import knca.signer.controller.CertificatorHandler;
 import knca.signer.controller.VerifierHandler;
 import knca.signer.controller.WebSocketHandler;
+import knca.signer.kalkan.KalkanException;
 import knca.signer.kalkan.KalkanRegistry;
 import knca.signer.service.CertificateGenerator;
 import knca.signer.service.CertificateService;
 import knca.signer.service.CertificateStorage;
 import knca.signer.service.CertificateValidator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.security.Provider;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Simple IoC container for managing application beans
  */
+@Slf4j
 @RequiredArgsConstructor
 public class BeanFactory {
 
@@ -37,7 +40,7 @@ public class BeanFactory {
     private VerifierHandler signingHandler;
 
 
-    public BeanFactory init() {
+    public BeanFactory init(boolean verboseMode) {
         DatabindCodec.mapper()
                 .registerModule(new JavaTimeModule())
                 .setSerializationInclusion(JsonInclude.Include.NON_NULL)
@@ -45,7 +48,15 @@ public class BeanFactory {
                 .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-        getCertificateService().init();
+        try {
+            getCertificateService().init();
+        } catch (Exception e) {
+            if (e instanceof KalkanException ke) {
+                log.error("Found problem with kalkan: ", ke);
+            } else if (verboseMode) {
+                throw new RuntimeException(e);
+            }
+        }
 
         return this;
     }
@@ -60,8 +71,8 @@ public class BeanFactory {
 
     public CertificateService getCertificateService() {
         if (certificateService == null) {
+            var provider = acquireProvider();
             try {
-                var provider = KalkanRegistry.loadRealKalkanProvider();
                 var certConfig = config.getCertificate();
 
                 var storage = getCertificateStorage();
@@ -71,7 +82,6 @@ public class BeanFactory {
 
                 // Create facade and inject services
                 certificateService = new CertificateService(provider, certConfig, storage, generationService, validationService);
-
             } catch (Exception e) {
                 throw new RuntimeException("Failed to init CertificateService", e);
             }
@@ -116,4 +126,36 @@ public class BeanFactory {
         }
         return signingHandler;
     }
+
+    private Provider acquireProvider() {
+        try {
+            return KalkanRegistry.loadRealKalkanProvider();
+        } catch (Exception e) {
+            if (e instanceof KalkanException ke && ke.isSystemError()) {
+                return new MockProvider();
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    /**
+     * Mock provider implementation used as a fallback when the real Kalkan provider
+     * is not available in the classpath. This provider is used to maintain application
+     * functionality during development or testing when the actual Kalkan library
+     * dependencies are not present.
+     */
+    private static class MockProvider extends Provider {
+
+        public MockProvider() {
+            super("KALKAN", "0.0", "Mock Provider");
+        }
+
+        @Override
+        public String getName() {
+            return super.getName();
+        }
+
+    }
+
 }

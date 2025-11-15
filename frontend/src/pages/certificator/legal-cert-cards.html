@@ -145,6 +145,7 @@
 
                         <div x-show="cert.extendedKeyUsageOid">
                             <span class="text-gray-500 text-xs uppercase font-medium"
+                                  title="extendedKeyUsage"
                                   x-text="translate('extendedKeyUsageLabel')"></span>
                             <div class="flex items-center gap-2 mt-1">
                                 <p :title="cert.extendedKeyUsageOid"

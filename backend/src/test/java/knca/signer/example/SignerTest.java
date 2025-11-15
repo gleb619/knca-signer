@@ -56,7 +56,7 @@ class SignerTest {
 
         // Create and initialize bean factory
         beanFactory = new BeanFactory(vertx, appConfig);
-        beanFactory.init();
+        beanFactory.init(true);
 
         // Get CertificateService from bean factory
         certificateService = beanFactory.getCertificateService();

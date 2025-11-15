@@ -3,6 +3,7 @@ package knca.signer.service;
 import knca.signer.config.ApplicationConfig;
 import knca.signer.controller.VerifierHandler.XmlValidationRequest;
 import knca.signer.kalkan.KalkanAdapter;
+import knca.signer.kalkan.KalkanException;
 import knca.signer.util.XmlUtil;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +34,11 @@ public class CertificateService {
         try {
             generationService.init();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to init CertificateService", e);
+            if (e instanceof KalkanException ke) {
+                throw ke;
+            } else {
+                throw new RuntimeException("Failed to init CertificateService", e);
+            }
         }
         return this;
     }

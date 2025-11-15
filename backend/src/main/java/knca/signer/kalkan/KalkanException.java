@@ -9,6 +9,7 @@ public class KalkanException extends RuntimeException {
 
     private List<String> availableConstructors;
     private List<String> availableMethods;
+    private boolean isSystemError;
 
     public KalkanException(String message) {
         super(message);
@@ -28,6 +29,11 @@ public class KalkanException extends RuntimeException {
         super(message, cause);
         this.availableConstructors = availableConstructors;
         this.availableMethods = availableMethods;
+    }
+
+    public KalkanException asSystemError() {
+        this.isSystemError = true;
+        return this;
     }
 
 }

@@ -34,7 +34,7 @@ public class ReflectionHelper {
             try {
                 return Class.forName(name);
             } catch (ClassNotFoundException e) {
-                log.error("ERROR: Kalkan class not found: {}, Available classpath: {}", name, System.getProperty("java.class.path"));
+                log.error("ERROR: Kalkan class not found: {}, Available classpath: \n\n{}\n", name, System.getProperty("java.class.path"));
                 throw new KalkanException("Kalkan class not found: " + name, e);
             }
         });

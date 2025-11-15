@@ -37,7 +37,7 @@ public class Signer {
             BeanFactory beanFactory = new BeanFactory(vertx, ApplicationConfig.builder()
                     .certificate(config)
                     .build());
-            beanFactory.init();
+            beanFactory.init(true);
 
             // Get CertificateService from bean factory
             CertificateService certificateService = beanFactory.getCertificateService();
